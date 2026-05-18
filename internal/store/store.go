@@ -1,0 +1,400 @@
+package store
+
+import (
+	"context"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"feed-puller/internal/auth"
+	"feed-puller/internal/rss"
+)
+
+type Store struct {
+	db *sql.DB
+}
+
+func New(db *sql.DB) *Store {
+	return &Store{db: db}
+}
+
+func (s *Store) Migrate(ctx context.Context) error {
+	for _, statement := range migrations {
+		if _, err := s.db.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("执行数据库迁移失败: %w", err)
+		}
+	}
+	return nil
+}
+
+func (s *Store) BootstrapAdmin(ctx context.Context, email, password string) error {
+	email = strings.TrimSpace(strings.ToLower(email))
+	if email == "" || password == "" {
+		return fmt.Errorf("管理员邮箱和密码不能为空")
+	}
+	hash, err := auth.HashPassword(password)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `
+		INSERT INTO users (email, password_hash)
+		VALUES (?, ?)
+		ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), updated_at = CURRENT_TIMESTAMP
+	`, email, hash)
+	if err != nil {
+		return fmt.Errorf("初始化管理员失败: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) Authenticate(ctx context.Context, email, password string) (User, error) {
+	user, err := s.UserByEmail(ctx, email)
+	if err != nil {
+		return User{}, err
+	}
+	if !auth.VerifyPassword(user.PasswordHash, password) {
+		return User{}, sql.ErrNoRows
+	}
+	return user, nil
+}
+
+func (s *Store) UserByEmail(ctx context.Context, email string) (User, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, email, password_hash, COALESCE(feishu_open_id, ''), COALESCE(feishu_name, ''), created_at, updated_at
+		FROM users WHERE email = ?
+	`, strings.TrimSpace(strings.ToLower(email)))
+	return scanUser(row)
+}
+
+func (s *Store) UserByID(ctx context.Context, id int64) (User, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, email, password_hash, COALESCE(feishu_open_id, ''), COALESCE(feishu_name, ''), created_at, updated_at
+		FROM users WHERE id = ?
+	`, id)
+	return scanUser(row)
+}
+
+func (s *Store) UserByFeishuOpenID(ctx context.Context, openID string) (User, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, email, password_hash, COALESCE(feishu_open_id, ''), COALESCE(feishu_name, ''), created_at, updated_at
+		FROM users WHERE feishu_open_id = ?
+	`, strings.TrimSpace(openID))
+	return scanUser(row)
+}
+
+func (s *Store) BindFeishu(ctx context.Context, userID int64, openID, name string) error {
+	if strings.TrimSpace(openID) == "" {
+		return fmt.Errorf("飞书 open_id 不能为空")
+	}
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE users SET feishu_open_id = ?, feishu_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+	`, strings.TrimSpace(openID), strings.TrimSpace(name), userID)
+	if err != nil {
+		return fmt.Errorf("绑定飞书失败: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) UnbindFeishu(ctx context.Context, userID int64) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE users SET feishu_open_id = NULL, feishu_name = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+	`, userID)
+	if err != nil {
+		return fmt.Errorf("解绑飞书失败: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) CreateSession(ctx context.Context, rawToken string, userID int64, expiresAt time.Time) error {
+	tokenHash := HashToken(rawToken)
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)
+	`, tokenHash, userID, expiresAt.UTC())
+	if err != nil {
+		return fmt.Errorf("创建会话失败: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) DeleteSession(ctx context.Context, rawToken string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE token_hash = ?`, HashToken(rawToken))
+	return err
+}
+
+func (s *Store) UserBySession(ctx context.Context, rawToken string) (User, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT u.id, u.email, u.password_hash, COALESCE(u.feishu_open_id, ''), COALESCE(u.feishu_name, ''), u.created_at, u.updated_at
+		FROM sessions s
+		JOIN users u ON u.id = s.user_id
+		WHERE s.token_hash = ? AND s.expires_at > CURRENT_TIMESTAMP
+	`, HashToken(rawToken))
+	return scanUser(row)
+}
+
+func (s *Store) GetSetting(ctx context.Context, key string) (string, error) {
+	var value string
+	err := s.db.QueryRowContext(ctx, `SELECT value FROM settings WHERE name = ?`, key).Scan(&value)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("读取设置失败: %w", err)
+	}
+	return value, nil
+}
+
+func (s *Store) SetSetting(ctx context.Context, key, value string) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO settings (name, value) VALUES (?, ?)
+		ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = CURRENT_TIMESTAMP
+	`, key, value)
+	if err != nil {
+		return fmt.Errorf("保存设置失败: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) ListSubscriptions(ctx context.Context) ([]Subscription, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, name, feed_url, enabled, poll_interval_minutes, download_dir, use_proxy, last_fetched_at, COALESCE(last_error, ''), created_at, updated_at
+		FROM subscriptions ORDER BY id DESC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("查询订阅失败: %w", err)
+	}
+	defer rows.Close()
+	return scanSubscriptions(rows)
+}
+
+func (s *Store) DueSubscriptions(ctx context.Context, now time.Time) ([]Subscription, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, name, feed_url, enabled, poll_interval_minutes, download_dir, use_proxy, last_fetched_at, COALESCE(last_error, ''), created_at, updated_at
+		FROM subscriptions
+		WHERE enabled = TRUE
+		  AND (last_fetched_at IS NULL OR DATE_ADD(last_fetched_at, INTERVAL poll_interval_minutes MINUTE) <= ?)
+		ORDER BY id ASC
+	`, now.UTC())
+	if err != nil {
+		return nil, fmt.Errorf("查询待拉取订阅失败: %w", err)
+	}
+	defer rows.Close()
+	return scanSubscriptions(rows)
+}
+
+func (s *Store) GetSubscription(ctx context.Context, id int64) (Subscription, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, name, feed_url, enabled, poll_interval_minutes, download_dir, use_proxy, last_fetched_at, COALESCE(last_error, ''), created_at, updated_at
+		FROM subscriptions WHERE id = ?
+	`, id)
+	return scanSubscription(row)
+}
+
+func (s *Store) CreateSubscription(ctx context.Context, sub Subscription) (Subscription, error) {
+	if err := validateSubscription(sub); err != nil {
+		return Subscription{}, err
+	}
+	result, err := s.db.ExecContext(ctx, `
+		INSERT INTO subscriptions (name, feed_url, enabled, poll_interval_minutes, download_dir, use_proxy)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, strings.TrimSpace(sub.Name), strings.TrimSpace(sub.FeedURL), sub.Enabled, sub.PollIntervalMinutes, strings.TrimSpace(sub.DownloadDir), sub.UseProxy)
+	if err != nil {
+		return Subscription{}, fmt.Errorf("创建订阅失败: %w", err)
+	}
+	id, _ := result.LastInsertId()
+	return s.GetSubscription(ctx, id)
+}
+
+func (s *Store) UpdateSubscription(ctx context.Context, id int64, sub Subscription) (Subscription, error) {
+	if err := validateSubscription(sub); err != nil {
+		return Subscription{}, err
+	}
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE subscriptions
+		SET name = ?, feed_url = ?, enabled = ?, poll_interval_minutes = ?, download_dir = ?, use_proxy = ?, updated_at = CURRENT_TIMESTAMP
+		WHERE id = ?
+	`, strings.TrimSpace(sub.Name), strings.TrimSpace(sub.FeedURL), sub.Enabled, sub.PollIntervalMinutes, strings.TrimSpace(sub.DownloadDir), sub.UseProxy, id)
+	if err != nil {
+		return Subscription{}, fmt.Errorf("更新订阅失败: %w", err)
+	}
+	return s.GetSubscription(ctx, id)
+}
+
+func (s *Store) DeleteSubscription(ctx context.Context, id int64) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM subscriptions WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("删除订阅失败: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) SaveFeedItems(ctx context.Context, subscriptionID int64, items []rss.FeedItem) (int, error) {
+	inserted := 0
+	for _, item := range items {
+		key := rss.DedupeKey(item)
+		if key == "" {
+			continue
+		}
+		var existingID int64
+		err := s.db.QueryRowContext(ctx, `
+			SELECT id FROM feed_items WHERE subscription_id = ? AND dedupe_key = ?
+		`, subscriptionID, key).Scan(&existingID)
+		if err == nil {
+			_, _ = s.db.ExecContext(ctx, `
+				UPDATE feed_items SET title = ?, link = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+			`, strings.TrimSpace(item.Title), strings.TrimSpace(item.Link), existingID)
+			continue
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return inserted, fmt.Errorf("查询条目失败: %w", err)
+		}
+		status := "skipped"
+		if strings.TrimSpace(item.DownloadURL) != "" {
+			status = "pending"
+		}
+		_, err = s.db.ExecContext(ctx, `
+			INSERT INTO feed_items (subscription_id, guid, title, link, download_url, dedupe_key, published_at, download_status)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`, subscriptionID, strings.TrimSpace(item.GUID), strings.TrimSpace(item.Title), strings.TrimSpace(item.Link), strings.TrimSpace(item.DownloadURL), key, nullableTime(item.PublishedAt), status)
+		if err != nil {
+			return inserted, fmt.Errorf("保存条目失败: %w", err)
+		}
+		inserted++
+	}
+	return inserted, nil
+}
+
+func (s *Store) MarkSubscriptionFetched(ctx context.Context, id int64, errText string) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE subscriptions SET last_fetched_at = CURRENT_TIMESTAMP, last_error = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+	`, nullableString(errText), id)
+	return err
+}
+
+func (s *Store) ListItems(ctx context.Context, subscriptionID int64, limit int) ([]Item, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	query := `
+		SELECT id, subscription_id, COALESCE(guid, ''), title, COALESCE(link, ''), COALESCE(download_url, ''), dedupe_key, published_at, download_status, created_at, updated_at
+		FROM feed_items
+	`
+	var rows *sql.Rows
+	var err error
+	if subscriptionID > 0 {
+		rows, err = s.db.QueryContext(ctx, query+` WHERE subscription_id = ? ORDER BY id DESC LIMIT ?`, subscriptionID, limit)
+	} else {
+		rows, err = s.db.QueryContext(ctx, query+` ORDER BY id DESC LIMIT ?`, limit)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("查询条目失败: %w", err)
+	}
+	defer rows.Close()
+	return scanItems(rows)
+}
+
+func (s *Store) ListDownloads(ctx context.Context, limit int) ([]DownloadTask, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, item_id, subscription_id, url, dir, status, COALESCE(aria2_gid, ''), COALESCE(error, ''), created_at, updated_at
+		FROM download_tasks ORDER BY id DESC LIMIT ?
+	`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("查询下载任务失败: %w", err)
+	}
+	defer rows.Close()
+	return scanDownloadTasks(rows)
+}
+
+func (s *Store) PendingDownloads(ctx context.Context, limit int) ([]PendingDownload, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT i.id, i.subscription_id, i.download_url, sub.download_dir
+		FROM feed_items i
+		JOIN subscriptions sub ON sub.id = i.subscription_id
+		WHERE i.download_status IN ('pending', 'failed') AND i.download_url IS NOT NULL AND i.download_url <> ''
+		ORDER BY i.id ASC LIMIT ?
+	`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("查询待下载条目失败: %w", err)
+	}
+	defer rows.Close()
+	var pending []PendingDownload
+	for rows.Next() {
+		var item PendingDownload
+		if err := rows.Scan(&item.ItemID, &item.SubscriptionID, &item.URL, &item.Dir); err != nil {
+			return nil, err
+		}
+		pending = append(pending, item)
+	}
+	return pending, rows.Err()
+}
+
+func (s *Store) MarkDownloadSubmitting(ctx context.Context, itemID int64) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE feed_items SET download_status = 'submitting', updated_at = CURRENT_TIMESTAMP WHERE id = ?`, itemID)
+	return err
+}
+
+func (s *Store) RecordDownloadResult(ctx context.Context, pending PendingDownload, status, gid, errText string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO download_tasks (item_id, subscription_id, url, dir, status, aria2_gid, error)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, pending.ItemID, pending.SubscriptionID, pending.URL, pending.Dir, status, nullableString(gid), nullableString(errText))
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `
+		UPDATE feed_items SET download_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+	`, status, pending.ItemID)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func HashToken(rawToken string) string {
+	sum := sha256.Sum256([]byte(rawToken))
+	return hex.EncodeToString(sum[:])
+}
+
+func validateSubscription(sub Subscription) error {
+	if strings.TrimSpace(sub.Name) == "" {
+		return fmt.Errorf("订阅名称不能为空")
+	}
+	if strings.TrimSpace(sub.FeedURL) == "" {
+		return fmt.Errorf("订阅地址不能为空")
+	}
+	if strings.TrimSpace(sub.DownloadDir) == "" {
+		return fmt.Errorf("下载目录不能为空")
+	}
+	if sub.PollIntervalMinutes <= 0 {
+		return fmt.Errorf("拉取间隔必须大于 0")
+	}
+	return nil
+}
+
+func nullableString(value string) any {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	return value
+}
+
+func nullableTime(value *time.Time) any {
+	if value == nil {
+		return nil
+	}
+	return value.UTC()
+}

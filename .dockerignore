@@ -1,0 +1,14 @@
+.git
+.DS_Store
+.env
+.env.local
+node_modules
+web/dist
+coverage
+bin
+feed-puller
+tmp
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+

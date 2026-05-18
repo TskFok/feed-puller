@@ -1,0 +1,21 @@
+services:
+  feed-puller:
+    build:
+      context: .
+    image: feed-puller:local
+    environment:
+      PORT: ${PORT:-8080}
+      BASE_URL: ${BASE_URL:-http://localhost:8080}
+      MYSQL_DSN: ${MYSQL_DSN}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      SESSION_SECRET: ${SESSION_SECRET}
+      ARIA2_RPC_URL: ${ARIA2_RPC_URL}
+      ARIA2_RPC_SECRET: ${ARIA2_RPC_SECRET:-}
+      FEISHU_APP_ID: ${FEISHU_APP_ID:-}
+      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
+      STATIC_DIR: /app/web/dist
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+

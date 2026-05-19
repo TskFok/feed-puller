@@ -875,3 +875,28 @@ th {
   margin-top: 8px;
 }
 
+.download-progress {
+  display: grid;
+  gap: 6px;
+  min-width: 160px;
+}
+
+.download-progress-bar {
+  height: 8px;
+  background: #e8edf4;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.download-progress-fill {
+  height: 100%;
+  background: #0f766e;
+  border-radius: 4px;
+  transition: width 0.35s ease;
+}
+
+.download-progress-label {
+  font-size: 12px;
+  line-height: 1.4;
+}
+

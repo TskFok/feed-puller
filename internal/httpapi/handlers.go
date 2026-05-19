@@ -261,6 +261,32 @@ func (s *Server) handleDownloads(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, tasks)
 }
 
+func (s *Server) handleActiveDownloads(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return
+	}
+	rows, err := s.service.ListActiveDownloadsWithProgress(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, rows)
+}
+
+func (s *Server) handleCompletedDownloads(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return
+	}
+	rows, err := s.store.ListCompletedDownloads(r.Context(), 200)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, rows)
+}
+
 func (s *Server) handleDownloadByID(w http.ResponseWriter, r *http.Request) {
 	_, tail, ok := parseIDTail(r.URL.Path, "/api/downloads/")
 	if !ok || tail != "retry" {

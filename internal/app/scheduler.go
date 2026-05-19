@@ -46,4 +46,7 @@ func (s *Scheduler) runOnce(ctx context.Context) {
 	if err := s.service.SubmitPendingDownloads(ctx); err != nil {
 		s.log.Warn("提交下载队列失败", "error", err)
 	}
+	if err := s.service.SyncAria2DownloadStatus(ctx); err != nil {
+		s.log.Warn("同步 aria2 下载状态失败", "error", err)
+	}
 }

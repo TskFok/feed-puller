@@ -1,4 +1,6 @@
 import type {
+  ActiveDownload,
+  CompletedDownload,
   DownloadTask,
   FeedItem,
   PolledFeedItem,
@@ -66,6 +68,9 @@ export const api = {
       await request<FeedItem[]>(subscriptionId ? `/api/items?subscription_id=${subscriptionId}` : '/api/items')
     ),
   downloads: async () => asArray<DownloadTask>(await request<DownloadTask[]>('/api/downloads')),
+  activeDownloads: async () => asArray<ActiveDownload>(await request<ActiveDownload[]>('/api/downloads/active')),
+  completedDownloads: async () =>
+    asArray<CompletedDownload>(await request<CompletedDownload[]>('/api/downloads/completed')),
   proxy: () => request<{ proxy_url: string }>('/api/settings/proxy'),
   saveProxy: (proxy_url: string) =>
     request<{ proxy_url: string }>('/api/settings/proxy', { method: 'PUT', json: { proxy_url } }),

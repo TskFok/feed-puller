@@ -1,7 +1,9 @@
 import { FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  CheckCircle2,
   Download,
+  Loader2,
   GripVertical,
   LogOut,
   Plus,
@@ -9,6 +11,7 @@ import {
   Rss,
   Settings,
   ShieldCheck,
+  Copy,
   SquarePen,
   Trash2,
   X
@@ -16,6 +19,8 @@ import {
 import { api } from './api';
 import { useFeishuQR } from './feishu-qr';
 import type {
+  ActiveDownload,
+  CompletedDownload,
   FeedItem,
   PolledFeedItem,
   PollSchedulePreviewInput,
@@ -23,7 +28,7 @@ import type {
   User
 } from './types';
 
-type Tab = 'subscriptions' | 'settings';
+type Tab = 'subscriptions' | 'active' | 'completed' | 'settings';
 
 const IANA_TIMEZONE_GROUPS = [
   {
@@ -210,6 +215,8 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
         </div>
         <nav className="nav" aria-label="主导航">
           <NavButton tab="subscriptions" active={tab} setTab={setTab} icon={<Rss size={18} />} label="订阅" />
+          <NavButton tab="active" active={tab} setTab={setTab} icon={<Loader2 size={18} />} label="下载中" />
+          <NavButton tab="completed" active={tab} setTab={setTab} icon={<CheckCircle2 size={18} />} label="下载完成" />
           <NavButton tab="settings" active={tab} setTab={setTab} icon={<Settings size={18} />} label="设置" />
         </nav>
         <div className="account">
@@ -222,6 +229,8 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
       </aside>
       <main className="workspace">
         {tab === 'subscriptions' && <SubscriptionsView />}
+        {tab === 'active' && <ActiveDownloadsView />}
+        {tab === 'completed' && <CompletedDownloadsView />}
         {tab === 'settings' && <SettingsView user={user} setUser={setUser} />}
       </main>
     </div>
@@ -390,7 +399,16 @@ function subscriptionToDraft(sub: Subscription): Omit<Subscription, 'id'> {
   };
 }
 
-type SubscriptionModalTarget = { mode: 'create' } | { mode: 'edit'; subscriptionId: number };
+function subscriptionToDraftForCopy(sub: Subscription): Omit<Subscription, 'id'> {
+  const draft = subscriptionToDraft(sub);
+  const suffix = ' (副本)';
+  draft.name = draft.name.endsWith(suffix) ? draft.name : `${draft.name}${suffix}`;
+  return draft;
+}
+
+type SubscriptionModalTarget =
+  | { mode: 'create'; copyFromId?: number }
+  | { mode: 'edit'; subscriptionId: number };
 
 function SubscriptionModal({
   target,
@@ -404,16 +422,24 @@ function SubscriptionModal({
   onSuccess: (saved: Subscription) => void | Promise<void>;
 }) {
   const isCreate = target.mode === 'create';
+  const copyFrom =
+    target.mode === 'create' && target.copyFromId != null
+      ? subscriptions.find((s) => s.id === target.copyFromId)
+      : undefined;
   const subscription =
     target.mode === 'edit' ? subscriptions.find((s) => s.id === target.subscriptionId) : undefined;
   const titleId = useId();
   const firstFieldRef = useRef<HTMLInputElement>(null);
-  const [draft, setDraft] = useState<Omit<Subscription, 'id'>>(() =>
-    isCreate || !subscription ? { ...emptySubscription } : subscriptionToDraft(subscription)
-  );
-  const [scheduleKind, setScheduleKind] = useState<'interval' | 'cron'>(() =>
-    isCreate || !subscription ? 'interval' : subscription.poll_cron.trim() !== '' ? 'cron' : 'interval'
-  );
+  const [draft, setDraft] = useState<Omit<Subscription, 'id'>>(() => {
+    if (copyFrom) return subscriptionToDraftForCopy(copyFrom);
+    if (isCreate || !subscription) return { ...emptySubscription };
+    return subscriptionToDraft(subscription);
+  });
+  const [scheduleKind, setScheduleKind] = useState<'interval' | 'cron'>(() => {
+    const source = copyFrom ?? (isCreate ? undefined : subscription);
+    if (!source) return 'interval';
+    return source.poll_cron.trim() !== '' ? 'cron' : 'interval';
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -475,6 +501,9 @@ function SubscriptionModal({
   if (!isCreate && !subscription) {
     return null;
   }
+  if (isCreate && target.copyFromId != null && !copyFrom) {
+    return null;
+  }
 
   return (
     <div className="modal-overlay" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -492,7 +521,9 @@ function SubscriptionModal({
             </h2>
             <p className="muted modal-subtitle">
               {isCreate
-                ? '保存后不会自动拉取；请在列表点「拉取」或按 Crontab/间隔等待调度。'
+                ? copyFrom
+                  ? `已填入「${copyFrom.name}」的配置，保存后将创建新订阅。`
+                  : '保存后不会自动拉取；请在列表点「拉取」或按 Crontab/间隔等待调度。'
                 : `#${subscription!.id} · ${subscription!.feed_url}`}
             </p>
           </div>
@@ -754,6 +785,7 @@ function canSelectFeedItem(row: FeedItemDownloadRow): boolean {
 function feedItemDownloadButtonLabel(status: string): string {
   if (status === 'pending') return '下载';
   if (status === 'failed') return '重试';
+  if (status === 'completed') return '重新下载';
   return '重新下载';
 }
 
@@ -763,6 +795,7 @@ function fetchPreviewStatus(row: PolledFeedItem): string {
   if (row.download_status === 'pending') return '未处理';
   if (row.download_status === 'failed') return '失败';
   if (row.download_status === 'submitting') return '提交中';
+  if (row.download_status === 'completed') return '已完成';
   return '已处理';
 }
 
@@ -1057,6 +1090,176 @@ function moveListItem<T>(list: T[], from: number, to: number): T[] {
   return next;
 }
 
+function formatSpeed(bps: number): string {
+  return `${formatBytes(bps)}/s`;
+}
+
+function aria2StatusLabel(status: string): string {
+  switch (status) {
+    case 'active':
+      return '下载中';
+    case 'waiting':
+      return '等待中';
+    case 'paused':
+      return '已暂停';
+    case 'complete':
+      return '已完成';
+    case 'error':
+      return '失败';
+    default:
+      return status || '未知';
+  }
+}
+
+function ActiveDownloadsView() {
+  const [rows, setRows] = useState<ActiveDownload[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const load = useCallback(async () => {
+    try {
+      setRows(await api.activeDownloads());
+      setError('');
+    } catch (err) {
+      setError(messageOf(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    void load();
+    const timer = window.setInterval(() => {
+      void load();
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [load]);
+
+  return (
+    <section className="view">
+      <Header title="下载中" description="展示已提交 aria2 的任务及实时进度，每 5 秒刷新。" />
+      {error && <p className="error">{error}</p>}
+      {loading && rows.length === 0 ? (
+        <p className="muted">正在加载…</p>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>订阅</th>
+                <th>标题</th>
+                <th>进度</th>
+                <th>速度</th>
+                <th>状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.subscription_name}</td>
+                  <td className="break">{row.title || row.url || '（无标题）'}</td>
+                  <td>
+                    <DownloadProgressCell row={row} />
+                  </td>
+                  <td className="muted">{row.status_error ? '—' : formatSpeed(row.download_speed)}</td>
+                  <td className="muted">
+                    {row.status_error ? <span className="error">{row.status_error}</span> : aria2StatusLabel(row.aria2_status)}
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 && !loading && <EmptyRow columns={5} text="当前没有进行中的下载" />}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DownloadProgressCell({ row }: { row: ActiveDownload }) {
+  if (row.status_error) {
+    return <span className="muted">—</span>;
+  }
+  const percent = row.progress_percent;
+  const hasTotal = row.total_length > 0;
+  const label = hasTotal
+    ? `${formatBytes(row.completed_length)} / ${formatBytes(row.total_length)}`
+    : formatBytes(row.completed_length);
+  const width = percent != null ? Math.min(100, Math.max(0, percent)) : 0;
+
+  return (
+    <div className="download-progress">
+      <div className="download-progress-bar" role="progressbar" aria-valuenow={width} aria-valuemin={0} aria-valuemax={100}>
+        <div className="download-progress-fill" style={{ width: hasTotal ? `${width}%` : '0%' }} />
+      </div>
+      <span className="download-progress-label muted">
+        {hasTotal && percent != null ? `${percent.toFixed(1)}% · ${label}` : `${aria2StatusLabel(row.aria2_status)} · ${label}`}
+      </span>
+    </div>
+  );
+}
+
+function CompletedDownloadsView() {
+  const [rows, setRows] = useState<CompletedDownload[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const load = useCallback(async () => {
+    try {
+      setRows(await api.completedDownloads());
+      setError('');
+    } catch (err) {
+      setError(messageOf(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    void load();
+    const timer = window.setInterval(() => {
+      void load();
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, [load]);
+
+  return (
+    <section className="view">
+      <Header title="下载完成" description="aria2 任务完成后会自动出现在此列表，每 30 秒刷新一次。" />
+      {error && <p className="error">{error}</p>}
+      {loading && rows.length === 0 ? (
+        <p className="muted">正在加载…</p>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>订阅</th>
+                <th>标题</th>
+                <th>保存目录</th>
+                <th>完成时间</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.subscription_name}</td>
+                  <td className="break">{row.title || row.url || '（无标题）'}</td>
+                  <td className="break muted">{row.dir}</td>
+                  <td>{formatTime(row.completed_at) || '—'}</td>
+                </tr>
+              ))}
+              {rows.length === 0 && !loading && <EmptyRow columns={4} text="暂无已完成的下载" />}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function SubscriptionsView() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [subscriptionModal, setSubscriptionModal] = useState<SubscriptionModalTarget | null>(null);
@@ -1078,6 +1281,10 @@ function SubscriptionsView() {
 
   function edit(sub: Subscription) {
     setSubscriptionModal({ mode: 'edit', subscriptionId: sub.id });
+  }
+
+  function copySubscription(sub: Subscription) {
+    setSubscriptionModal({ mode: 'create', copyFromId: sub.id });
   }
 
   function upsertSubscription(saved: Subscription) {
@@ -1129,7 +1336,7 @@ function SubscriptionsView() {
 
   return (
     <section className="view">
-      <Header title="订阅" description="拖动左侧手柄可调整顺序；点「拉取」预览条目，点「编辑」配置地址与过滤规则。" />
+      <Header title="订阅" description="拖动左侧手柄可调整顺序；点「拉取」预览条目，点「编辑」配置地址与过滤规则，点「复制」基于已有订阅新建。" />
       {fetchPreview && (
         <FetchPreviewModal
           subscriptionName={fetchPreview.name}
@@ -1139,7 +1346,13 @@ function SubscriptionsView() {
       )}
       {subscriptionModal && (
         <SubscriptionModal
-          key={subscriptionModal.mode === 'edit' ? subscriptionModal.subscriptionId : 'create'}
+          key={
+            subscriptionModal.mode === 'edit'
+              ? subscriptionModal.subscriptionId
+              : subscriptionModal.copyFromId != null
+                ? `copy-${subscriptionModal.copyFromId}`
+                : 'create'
+          }
           target={subscriptionModal}
           subscriptions={subscriptions}
           onClose={() => setSubscriptionModal(null)}
@@ -1229,6 +1442,16 @@ function SubscriptionsView() {
                   <button className="icon-text" disabled={rowBusy} onClick={() => edit(sub)}>
                     <SquarePen size={16} />
                     编辑
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-text"
+                    disabled={rowBusy}
+                    aria-label={`复制 ${sub.name}`}
+                    onClick={() => copySubscription(sub)}
+                  >
+                    <Copy size={16} aria-hidden="true" />
+                    复制
                   </button>
                   <button
                     className="danger"

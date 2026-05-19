@@ -8,6 +8,7 @@ const (
 	StatusSubmitted  DownloadStatus = "submitted"
 	StatusFailed     DownloadStatus = "failed"
 	StatusSkipped    DownloadStatus = "skipped"
+	StatusCompleted  DownloadStatus = "completed"
 )
 
 type FeedItem struct {

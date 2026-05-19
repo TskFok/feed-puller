@@ -60,6 +60,31 @@ type DownloadTask struct {
 	UpdatedAt      time.Time `json:"updated_at"`
 }
 
+// ActiveDownload 表示进行中的下载任务（status=submitted，已提交 aria2）。
+type ActiveDownload struct {
+	ID               int64     `json:"id"`
+	ItemID           int64     `json:"item_id"`
+	SubscriptionID   int64     `json:"subscription_id"`
+	SubscriptionName string    `json:"subscription_name"`
+	Title            string    `json:"title"`
+	URL              string    `json:"url"`
+	Dir              string    `json:"dir"`
+	Aria2GID         string    `json:"aria2_gid"`
+	SubmittedAt      time.Time `json:"submitted_at"`
+}
+
+// CompletedDownload 表示一条已完成的 aria2 下载记录（用于列表展示）。
+type CompletedDownload struct {
+	ID               int64     `json:"id"`
+	ItemID           int64     `json:"item_id"`
+	SubscriptionID   int64     `json:"subscription_id"`
+	SubscriptionName string    `json:"subscription_name"`
+	Title            string    `json:"title"`
+	URL              string    `json:"url"`
+	Dir              string    `json:"dir"`
+	CompletedAt      time.Time `json:"completed_at"`
+}
+
 type PendingDownload struct {
 	ItemID         int64
 	SubscriptionID int64

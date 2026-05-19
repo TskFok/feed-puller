@@ -81,4 +81,8 @@ var migrations = []string{
 	`UPDATE subscriptions SET sort_order = -id WHERE sort_order = 0 AND id > 0`,
 	`ALTER TABLE subscriptions
 		ADD COLUMN IF NOT EXISTS rss_parser VARCHAR(32) NOT NULL DEFAULT 'generic'`,
+	`ALTER TABLE feed_items
+		MODIFY COLUMN download_status ENUM('pending', 'submitting', 'submitted', 'failed', 'skipped', 'completed') NOT NULL DEFAULT 'pending'`,
+	`ALTER TABLE download_tasks
+		MODIFY COLUMN status ENUM('pending', 'submitting', 'submitted', 'failed', 'skipped', 'completed') NOT NULL`,
 }

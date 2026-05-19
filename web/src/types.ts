@@ -89,3 +89,32 @@ export type DownloadTask = {
   created_at: string;
 };
 
+export type ActiveDownload = {
+  id: number;
+  item_id: number;
+  subscription_id: number;
+  subscription_name: string;
+  title: string;
+  url: string;
+  dir: string;
+  aria2_gid: string;
+  submitted_at: string;
+  aria2_status: string;
+  completed_length: number;
+  total_length: number;
+  download_speed: number;
+  progress_percent?: number | null;
+  status_error?: string;
+};
+
+export type CompletedDownload = {
+  id: number;
+  item_id: number;
+  subscription_id: number;
+  subscription_name: string;
+  title: string;
+  url: string;
+  dir: string;
+  completed_at: string;
+};
+

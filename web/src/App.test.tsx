@@ -319,6 +319,65 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: '关闭编辑订阅' })).toBeInTheDocument();
   });
 
+  it('点击复制后以新增订阅弹窗预填内容且不自动保存', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      const method = (init?.method ?? 'GET').toUpperCase();
+      if (path === '/api/auth/me') {
+        return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      if (path === '/api/subscriptions' && method === 'GET') {
+        return new Response(
+          JSON.stringify([
+            {
+              id: 9,
+              name: 'Demo',
+              feed_url: 'https://example.test/feed.xml',
+              enabled: true,
+              poll_interval_minutes: 45,
+              poll_cron: '',
+              poll_cron_timezone: 'UTC',
+              download_dir: '/data',
+              include_keywords: 'a',
+              exclude_keywords: 'b',
+              use_proxy: true,
+              rss_parser: 'mikan'
+            }
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (path === '/api/subscriptions' && method === 'POST') {
+        return new Response(JSON.stringify({ id: 99 }), { status: 201 });
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /复制 Demo/ }));
+
+    const dialog = await screen.findByRole('dialog', { name: '新增订阅' });
+    expect(screen.getByRole('heading', { name: '新增订阅' })).toBeInTheDocument();
+    expect(within(dialog).getByText(/已填入「Demo」的配置/)).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Demo (副本)')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('https://example.test/feed.xml')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('/data')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('a')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('b')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '创建订阅' })).toBeInTheDocument();
+
+    const postCalls = fetchMock.mock.calls.filter(
+      ([url, init]) => String(url) === '/api/subscriptions' && (init?.method ?? 'GET').toUpperCase() === 'POST'
+    );
+    expect(postCalls).toHaveLength(0);
+  });
+
   it('点击拉取后展示条目预览弹窗', async () => {
     vi.stubGlobal(
       'fetch',
@@ -796,6 +855,100 @@ describe('App', () => {
     expect(await screen.findByText('订阅顺序已保存')).toBeInTheDocument();
     const names = screen.getAllByRole('row').slice(1).map((row) => within(row).getAllByRole('cell')[1].textContent);
     expect(names).toEqual(['Second', 'First']);
+  });
+
+  it('登录后可进入下载中列表并显示进度', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/subscriptions') {
+          return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (path === '/api/downloads/active') {
+          return new Response(
+            JSON.stringify([
+              {
+                id: 2,
+                item_id: 11,
+                subscription_id: 3,
+                subscription_name: '动漫',
+                title: '进行中番剧',
+                url: 'https://example.test/b.mp4',
+                dir: '/data/anime',
+                aria2_gid: 'gid-2',
+                submitted_at: '2026-05-19T11:00:00Z',
+                aria2_status: 'active',
+                completed_length: 500,
+                total_length: 1000,
+                download_speed: 1024,
+                progress_percent: 50
+              }
+            ]),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '下载中' }));
+    await waitFor(() => expect(screen.getByRole('heading', { name: '下载中' })).toBeInTheDocument());
+    expect(screen.getByText('进行中番剧')).toBeInTheDocument();
+    expect(screen.getByText(/50\.0%/)).toBeInTheDocument();
+    expect(screen.getByText('1.0 KB/s')).toBeInTheDocument();
+  });
+
+  it('登录后可进入下载完成列表', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/subscriptions') {
+          return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (path === '/api/downloads/completed') {
+          return new Response(
+            JSON.stringify([
+              {
+                id: 1,
+                item_id: 10,
+                subscription_id: 2,
+                subscription_name: '动漫',
+                title: '示例番剧',
+                url: 'https://example.test/a.mp4',
+                dir: '/data/anime',
+                completed_at: '2026-05-19T12:00:00Z'
+              }
+            ]),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '下载完成' }));
+    await waitFor(() => expect(screen.getByRole('heading', { name: '下载完成' })).toBeInTheDocument());
+    expect(screen.getByText('动漫')).toBeInTheDocument();
+    expect(screen.getByText('示例番剧')).toBeInTheDocument();
+    expect(screen.getByText('/data/anime')).toBeInTheDocument();
   });
 });
 

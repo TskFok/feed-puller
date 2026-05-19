@@ -3,6 +3,7 @@ import type {
   FeedItem,
   PolledFeedItem,
   BatchDownloadResult,
+  BatchStatusResult,
   PollSchedulePreviewInput,
   PollSchedulePreviewResult,
   Subscription,
@@ -46,6 +47,8 @@ export const api = {
   updateSubscription: (id: number, payload: Omit<Subscription, 'id'>) =>
     request<Subscription>(`/api/subscriptions/${id}`, { method: 'PUT', json: payload }),
   deleteSubscription: (id: number) => request<{ ok: boolean }>(`/api/subscriptions/${id}`, { method: 'DELETE' }),
+  reorderSubscriptions: (subscriptionIds: number[]) =>
+    request<{ ok: boolean }>('/api/subscriptions/reorder', { method: 'PUT', json: { subscription_ids: subscriptionIds } }),
   refreshSubscription: (id: number) =>
     request<{ items: PolledFeedItem[] }>(`/api/subscriptions/${id}/refresh`, { method: 'POST' }),
   previewNextPoll: (payload: PollSchedulePreviewInput) =>
@@ -53,6 +56,11 @@ export const api = {
   downloadFeedItem: (id: number) => request<FeedItem>(`/api/items/${id}/download`, { method: 'POST' }),
   batchDownloadFeedItems: (itemIds: number[]) =>
     request<BatchDownloadResult>('/api/items/batch-download', { method: 'POST', json: { item_ids: itemIds } }),
+  batchUpdateFeedItemStatus: (itemIds: number[], downloadStatus: 'pending' | 'submitted') =>
+    request<BatchStatusResult>('/api/items/batch-status', {
+      method: 'POST',
+      json: { item_ids: itemIds, download_status: downloadStatus }
+    }),
   items: async (subscriptionId?: number) =>
     asArray<FeedItem>(
       await request<FeedItem[]>(subscriptionId ? `/api/items?subscription_id=${subscriptionId}` : '/api/items')

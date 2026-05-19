@@ -32,7 +32,7 @@ func (s *Service) PollSubscription(ctx context.Context, sub store.Subscription) 
 	if err != nil {
 		return nil, err
 	}
-	feed, err := fetcher.Fetch(ctx, sub.FeedURL, sub.UseProxy)
+	feed, err := fetcher.Fetch(ctx, sub.FeedURL, sub.UseProxy, sub.RSSParser)
 	if err != nil {
 		_ = s.store.MarkSubscriptionFetched(ctx, sub.ID, err.Error())
 		return nil, err
@@ -67,6 +67,22 @@ func (s *Service) SubmitItemDownload(ctx context.Context, itemID int64) error {
 	if strings.TrimSpace(item.DownloadURL) == "" {
 		return fmt.Errorf("条目没有下载地址")
 	}
+	downloadURL := strings.TrimSpace(item.DownloadURL)
+	if rss.NormalizeParser(sub.RSSParser) == rss.ParserMikan {
+		proxyURL, err := s.store.GetSetting(ctx, proxySettingKey)
+		if err != nil {
+			return err
+		}
+		resolver, err := rss.NewFetcher(proxyURL)
+		if err != nil {
+			return err
+		}
+		resolved, err := rss.ResolveMikanDownloadURL(ctx, resolver, downloadURL, sub.UseProxy)
+		if err != nil {
+			return fmt.Errorf("解析 Mikan 下载地址失败: %w", err)
+		}
+		downloadURL = resolved
+	}
 	if !CanSubmitItemDownload(item.DownloadStatus) {
 		if item.DownloadStatus == "submitting" {
 			return fmt.Errorf("条目正在提交下载，请稍候")
@@ -76,7 +92,7 @@ func (s *Service) SubmitItemDownload(ctx context.Context, itemID int64) error {
 	pending := store.PendingDownload{
 		ItemID:         item.ID,
 		SubscriptionID: item.SubscriptionID,
-		URL:            item.DownloadURL,
+		URL:            downloadURL,
 		Dir:            sub.DownloadDir,
 	}
 	if strings.TrimSpace(pending.Dir) == "" {
@@ -158,7 +174,20 @@ func (s *Service) SubmitPendingDownloads(ctx context.Context) error {
 		if err := s.store.MarkDownloadSubmitting(ctx, item.ItemID); err != nil {
 			return err
 		}
-		gid, err := s.aria2.AddURI(ctx, item.URL, item.Dir)
+		downloadURL := item.URL
+		sub, subErr := s.store.GetSubscription(ctx, item.SubscriptionID)
+		if subErr == nil && rss.NormalizeParser(sub.RSSParser) == rss.ParserMikan {
+			proxyURL, err := s.store.GetSetting(ctx, proxySettingKey)
+			if err == nil {
+				if resolver, err := rss.NewFetcher(proxyURL); err == nil {
+					if resolved, err := rss.ResolveMikanDownloadURL(ctx, resolver, downloadURL, sub.UseProxy); err == nil && resolved != "" {
+						downloadURL = resolved
+					}
+				}
+			}
+		}
+		item.URL = downloadURL
+		gid, err := s.aria2.AddURI(ctx, downloadURL, item.Dir)
 		if err != nil {
 			_ = s.store.RecordDownloadResult(ctx, item, "failed", "", err.Error())
 			s.log.Warn("提交 aria2 失败", "item_id", item.ItemID, "error", err)

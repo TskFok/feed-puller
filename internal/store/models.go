@@ -24,8 +24,10 @@ type Subscription struct {
 	IncludeKeywords     string     `json:"include_keywords"`
 	ExcludeKeywords     string     `json:"exclude_keywords"`
 	UseProxy            bool       `json:"use_proxy"`
+	RSSParser           string     `json:"rss_parser"`
 	LastFetchedAt       *time.Time `json:"last_fetched_at,omitempty"`
 	LastError           string     `json:"last_error,omitempty"`
+	SortOrder           int        `json:"sort_order"`
 	NextPollAt          *time.Time `json:"next_poll_at,omitempty"` // 由 ApplySubscriptionNextPoll 计算，不入库
 	CreatedAt           time.Time  `json:"created_at"`
 	UpdatedAt           time.Time  `json:"updated_at"`

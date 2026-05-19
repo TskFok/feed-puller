@@ -23,7 +23,7 @@ func TestFetcherUsesProxyOnlyWhenSubscriptionRequiresIt(t *testing.T) {
 		})},
 	}
 
-	direct, err := fetcher.Fetch(context.Background(), "https://example.com/feed.xml", false)
+	direct, err := fetcher.Fetch(context.Background(), "https://example.com/feed.xml", false, ParserGeneric)
 	if err != nil {
 		t.Fatalf("direct Fetch returned error: %v", err)
 	}
@@ -31,7 +31,7 @@ func TestFetcherUsesProxyOnlyWhenSubscriptionRequiresIt(t *testing.T) {
 		t.Fatalf("direct title = %q", direct.Title)
 	}
 
-	proxied, err := fetcher.Fetch(context.Background(), "https://example.com/feed.xml", true)
+	proxied, err := fetcher.Fetch(context.Background(), "https://example.com/feed.xml", true, ParserGeneric)
 	if err != nil {
 		t.Fatalf("proxied Fetch returned error: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestFetcherReturnsConfigurationErrorWhenProxyRequiredButMissing(t *testing.
 		t.Fatalf("NewFetcher returned error: %v", err)
 	}
 
-	_, err = fetcher.Fetch(context.Background(), "https://example.com/feed.xml", true)
+	_, err = fetcher.Fetch(context.Background(), "https://example.com/feed.xml", true, ParserGeneric)
 	if err == nil {
 		t.Fatal("expected error when proxy is required but not configured")
 	}

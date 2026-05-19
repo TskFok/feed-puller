@@ -33,6 +33,25 @@ func (s *Server) handleSubscriptionNextPollPreview(w http.ResponseWriter, r *htt
 	writeJSON(w, http.StatusOK, map[string]string{"next_poll_at": next.UTC().Format(time.RFC3339)})
 }
 
+func (s *Server) handleSubscriptionReorder(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		methodNotAllowed(w)
+		return
+	}
+	var input struct {
+		SubscriptionIDs []int64 `json:"subscription_ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "请求体无效")
+		return
+	}
+	if err := s.store.ReorderSubscriptions(r.Context(), input.SubscriptionIDs); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 func (s *Server) handleSubscriptions(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -146,6 +165,27 @@ func (s *Server) handleItemsList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, items)
+}
+
+func (s *Server) handleItemsBatchStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w)
+		return
+	}
+	var input struct {
+		ItemIDs        []int64 `json:"item_ids"`
+		DownloadStatus string  `json:"download_status"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "请求体无效")
+		return
+	}
+	items, err := s.store.BatchUpdateItemDownloadStatus(r.Context(), input.ItemIDs, input.DownloadStatus)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
 func (s *Server) handleItemsBatchDownload(w http.ResponseWriter, r *http.Request) {
@@ -282,6 +322,7 @@ type subscriptionInput struct {
 	IncludeKeywords     string `json:"include_keywords"`
 	ExcludeKeywords     string `json:"exclude_keywords"`
 	UseProxy            bool   `json:"use_proxy"`
+	RSSParser           string `json:"rss_parser"`
 }
 
 type nextPollPreviewInput struct {
@@ -344,6 +385,7 @@ func (input subscriptionInput) toSubscription() store.Subscription {
 		IncludeKeywords:     strings.TrimSpace(input.IncludeKeywords),
 		ExcludeKeywords:     strings.TrimSpace(input.ExcludeKeywords),
 		UseProxy:            input.UseProxy,
+		RSSParser:           rss.NormalizeParser(input.RSSParser),
 	}
 }
 

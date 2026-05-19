@@ -3,6 +3,8 @@ package store
 import (
 	"database/sql"
 	"time"
+
+	"feed-puller/internal/rss"
 )
 
 type rowScanner interface {
@@ -18,10 +20,11 @@ func scanUser(row rowScanner) (User, error) {
 func scanSubscription(row rowScanner) (Subscription, error) {
 	var sub Subscription
 	var lastFetched sql.NullTime
-	err := row.Scan(&sub.ID, &sub.Name, &sub.FeedURL, &sub.Enabled, &sub.PollIntervalMinutes, &sub.PollCron, &sub.PollCronTimezone, &sub.DownloadDir, &sub.IncludeKeywords, &sub.ExcludeKeywords, &sub.UseProxy, &lastFetched, &sub.LastError, &sub.CreatedAt, &sub.UpdatedAt)
+	err := row.Scan(&sub.ID, &sub.Name, &sub.FeedURL, &sub.Enabled, &sub.PollIntervalMinutes, &sub.PollCron, &sub.PollCronTimezone, &sub.DownloadDir, &sub.IncludeKeywords, &sub.ExcludeKeywords, &sub.UseProxy, &sub.RSSParser, &lastFetched, &sub.LastError, &sub.SortOrder, &sub.CreatedAt, &sub.UpdatedAt)
 	if lastFetched.Valid {
 		sub.LastFetchedAt = &lastFetched.Time
 	}
+	sub.RSSParser = rss.NormalizeParser(sub.RSSParser)
 	return sub, err
 }
 

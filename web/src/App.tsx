@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } f
 import { createPortal } from 'react-dom';
 import {
   Download,
+  GripVertical,
   LogOut,
   Plus,
   RefreshCw,
@@ -24,18 +25,33 @@ import type {
 
 type Tab = 'subscriptions' | 'settings';
 
-/** 下拉快捷项；仍可手动输入任意 IANA 标识 */
-const COMMON_IANA_TIMEZONES = [
-  'UTC',
-  'Asia/Shanghai',
-  'Asia/Hong_Kong',
-  'Asia/Tokyo',
-  'Asia/Singapore',
-  'Europe/Berlin',
-  'Europe/London',
-  'America/New_York',
-  'America/Los_Angeles'
+const IANA_TIMEZONE_GROUPS = [
+  {
+    label: '常用',
+    options: [{ value: 'UTC', label: 'UTC（协调世界时）' }]
+  },
+  {
+    label: '中国',
+    options: [{ value: 'Asia/Shanghai', label: '上海 (UTC+8)' }]
+  },
+  {
+    label: '日本',
+    options: [{ value: 'Asia/Tokyo', label: '东京 (UTC+9)' }]
+  },
+  {
+    label: '美国',
+    options: [
+      { value: 'America/New_York', label: '东部 · 纽约' },
+      { value: 'America/Chicago', label: '中部 · 芝加哥' },
+      { value: 'America/Denver', label: '山地 · 丹佛' },
+      { value: 'America/Los_Angeles', label: '太平洋 · 洛杉矶' }
+    ]
+  }
 ] as const;
+
+const KNOWN_IANA_TIMEZONES = new Set<string>(
+  IANA_TIMEZONE_GROUPS.flatMap((group) => group.options.map((opt) => opt.value))
+);
 
 const emptySubscription: Omit<Subscription, 'id'> = {
   name: '',
@@ -47,8 +63,14 @@ const emptySubscription: Omit<Subscription, 'id'> = {
   download_dir: '',
   include_keywords: '',
   exclude_keywords: '',
-  use_proxy: false
+  use_proxy: false,
+  rss_parser: 'generic'
 };
+
+const RSS_PARSER_OPTIONS = [
+  { value: 'generic', label: '通用 (RSS/Atom)' },
+  { value: 'mikan', label: '蜜柑计划 (Mikan)' }
+] as const;
 
 export function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -363,7 +385,8 @@ function subscriptionToDraft(sub: Subscription): Omit<Subscription, 'id'> {
     download_dir: sub.download_dir,
     include_keywords: sub.include_keywords ?? '',
     exclude_keywords: sub.exclude_keywords ?? '',
-    use_proxy: sub.use_proxy
+    use_proxy: sub.use_proxy,
+    rss_parser: sub.rss_parser?.trim() || 'generic'
   };
 }
 
@@ -384,7 +407,6 @@ function SubscriptionModal({
   const subscription =
     target.mode === 'edit' ? subscriptions.find((s) => s.id === target.subscriptionId) : undefined;
   const titleId = useId();
-  const ianaTzListId = useId();
   const firstFieldRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<Omit<Subscription, 'id'>>(() =>
     isCreate || !subscription ? { ...emptySubscription } : subscriptionToDraft(subscription)
@@ -506,6 +528,25 @@ function SubscriptionModal({
                 spellCheck={false}
               />
             </label>
+            <label className="modal-full">
+              RSS 解析器
+              <select
+                className="form-select"
+                value={draft.rss_parser}
+                onChange={(event) => setDraft({ ...draft, rss_parser: event.target.value })}
+              >
+                {RSS_PARSER_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {draft.rss_parser === 'mikan' && (
+              <p className="muted modal-hint">
+                蜜柑解析器会将 enclosure 中的 .torrent 链接转换为 magnet 后再提交 aria2，与 NaStool 等工具行为更接近。
+              </p>
+            )}
           </fieldset>
 
           <fieldset className="modal-fieldset modal-fieldset-schedule">
@@ -565,26 +606,36 @@ function SubscriptionModal({
                 </label>
                 <label className="modal-full">
                   Crontab 时区（IANA）
-                  <input
+                  <select
+                    className="form-select"
                     aria-label="Crontab 时区（IANA）"
-                    list={ianaTzListId}
                     value={draft.poll_cron_timezone}
-                    onChange={(event) => setDraft({ ...draft, poll_cron_timezone: event.target.value })}
-                    placeholder="Asia/Shanghai（空则视为 UTC）"
-                    spellCheck={false}
-                  />
-                  <datalist id={ianaTzListId}>
-                    {COMMON_IANA_TIMEZONES.map((zone) => (
-                      <option key={zone} value={zone} />
+                    onChange={(event) =>
+                      setDraft({ ...draft, poll_cron_timezone: event.target.value })
+                    }
+                  >
+                    {!KNOWN_IANA_TIMEZONES.has(draft.poll_cron_timezone.trim() || 'UTC') && (
+                      <option value={draft.poll_cron_timezone.trim() || 'UTC'}>
+                        {draft.poll_cron_timezone.trim() || 'UTC'}（已保存）
+                      </option>
+                    )}
+                    {IANA_TIMEZONE_GROUPS.map((group) => (
+                      <optgroup key={group.label} label={group.label}>
+                        {group.options.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
-                  </datalist>
+                  </select>
                 </label>
               </>
             )}
             {scheduleKind === 'cron' && (
               <p className="muted modal-schedule-help">
-                Crontab 在五字段（分 时 日 月 周）下按所选 IANA 时区解释字段含义；未填时区在提交时会按 UTC
-                处理。表达式内不要使用 TZ=/CRON_TZ=。支持 @hourly 等别名。调度器每分钟检查一次。
+                Crontab 在五字段（分 时 日 月 周）下按所选 IANA 时区解释字段含义。表达式内不要使用
+                TZ=/CRON_TZ=。支持 @hourly 等别名。调度器每分钟检查一次。
               </p>
             )}
             <SubscriptionPollMeta
@@ -696,6 +747,10 @@ function canDownloadFeedItem(row: FeedItemDownloadRow): boolean {
   return row.download_status !== 'submitting';
 }
 
+function canSelectFeedItem(row: FeedItemDownloadRow): boolean {
+  return row.download_status !== 'submitting';
+}
+
 function feedItemDownloadButtonLabel(status: string): string {
   if (status === 'pending') return '下载';
   if (status === 'failed') return '重试';
@@ -726,17 +781,21 @@ function FetchPreviewModal({
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
   const [rowLoading, setRowLoading] = useState<number | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
-  const [notice, setNotice] = useState('');
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [notice, setNotice] = useTransientNotice();
   const [error, setError] = useState('');
 
+  const selectableRows = useMemo(() => rows.filter((row) => canSelectFeedItem(row)), [rows]);
+  const selectableIds = useMemo(() => selectableRows.map((row) => row.id), [selectableRows]);
   const downloadableRows = useMemo(() => rows.filter((row) => canDownloadFeedItem(row)), [rows]);
   const downloadableIds = useMemo(() => downloadableRows.map((row) => row.id), [downloadableRows]);
+  const selectedCount = useMemo(() => selectableIds.filter((id) => selected.has(id)).length, [selectableIds, selected]);
   const selectedDownloadableCount = useMemo(
     () => downloadableIds.filter((id) => selected.has(id)).length,
     [downloadableIds, selected]
   );
-  const allDownloadableSelected =
-    downloadableIds.length > 0 && selectedDownloadableCount === downloadableIds.length;
+  const allSelectableSelected = selectableIds.length > 0 && selectedCount === selectableIds.length;
+  const batchBusy = batchLoading || statusLoading;
 
   function applyUpdatedItems(updates: FeedItem[]) {
     if (updates.length === 0) return;
@@ -758,13 +817,13 @@ function FetchPreviewModal({
     });
   }
 
-  function toggleSelectAllDownloadable() {
+  function toggleSelectAll() {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (allDownloadableSelected) {
-        for (const id of downloadableIds) next.delete(id);
+      if (allSelectableSelected) {
+        for (const id of selectableIds) next.delete(id);
       } else {
-        for (const id of downloadableIds) next.add(id);
+        for (const id of selectableIds) next.add(id);
       }
       return next;
     });
@@ -835,6 +894,24 @@ function FetchPreviewModal({
     }
   }
 
+  async function updateSelectedStatus(downloadStatus: 'pending' | 'submitted') {
+    const ids = selectableIds.filter((id) => selected.has(id));
+    if (ids.length === 0) return;
+    setError('');
+    setNotice('');
+    setStatusLoading(true);
+    try {
+      const result = await api.batchUpdateFeedItemStatus(ids, downloadStatus);
+      applyUpdatedItems(result.items);
+      const label = downloadStatus === 'pending' ? '未处理' : '已处理';
+      setNotice(`已将 ${result.items.length} 条标记为${label}`);
+    } catch (err) {
+      setError(messageOf(err));
+    } finally {
+      setStatusLoading(false);
+    }
+  }
+
   return (
     <div className="modal-overlay" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div
@@ -850,7 +927,7 @@ function FetchPreviewModal({
               拉取结果 · {subscriptionName}
             </h2>
             <p className="muted modal-subtitle">
-              勾选条目后可批量下载；单条亦可点击操作列。已处理条目可重新下载，无可下载地址的条目无法勾选。
+              勾选条目后可批量下载或批量修改状态；单条亦可点击操作列。已处理条目可重新下载，提交中的条目无法勾选。
             </p>
           </div>
           <button type="button" className="modal-close ghost" aria-label="关闭拉取结果" onClick={onClose}>
@@ -859,27 +936,47 @@ function FetchPreviewModal({
         </div>
         {notice && <p className="notice modal-notice">{notice}</p>}
         {error && <p className="error modal-error">{error}</p>}
-        {downloadableIds.length > 0 && (
+        {selectableIds.length > 0 && (
           <div className="fetch-preview-toolbar">
             <label className="check fetch-preview-select-all">
               <input
                 id={selectAllId}
                 type="checkbox"
-                checked={allDownloadableSelected}
-                disabled={batchLoading || rowLoading !== null}
-                onChange={toggleSelectAllDownloadable}
+                checked={allSelectableSelected}
+                disabled={batchBusy || rowLoading !== null}
+                onChange={toggleSelectAll}
               />
-              全选可下载（{downloadableIds.length}）
+              全选（{selectableIds.length}）
             </label>
-            <button
-              type="button"
-              className="primary"
-              disabled={batchLoading || rowLoading !== null || selectedDownloadableCount === 0}
-              onClick={downloadSelected}
-            >
-              <Download size={16} aria-hidden="true" />
-              {batchLoading ? '提交中…' : `批量下载（${selectedDownloadableCount}）`}
-            </button>
+            <div className="fetch-preview-toolbar-actions">
+              <button
+                type="button"
+                className="ghost"
+                disabled={batchBusy || rowLoading !== null || selectedCount === 0}
+                onClick={() => updateSelectedStatus('submitted')}
+              >
+                {statusLoading ? '更新中…' : `标记已处理（${selectedCount}）`}
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                disabled={batchBusy || rowLoading !== null || selectedCount === 0}
+                onClick={() => updateSelectedStatus('pending')}
+              >
+                {statusLoading ? '更新中…' : `标记未处理（${selectedCount}）`}
+              </button>
+              {downloadableIds.length > 0 && (
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={batchBusy || rowLoading !== null || selectedDownloadableCount === 0}
+                  onClick={downloadSelected}
+                >
+                  <Download size={16} aria-hidden="true" />
+                  {batchLoading ? '提交中…' : `批量下载（${selectedDownloadableCount}）`}
+                </button>
+              )}
+            </div>
           </div>
         )}
         <div className="table-wrap fetch-preview-table-wrap">
@@ -900,12 +997,12 @@ function FetchPreviewModal({
               {rows.map((row) => (
                 <tr key={row.id}>
                   <td className="fetch-preview-col-check">
-                    {canDownloadFeedItem(row) ? (
+                    {canSelectFeedItem(row) ? (
                       <input
                         type="checkbox"
                         aria-label={`选择 ${row.title || row.link || '条目'}`}
                         checked={selected.has(row.id)}
-                        disabled={batchLoading || rowLoading !== null}
+                        disabled={batchBusy || rowLoading !== null}
                         onChange={(event) => toggleRowSelected(row.id, event.target.checked)}
                       />
                     ) : (
@@ -923,7 +1020,7 @@ function FetchPreviewModal({
                       <button
                         type="button"
                         className="icon-text"
-                        disabled={batchLoading || rowLoading === row.id}
+                        disabled={batchBusy || rowLoading === row.id}
                         onClick={() => downloadRow(row)}
                       >
                         <Download size={16} aria-hidden="true" />
@@ -950,12 +1047,25 @@ function FetchPreviewModal({
   );
 }
 
+function moveListItem<T>(list: T[], from: number, to: number): T[] {
+  if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) {
+    return list;
+  }
+  const next = [...list];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
+
 function SubscriptionsView() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [subscriptionModal, setSubscriptionModal] = useState<SubscriptionModalTarget | null>(null);
   const [fetchPreview, setFetchPreview] = useState<{ name: string; items: PolledFeedItem[] } | null>(null);
   const [fetchLoadingId, setFetchLoadingId] = useState<number | null>(null);
-  const [notice, setNotice] = useState('');
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [reorderSaving, setReorderSaving] = useState(false);
+  const [notice, setNotice] = useTransientNotice();
   const [error, setError] = useState('');
 
   async function load() {
@@ -997,9 +1107,29 @@ function SubscriptionsView() {
     }
   }
 
+  async function commitReorder(from: number, to: number) {
+    if (from === to) return;
+    const previous = subscriptions;
+    const next = moveListItem(subscriptions, from, to);
+    setSubscriptions(next);
+    setReorderSaving(true);
+    setError('');
+    try {
+      await api.reorderSubscriptions(next.map((sub) => sub.id));
+      setNotice('订阅顺序已保存');
+    } catch (err) {
+      setSubscriptions(previous);
+      setError(messageOf(err));
+    } finally {
+      setReorderSaving(false);
+    }
+  }
+
+  const rowBusy = fetchLoadingId !== null || reorderSaving;
+
   return (
     <section className="view">
-      <Header title="订阅" description="列表展示拉取调度摘要；点「拉取」预览条目，点「编辑」配置地址与过滤规则。" />
+      <Header title="订阅" description="拖动左侧手柄可调整顺序；点「拉取」预览条目，点「编辑」配置地址与过滤规则。" />
       {fetchPreview && (
         <FetchPreviewModal
           subscriptionName={fetchPreview.name}
@@ -1034,38 +1164,84 @@ function SubscriptionsView() {
         <table>
           <thead>
             <tr>
+              <th className="sub-drag-col" scope="col">
+                <span className="sr-only">排序</span>
+              </th>
               <th>订阅名称</th>
               <th>拉取调度</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
-            {subscriptions.map((sub) => (
-              <tr key={sub.id}>
+            {subscriptions.map((sub, index) => (
+              <tr
+                key={sub.id}
+                className={dragOverIndex === index && dragIndex !== null && dragIndex !== index ? 'sub-row-drag-over' : undefined}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  if (dragIndex !== null && dragIndex !== index) {
+                    setDragOverIndex(index);
+                  }
+                }}
+                onDragLeave={() => {
+                  if (dragOverIndex === index) setDragOverIndex(null);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  if (dragIndex !== null) {
+                    void commitReorder(dragIndex, index);
+                  }
+                  setDragIndex(null);
+                  setDragOverIndex(null);
+                }}
+              >
+                <td className="sub-drag-cell">
+                  <button
+                    type="button"
+                    className="sub-drag-handle"
+                    draggable={!rowBusy}
+                    aria-label={`拖动调整 ${sub.name} 的顺序`}
+                    disabled={rowBusy}
+                    onDragStart={(event) => {
+                      setDragIndex(index);
+                      event.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragEnd={() => {
+                      setDragIndex(null);
+                      setDragOverIndex(null);
+                    }}
+                  >
+                    <GripVertical size={16} aria-hidden="true" />
+                  </button>
+                </td>
                 <td>{sub.name}</td>
                 <td className="sub-schedule-cell">{subscriptionScheduleSummary(sub)}</td>
                 <td className="actions">
                   <button
                     type="button"
                     className="icon-text"
-                    disabled={fetchLoadingId === sub.id}
+                    disabled={rowBusy || fetchLoadingId === sub.id}
                     onClick={() => pullSubscription(sub)}
                   >
                     <RefreshCw size={16} className={fetchLoadingId === sub.id ? 'icon-spinning' : undefined} aria-hidden="true" />
                     拉取
                   </button>
-                  <button className="icon-text" onClick={() => edit(sub)}>
+                  <button className="icon-text" disabled={rowBusy} onClick={() => edit(sub)}>
                     <SquarePen size={16} />
                     编辑
                   </button>
-                  <button className="danger" onClick={() => api.deleteSubscription(sub.id).then(load).catch((err) => setError(messageOf(err)))}>
+                  <button
+                    className="danger"
+                    disabled={rowBusy}
+                    onClick={() => api.deleteSubscription(sub.id).then(load).catch((err) => setError(messageOf(err)))}
+                  >
                     <Trash2 size={16} />
                     删除
                   </button>
                 </td>
               </tr>
             ))}
-            {subscriptions.length === 0 && <EmptyRow columns={3} text="暂无订阅" />}
+            {subscriptions.length === 0 && <EmptyRow columns={4} text="暂无订阅" />}
           </tbody>
         </table>
       </div>
@@ -1076,7 +1252,7 @@ function SubscriptionsView() {
 
 function SettingsView({ user, setUser }: { user: User; setUser: (user: User | null) => void }) {
   const [proxyURL, setProxyURL] = useState('');
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useTransientNotice();
   const [error, setError] = useState('');
   const [bindFeishuAuthUrl, setBindFeishuAuthUrl] = useState<string | null>(null);
   const [bindModalOpen, setBindModalOpen] = useState(false);
@@ -1222,6 +1398,38 @@ function Header({ title, description }: { title: string; description: string }) 
       <p>{description}</p>
     </header>
   );
+}
+
+const NOTICE_DISMISS_MS = 4000;
+
+function useTransientNotice() {
+  const [notice, setNoticeState] = useState('');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearNoticeTimer = useCallback(() => {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const setNotice = useCallback(
+    (message: string) => {
+      clearNoticeTimer();
+      setNoticeState(message);
+      if (message) {
+        timerRef.current = setTimeout(() => {
+          setNoticeState('');
+          timerRef.current = null;
+        }, NOTICE_DISMISS_MS);
+      }
+    },
+    [clearNoticeTimer]
+  );
+
+  useEffect(() => () => clearNoticeTimer(), [clearNoticeTimer]);
+
+  return [notice, setNotice] as const;
 }
 
 function Feedback({ notice, error }: { notice?: string; error?: string }) {

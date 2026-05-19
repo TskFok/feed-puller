@@ -68,6 +68,11 @@ type atomLink struct {
 }
 
 func ParseFeed(input []byte) (Feed, error) {
+	return ParseFeedWithParser(input, ParserGeneric)
+}
+
+// ParseFeedWithParser 按解析器类型解析 RSS/Atom 内容。
+func ParseFeedWithParser(input []byte, parser string) (Feed, error) {
 	input = bytes.TrimSpace(input)
 	if len(input) == 0 {
 		return Feed{}, fmt.Errorf("订阅内容为空")
@@ -82,6 +87,9 @@ func ParseFeed(input []byte) (Feed, error) {
 
 	switch strings.ToLower(probe.XMLName.Local) {
 	case "rss":
+		if NormalizeParser(parser) == ParserMikan {
+			return parseMikanRSS(input)
+		}
 		return parseRSS(input)
 	case "feed":
 		return parseAtom(input)

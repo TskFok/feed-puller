@@ -48,7 +48,7 @@ func NewFetcher(proxyURL string) (*Fetcher, error) {
 	return fetcher, nil
 }
 
-func (f *Fetcher) Fetch(ctx context.Context, feedURL string, useProxy bool) (Feed, error) {
+func (f *Fetcher) Fetch(ctx context.Context, feedURL string, useProxy bool, parser string) (Feed, error) {
 	if strings.TrimSpace(feedURL) == "" {
 		return Feed{}, fmt.Errorf("订阅地址不能为空")
 	}
@@ -82,7 +82,14 @@ func (f *Fetcher) Fetch(ctx context.Context, feedURL string, useProxy bool) (Fee
 	if err != nil {
 		return Feed{}, fmt.Errorf("读取订阅内容失败: %w", err)
 	}
-	return ParseFeed(body)
+	feed, err := ParseFeedWithParser(body, parser)
+	if err != nil {
+		return Feed{}, err
+	}
+	if NormalizeParser(parser) == ParserMikan {
+		feed.Items = EnrichMikanDownloads(ctx, f, feed.Items, useProxy)
+	}
+	return feed, nil
 }
 
 // ProbeContentLength 通过 HEAD 探测资源的 Content-Length；不支持或失败时返回 ok=false。

@@ -76,4 +76,9 @@ var migrations = []string{
 		ADD COLUMN IF NOT EXISTS poll_cron VARCHAR(512) NOT NULL DEFAULT ''`,
 	`ALTER TABLE subscriptions
 		ADD COLUMN IF NOT EXISTS poll_cron_timezone VARCHAR(128) NOT NULL DEFAULT 'UTC'`,
+	`ALTER TABLE subscriptions
+		ADD COLUMN IF NOT EXISTS sort_order INT NOT NULL DEFAULT 0`,
+	`UPDATE subscriptions SET sort_order = -id WHERE sort_order = 0 AND id > 0`,
+	`ALTER TABLE subscriptions
+		ADD COLUMN IF NOT EXISTS rss_parser VARCHAR(32) NOT NULL DEFAULT 'generic'`,
 }

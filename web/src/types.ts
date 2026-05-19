@@ -20,11 +20,15 @@ export type Subscription = {
   include_keywords: string;
   exclude_keywords: string;
   use_proxy: boolean;
+  /** RSS 解析器：generic | mikan */
+  rss_parser: string;
   last_fetched_at?: string;
   last_error?: string;
   created_at?: string;
   /** 服务端根据调度配置推算的下一次计划拉取时间（UTC ISO） */
   next_poll_at?: string;
+  /** 列表排序权重，越小越靠前 */
+  sort_order?: number;
 };
 
 /** 推算下次拉取时间时提交的调度草稿（不含订阅名称等） */
@@ -67,6 +71,10 @@ export type BatchDownloadFailure = {
 export type BatchDownloadResult = {
   items: FeedItem[];
   failures?: BatchDownloadFailure[];
+};
+
+export type BatchStatusResult = {
+  items: FeedItem[];
 };
 
 export type DownloadTask = {

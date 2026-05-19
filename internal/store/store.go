@@ -160,8 +160,8 @@ func (s *Store) SetSetting(ctx context.Context, key, value string) error {
 
 func (s *Store) ListSubscriptions(ctx context.Context) ([]Subscription, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, name, feed_url, enabled, poll_interval_minutes, COALESCE(poll_cron, ''), COALESCE(poll_cron_timezone, 'UTC'), download_dir, COALESCE(include_keywords, ''), COALESCE(exclude_keywords, ''), use_proxy, last_fetched_at, COALESCE(last_error, ''), created_at, updated_at
-		FROM subscriptions ORDER BY id DESC
+		SELECT `+subscriptionColumns+`
+		FROM subscriptions ORDER BY sort_order ASC, id DESC
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("查询订阅失败: %w", err)
@@ -173,7 +173,7 @@ func (s *Store) ListSubscriptions(ctx context.Context) ([]Subscription, error) {
 func (s *Store) DueSubscriptions(ctx context.Context, now time.Time) ([]Subscription, error) {
 	nowUTC := now.UTC()
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, name, feed_url, enabled, poll_interval_minutes, COALESCE(poll_cron, ''), COALESCE(poll_cron_timezone, 'UTC'), download_dir, COALESCE(include_keywords, ''), COALESCE(exclude_keywords, ''), use_proxy, last_fetched_at, COALESCE(last_error, ''), created_at, updated_at
+		SELECT `+subscriptionColumns+`
 		FROM subscriptions
 		WHERE enabled = TRUE
 		  AND (
@@ -201,7 +201,7 @@ func (s *Store) DueSubscriptions(ctx context.Context, now time.Time) ([]Subscrip
 
 func (s *Store) GetSubscription(ctx context.Context, id int64) (Subscription, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, name, feed_url, enabled, poll_interval_minutes, COALESCE(poll_cron, ''), COALESCE(poll_cron_timezone, 'UTC'), download_dir, COALESCE(include_keywords, ''), COALESCE(exclude_keywords, ''), use_proxy, last_fetched_at, COALESCE(last_error, ''), created_at, updated_at
+		SELECT `+subscriptionColumns+`
 		FROM subscriptions WHERE id = ?
 	`, id)
 	return scanSubscription(row)
@@ -212,9 +212,9 @@ func (s *Store) CreateSubscription(ctx context.Context, sub Subscription) (Subsc
 		return Subscription{}, err
 	}
 	result, err := s.db.ExecContext(ctx, `
-		INSERT INTO subscriptions (name, feed_url, enabled, poll_interval_minutes, poll_cron, poll_cron_timezone, download_dir, include_keywords, exclude_keywords, use_proxy)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, strings.TrimSpace(sub.Name), strings.TrimSpace(sub.FeedURL), sub.Enabled, sub.PollIntervalMinutes, NormalizePollCron(sub.PollCron), NormalizePollCronTimezone(sub.PollCronTimezone), strings.TrimSpace(sub.DownloadDir), sub.IncludeKeywords, sub.ExcludeKeywords, sub.UseProxy)
+		INSERT INTO subscriptions (name, feed_url, enabled, poll_interval_minutes, poll_cron, poll_cron_timezone, download_dir, include_keywords, exclude_keywords, use_proxy, rss_parser, sort_order)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MIN(sort_order), 1) - 1 FROM subscriptions AS s))
+	`, strings.TrimSpace(sub.Name), strings.TrimSpace(sub.FeedURL), sub.Enabled, sub.PollIntervalMinutes, NormalizePollCron(sub.PollCron), NormalizePollCronTimezone(sub.PollCronTimezone), strings.TrimSpace(sub.DownloadDir), sub.IncludeKeywords, sub.ExcludeKeywords, sub.UseProxy, rss.NormalizeParser(sub.RSSParser))
 	if err != nil {
 		return Subscription{}, fmt.Errorf("创建订阅失败: %w", err)
 	}
@@ -228,13 +228,58 @@ func (s *Store) UpdateSubscription(ctx context.Context, id int64, sub Subscripti
 	}
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE subscriptions
-		SET name = ?, feed_url = ?, enabled = ?, poll_interval_minutes = ?, poll_cron = ?, poll_cron_timezone = ?, download_dir = ?, include_keywords = ?, exclude_keywords = ?, use_proxy = ?, updated_at = CURRENT_TIMESTAMP
+		SET name = ?, feed_url = ?, enabled = ?, poll_interval_minutes = ?, poll_cron = ?, poll_cron_timezone = ?, download_dir = ?, include_keywords = ?, exclude_keywords = ?, use_proxy = ?, rss_parser = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
-	`, strings.TrimSpace(sub.Name), strings.TrimSpace(sub.FeedURL), sub.Enabled, sub.PollIntervalMinutes, NormalizePollCron(sub.PollCron), NormalizePollCronTimezone(sub.PollCronTimezone), strings.TrimSpace(sub.DownloadDir), sub.IncludeKeywords, sub.ExcludeKeywords, sub.UseProxy, id)
+	`, strings.TrimSpace(sub.Name), strings.TrimSpace(sub.FeedURL), sub.Enabled, sub.PollIntervalMinutes, NormalizePollCron(sub.PollCron), NormalizePollCronTimezone(sub.PollCronTimezone), strings.TrimSpace(sub.DownloadDir), sub.IncludeKeywords, sub.ExcludeKeywords, sub.UseProxy, rss.NormalizeParser(sub.RSSParser), id)
 	if err != nil {
 		return Subscription{}, fmt.Errorf("更新订阅失败: %w", err)
 	}
 	return s.GetSubscription(ctx, id)
+}
+
+func (s *Store) ReorderSubscriptions(ctx context.Context, ids []int64) error {
+	if len(ids) == 0 {
+		return fmt.Errorf("订阅顺序不能为空")
+	}
+	seen := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			return fmt.Errorf("订阅 ID 无效")
+		}
+		if _, dup := seen[id]; dup {
+			return fmt.Errorf("订阅 ID 重复")
+		}
+		seen[id] = struct{}{}
+	}
+
+	all, err := s.ListSubscriptions(ctx)
+	if err != nil {
+		return err
+	}
+	if len(all) != len(ids) {
+		return fmt.Errorf("请提供全部订阅的顺序")
+	}
+	for _, sub := range all {
+		if _, ok := seen[sub.ID]; !ok {
+			return fmt.Errorf("请提供全部订阅的顺序")
+		}
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("更新订阅顺序失败: %w", err)
+	}
+	defer tx.Rollback()
+
+	for i, id := range ids {
+		if _, err := tx.ExecContext(ctx, `UPDATE subscriptions SET sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, i, id); err != nil {
+			return fmt.Errorf("更新订阅顺序失败: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("更新订阅顺序失败: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) DeleteSubscription(ctx context.Context, id int64) error {
@@ -446,6 +491,9 @@ func validateSubscription(sub Subscription) error {
 		return err
 	}
 	if err := rss.ValidateKeywordPatterns(sub.IncludeKeywords, sub.ExcludeKeywords); err != nil {
+		return err
+	}
+	if err := rss.ValidateParser(sub.RSSParser); err != nil {
 		return err
 	}
 	return nil

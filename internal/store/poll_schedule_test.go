@@ -62,6 +62,15 @@ func TestSubscriptionPollDue_CronNeverFetched(t *testing.T) {
 	}
 }
 
+func TestSubscriptionPollDue_IntervalNeverFetchedZeroInterval(t *testing.T) {
+	t.Parallel()
+	created := mustParseRFC3339(t, "2024-06-01T10:00:00Z")
+	sub := &Subscription{PollIntervalMinutes: 0, CreatedAt: created}
+	if SubscriptionPollDue(sub, mustParseRFC3339(t, "2024-06-01T12:00:00Z")) {
+		t.Fatal("expected not due when poll_interval_minutes is zero")
+	}
+}
+
 func TestSubscriptionPollDue_NeverFetchedZeroCreatedAt(t *testing.T) {
 	t.Parallel()
 	sub := &Subscription{PollIntervalMinutes: 30}

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { api } from './api';
 import { useFeishuQR } from './feishu-qr';
+import { fetchPreviewAction, isFetchPreviewSelectionLocked, useActionLoading } from './useActionLoading';
 import type {
   ActiveDownload,
   CompletedDownload,
@@ -835,11 +836,10 @@ function FetchPreviewModal({
   const [rows, setRows] = useState<PolledFeedItem[]>(initialItems);
   const [statusFilter, setStatusFilter] = useState<FetchPreviewStatusFilter>('all');
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
-  const [rowLoading, setRowLoading] = useState<number | null>(null);
-  const [batchLoading, setBatchLoading] = useState(false);
-  const [statusLoading, setStatusLoading] = useState(false);
+  const action = useActionLoading();
   const [notice, setNotice] = useTransientNotice();
   const [error, setError] = useState('');
+  const selectionLocked = isFetchPreviewSelectionLocked(action.active);
 
   const filteredRows = useMemo(
     () => rows.filter((row) => matchesFetchPreviewStatusFilter(row, statusFilter)),
@@ -855,7 +855,6 @@ function FetchPreviewModal({
     [downloadableIds, selected]
   );
   const allSelectableSelected = selectableIds.length > 0 && selectedCount === selectableIds.length;
-  const batchBusy = batchLoading || statusLoading;
 
   function applyUpdatedItems(updates: FeedItem[]) {
     if (updates.length === 0) return;
@@ -908,19 +907,18 @@ function FetchPreviewModal({
   async function downloadRow(row: PolledFeedItem) {
     setError('');
     setNotice('');
-    setRowLoading(row.id);
     try {
-      const updated = await api.downloadFeedItem(row.id);
-      applyUpdatedItems([updated]);
-      setSelected((prev) => {
-        const next = new Set(prev);
-        next.delete(row.id);
-        return next;
+      await action.run(fetchPreviewAction.downloadRow(row.id), async () => {
+        const updated = await api.downloadFeedItem(row.id);
+        applyUpdatedItems([updated]);
+        setSelected((prev) => {
+          const next = new Set(prev);
+          next.delete(row.id);
+          return next;
+        });
       });
     } catch (err) {
       setError(messageOf(err));
-    } finally {
-      setRowLoading(null);
     }
   }
 
@@ -929,46 +927,46 @@ function FetchPreviewModal({
     if (ids.length === 0) return;
     setError('');
     setNotice('');
-    setBatchLoading(true);
     try {
-      const result = await api.batchDownloadFeedItems(ids);
-      applyUpdatedItems(result.items);
-      setSelected((prev) => {
-        const next = new Set(prev);
-        for (const item of result.items) next.delete(item.id);
-        return next;
+      await action.run(fetchPreviewAction.batchDownload, async () => {
+        const result = await api.batchDownloadFeedItems(ids);
+        applyUpdatedItems(result.items);
+        setSelected((prev) => {
+          const next = new Set(prev);
+          for (const item of result.items) next.delete(item.id);
+          return next;
+        });
+        const ok = result.items.length;
+        const failed = result.failures?.length ?? 0;
+        if (ok > 0) {
+          setNotice(`已提交 ${ok} 条下载任务`);
+        }
+        if (failed > 0) {
+          const detail = result.failures!.map((f) => `#${f.item_id}: ${f.error}`).join('；');
+          setError(`有 ${failed} 条未成功：${detail}`);
+        }
       });
-      const ok = result.items.length;
-      const failed = result.failures?.length ?? 0;
-      if (ok > 0) {
-        setNotice(`已提交 ${ok} 条下载任务`);
-      }
-      if (failed > 0) {
-        const detail = result.failures!.map((f) => `#${f.item_id}: ${f.error}`).join('；');
-        setError(`有 ${failed} 条未成功：${detail}`);
-      }
     } catch (err) {
       setError(messageOf(err));
-    } finally {
-      setBatchLoading(false);
     }
   }
 
   async function updateSelectedStatus(downloadStatus: 'pending' | 'submitted') {
     const ids = selectableIds.filter((id) => selected.has(id));
     if (ids.length === 0) return;
+    const actionKey =
+      downloadStatus === 'pending' ? fetchPreviewAction.statusPending : fetchPreviewAction.statusSubmitted;
     setError('');
     setNotice('');
-    setStatusLoading(true);
     try {
-      const result = await api.batchUpdateFeedItemStatus(ids, downloadStatus);
-      applyUpdatedItems(result.items);
-      const label = downloadStatus === 'pending' ? '未处理' : '已处理';
-      setNotice(`已将 ${result.items.length} 条标记为${label}`);
+      await action.run(actionKey, async () => {
+        const result = await api.batchUpdateFeedItemStatus(ids, downloadStatus);
+        applyUpdatedItems(result.items);
+        const label = downloadStatus === 'pending' ? '未处理' : '已处理';
+        setNotice(`已将 ${result.items.length} 条标记为${label}`);
+      });
     } catch (err) {
       setError(messageOf(err));
-    } finally {
-      setStatusLoading(false);
     }
   }
 
@@ -1004,7 +1002,7 @@ function FetchPreviewModal({
                 id={statusFilterId}
                 className="form-select"
                 value={statusFilter}
-                disabled={batchBusy || rowLoading !== null}
+                disabled={selectionLocked}
                 onChange={(event) => setStatusFilter(event.target.value as FetchPreviewStatusFilter)}
               >
                 {FETCH_PREVIEW_STATUS_FILTER_OPTIONS.map((option) => (
@@ -1026,7 +1024,7 @@ function FetchPreviewModal({
                 id={selectAllId}
                 type="checkbox"
                 checked={allSelectableSelected}
-                disabled={batchBusy || rowLoading !== null}
+                disabled={selectionLocked}
                 onChange={toggleSelectAll}
               />
               全选（{selectableIds.length}）
@@ -1035,28 +1033,34 @@ function FetchPreviewModal({
               <button
                 type="button"
                 className="ghost"
-                disabled={batchBusy || rowLoading !== null || selectedCount === 0}
+                disabled={action.isActive(fetchPreviewAction.statusSubmitted) || selectedCount === 0}
                 onClick={() => updateSelectedStatus('submitted')}
               >
-                {statusLoading ? '更新中…' : `标记已处理（${selectedCount}）`}
+                {action.isActive(fetchPreviewAction.statusSubmitted)
+                  ? '更新中…'
+                  : `标记已处理（${selectedCount}）`}
               </button>
               <button
                 type="button"
                 className="ghost"
-                disabled={batchBusy || rowLoading !== null || selectedCount === 0}
+                disabled={action.isActive(fetchPreviewAction.statusPending) || selectedCount === 0}
                 onClick={() => updateSelectedStatus('pending')}
               >
-                {statusLoading ? '更新中…' : `标记未处理（${selectedCount}）`}
+                {action.isActive(fetchPreviewAction.statusPending)
+                  ? '更新中…'
+                  : `标记未处理（${selectedCount}）`}
               </button>
               {downloadableIds.length > 0 && (
                 <button
                   type="button"
                   className="primary"
-                  disabled={batchBusy || rowLoading !== null || selectedDownloadableCount === 0}
+                  disabled={action.isActive(fetchPreviewAction.batchDownload) || selectedDownloadableCount === 0}
                   onClick={downloadSelected}
                 >
                   <Download size={16} aria-hidden="true" />
-                  {batchLoading ? '提交中…' : `批量下载（${selectedDownloadableCount}）`}
+                  {action.isActive(fetchPreviewAction.batchDownload)
+                    ? '提交中…'
+                    : `批量下载（${selectedDownloadableCount}）`}
                 </button>
               )}
             </div>
@@ -1085,7 +1089,9 @@ function FetchPreviewModal({
                         type="checkbox"
                         aria-label={`选择 ${row.title || row.link || '条目'}`}
                         checked={selected.has(row.id)}
-                        disabled={batchBusy || rowLoading !== null}
+                        disabled={
+                          selectionLocked || action.isActive(fetchPreviewAction.downloadRow(row.id))
+                        }
                         onChange={(event) => toggleRowSelected(row.id, event.target.checked)}
                       />
                     ) : (
@@ -1103,11 +1109,16 @@ function FetchPreviewModal({
                       <button
                         type="button"
                         className="icon-text"
-                        disabled={batchBusy || rowLoading === row.id}
+                        disabled={
+                          action.isActive(fetchPreviewAction.batchDownload) ||
+                          action.isActive(fetchPreviewAction.downloadRow(row.id))
+                        }
                         onClick={() => downloadRow(row)}
                       >
                         <Download size={16} aria-hidden="true" />
-                        {rowLoading === row.id ? '提交中…' : feedItemDownloadButtonLabel(row.download_status)}
+                        {action.isActive(fetchPreviewAction.downloadRow(row.id))
+                          ? '提交中…'
+                          : feedItemDownloadButtonLabel(row.download_status)}
                       </button>
                     ) : (
                       <span className="muted">—</span>

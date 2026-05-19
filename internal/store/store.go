@@ -176,12 +176,8 @@ func (s *Store) DueSubscriptions(ctx context.Context, now time.Time) ([]Subscrip
 		SELECT `+subscriptionColumns+`
 		FROM subscriptions
 		WHERE enabled = TRUE
-		  AND (
-		    (COALESCE(TRIM(poll_cron), '') = '' AND (last_fetched_at IS NULL OR DATE_ADD(last_fetched_at, INTERVAL poll_interval_minutes MINUTE) <= ?))
-		    OR COALESCE(TRIM(poll_cron), '') != ''
-		  )
-		ORDER BY id ASC
-	`, nowUTC)
+		ORDER BY sort_order ASC, id ASC
+	`)
 	if err != nil {
 		return nil, fmt.Errorf("查询待拉取订阅失败: %w", err)
 	}

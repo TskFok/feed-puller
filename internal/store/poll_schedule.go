@@ -63,6 +63,9 @@ func SubscriptionPollDue(sub *Subscription, now time.Time) bool {
 			firstFire := sched.Next(created)
 			return !firstFire.After(nowUTC)
 		}
+		if sub.PollIntervalMinutes <= 0 {
+			return false
+		}
 		deadline := created.Add(time.Duration(sub.PollIntervalMinutes) * time.Minute)
 		return !deadline.After(nowUTC)
 	}
@@ -74,6 +77,9 @@ func SubscriptionPollDue(sub *Subscription, now time.Time) bool {
 		}
 		next := sched.Next(sub.LastFetchedAt.UTC())
 		return !next.After(nowUTC)
+	}
+	if sub.PollIntervalMinutes <= 0 {
+		return false
 	}
 	deadline := sub.LastFetchedAt.UTC().Add(time.Duration(sub.PollIntervalMinutes) * time.Minute)
 	return !deadline.After(nowUTC)

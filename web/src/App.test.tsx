@@ -319,6 +319,73 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: '关闭编辑订阅' })).toBeInTheDocument();
   });
 
+  it('创建订阅成功后不会自动调用拉取接口', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      const method = (init?.method ?? 'GET').toUpperCase();
+      if (path === '/api/auth/me') {
+        return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      if (path === '/api/subscriptions' && method === 'GET') {
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      if (path === '/api/subscriptions/preview-next-poll' && method === 'POST') {
+        return new Response(JSON.stringify({ next_poll_at: '2026-05-19T13:00:00Z' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      if (path === '/api/subscriptions' && method === 'POST') {
+        return new Response(
+          JSON.stringify({
+            id: 42,
+            name: 'New',
+            feed_url: 'https://example.test/new.xml',
+            enabled: true,
+            poll_interval_minutes: 30,
+            poll_cron: '',
+            poll_cron_timezone: 'UTC',
+            download_dir: '/data/new',
+            include_keywords: '',
+            exclude_keywords: '',
+            use_proxy: false,
+            rss_parser: 'generic',
+            created_at: '2026-05-19T12:00:00Z'
+          }),
+          { status: 201, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /新增订阅/ }));
+
+    const dialog = await screen.findByRole('dialog', { name: '新增订阅' });
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '订阅名称' }), { target: { value: 'New' } });
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '订阅地址' }), {
+      target: { value: 'https://example.test/new.xml' }
+    });
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '下载目录' }), { target: { value: '/data/new' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '创建订阅' }));
+
+    await waitFor(() => expect(screen.getByText(/订阅已创建/)).toBeInTheDocument());
+
+    const refreshCalls = fetchMock.mock.calls.filter(
+      ([url, init]) => /\/api\/subscriptions\/\d+\/refresh$/.test(String(url)) && (init?.method ?? 'GET').toUpperCase() === 'POST'
+    );
+    expect(refreshCalls).toHaveLength(0);
+  });
+
   it('点击复制后以新增订阅弹窗预填内容且不自动保存', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const path = String(input);
@@ -679,6 +746,306 @@ describe('App', () => {
     await waitFor(() => expect(statusCalls.length).toBe(2));
     expect(statusCalls[1]).toEqual({ item_ids: [202], download_status: 'pending' });
     expect(await within(dialog).findByText(/已将 1 条标记为未处理/)).toBeInTheDocument();
+  });
+
+  it('拉取预览批量修改状态时仅被点击的按钮显示更新中', async () => {
+    let resolveStatus: ((value: Response) => void) | undefined;
+    const statusPromise = new Promise<Response>((resolve) => {
+      resolveStatus = resolve;
+    });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input);
+        const method = (init?.method ?? 'GET').toUpperCase();
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/subscriptions') {
+          return new Response(
+            JSON.stringify([
+              {
+                id: 9,
+                name: 'Demo',
+                feed_url: 'https://example.test/feed.xml',
+                enabled: true,
+                poll_interval_minutes: 30,
+                poll_cron: '',
+                poll_cron_timezone: 'UTC',
+                download_dir: '/data',
+                include_keywords: '',
+                exclude_keywords: '',
+                use_proxy: false
+              }
+            ]),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        if (path === '/api/subscriptions/9/refresh' && method === 'POST') {
+          return new Response(
+            JSON.stringify({
+              items: [
+                {
+                  id: 201,
+                  subscription_id: 9,
+                  title: 'Pending',
+                  download_url: 'https://example.test/p.mp4',
+                  download_status: 'pending',
+                  created_at: '2026-05-19T10:00:00Z'
+                }
+              ]
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        if (path === '/api/items/batch-status' && method === 'POST') {
+          return statusPromise;
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /拉取/ }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: '选择 Pending' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: /标记已处理（1）/ }));
+
+    await waitFor(() => {
+      expect(within(dialog).getByRole('button', { name: '更新中…' })).toBeInTheDocument();
+    });
+    expect(within(dialog).getByRole('button', { name: /标记未处理（1）/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /标记未处理（1）/ })).not.toBeDisabled();
+
+    await act(async () => {
+      resolveStatus!(
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: 201,
+                subscription_id: 9,
+                title: 'Pending',
+                download_url: 'https://example.test/p.mp4',
+                download_status: 'submitted',
+                created_at: '2026-05-19T10:00:00Z'
+              }
+            ]
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
+    });
+
+    await waitFor(() =>
+      expect(within(dialog).getByRole('button', { name: /标记已处理（1）/ })).toBeInTheDocument()
+    );
+  });
+
+  it('拉取预览单条下载时仅当前行显示提交中', async () => {
+    let resolveDownload: ((value: Response) => void) | undefined;
+    const downloadPromise = new Promise<Response>((resolve) => {
+      resolveDownload = resolve;
+    });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input);
+        const method = (init?.method ?? 'GET').toUpperCase();
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/subscriptions') {
+          return new Response(
+            JSON.stringify([
+              {
+                id: 9,
+                name: 'Demo',
+                feed_url: 'https://example.test/feed.xml',
+                enabled: true,
+                poll_interval_minutes: 30,
+                poll_cron: '',
+                poll_cron_timezone: 'UTC',
+                download_dir: '/data',
+                include_keywords: '',
+                exclude_keywords: '',
+                use_proxy: false
+              }
+            ]),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        if (path === '/api/subscriptions/9/refresh' && method === 'POST') {
+          return new Response(
+            JSON.stringify({
+              items: [
+                {
+                  id: 401,
+                  subscription_id: 9,
+                  title: 'Item A',
+                  download_url: 'https://example.test/a.mp4',
+                  download_status: 'pending',
+                  created_at: '2026-05-19T10:00:00Z'
+                },
+                {
+                  id: 402,
+                  subscription_id: 9,
+                  title: 'Item B',
+                  download_url: 'https://example.test/b.mp4',
+                  download_status: 'pending',
+                  created_at: '2026-05-19T10:00:00Z'
+                }
+              ]
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        if (path === '/api/items/401/download' && method === 'POST') {
+          return downloadPromise;
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /拉取/ }));
+    const dialog = await screen.findByRole('dialog');
+    const rowA = within(dialog).getByText('Item A').closest('tr')!;
+    const rowB = within(dialog).getByText('Item B').closest('tr')!;
+    fireEvent.click(within(rowA).getByRole('button', { name: '下载' }));
+
+    await waitFor(() => {
+      expect(within(rowA).getByRole('button', { name: '提交中…' })).toBeInTheDocument();
+    });
+    expect(within(rowB).getByRole('button', { name: '下载' })).not.toBeDisabled();
+    expect(within(rowB).getByRole('checkbox', { name: '选择 Item B' })).not.toBeDisabled();
+    expect(within(rowA).getByRole('checkbox', { name: '选择 Item A' })).toBeDisabled();
+
+    await act(async () => {
+      resolveDownload!(
+        new Response(
+          JSON.stringify({
+            id: 401,
+            subscription_id: 9,
+            title: 'Item A',
+            download_url: 'https://example.test/a.mp4',
+            download_status: 'submitting',
+            created_at: '2026-05-19T10:00:00Z'
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
+    });
+
+    await waitFor(() => expect(within(dialog).queryByRole('button', { name: '提交中…' })).not.toBeInTheDocument());
+  });
+
+  it('拉取预览批量修改状态时不阻塞单条下载', async () => {
+    let resolveStatus: ((value: Response) => void) | undefined;
+    const statusPromise = new Promise<Response>((resolve) => {
+      resolveStatus = resolve;
+    });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input);
+        const method = (init?.method ?? 'GET').toUpperCase();
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/subscriptions') {
+          return new Response(
+            JSON.stringify([
+              {
+                id: 9,
+                name: 'Demo',
+                feed_url: 'https://example.test/feed.xml',
+                enabled: true,
+                poll_interval_minutes: 30,
+                poll_cron: '',
+                poll_cron_timezone: 'UTC',
+                download_dir: '/data',
+                include_keywords: '',
+                exclude_keywords: '',
+                use_proxy: false
+              }
+            ]),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        if (path === '/api/subscriptions/9/refresh' && method === 'POST') {
+          return new Response(
+            JSON.stringify({
+              items: [
+                {
+                  id: 501,
+                  subscription_id: 9,
+                  title: 'Pending',
+                  download_url: 'https://example.test/p.mp4',
+                  download_status: 'pending',
+                  created_at: '2026-05-19T10:00:00Z'
+                }
+              ]
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        if (path === '/api/items/batch-status' && method === 'POST') {
+          return statusPromise;
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /拉取/ }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: '选择 Pending' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: /标记已处理（1）/ }));
+
+    await waitFor(() => {
+      expect(within(dialog).getByRole('button', { name: '更新中…' })).toBeInTheDocument();
+    });
+    expect(within(dialog).getByRole('button', { name: '下载' })).not.toBeDisabled();
+    expect(within(dialog).getByRole('checkbox', { name: '选择 Pending' })).not.toBeDisabled();
+
+    await act(async () => {
+      resolveStatus!(
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: 501,
+                subscription_id: 9,
+                title: 'Pending',
+                download_url: 'https://example.test/p.mp4',
+                download_status: 'submitted',
+                created_at: '2026-05-19T10:00:00Z'
+              }
+            ]
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
+    });
   });
 
   it('拉取预览支持按状态筛选', async () => {

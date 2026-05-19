@@ -18,11 +18,12 @@ func TestReorderSubscriptions_UpdatesSortOrder(t *testing.T) {
 
 	now := sqlmock.NewRows([]string{
 		"id", "name", "feed_url", "enabled", "poll_interval_minutes", "poll_cron", "poll_cron_timezone",
-		"download_dir", "include_keywords", "exclude_keywords", "use_proxy", "rss_parser", "last_fetched_at", "last_error",
-		"sort_order", "created_at", "updated_at",
+		"download_dir", "include_keywords", "exclude_keywords", "use_proxy", "rss_parser",
+		"ai_rename_enabled", "ai_rename_season", "ai_rename_episode_offset",
+		"last_fetched_at", "last_error", "sort_order", "created_at", "updated_at",
 	}).
-		AddRow(1, "A", "https://a.test/feed", true, 30, "", "UTC", "/data", "", "", false, "generic", nil, "", 0, nowUTC(), nowUTC()).
-		AddRow(2, "B", "https://b.test/feed", true, 30, "", "UTC", "/data", "", "", false, "generic", nil, "", 1, nowUTC(), nowUTC())
+		AddRow(1, "A", "https://a.test/feed", true, 30, "", "UTC", "/data", "", "", false, "generic", false, 1, 0, nil, "", 0, nowUTC(), nowUTC()).
+		AddRow(2, "B", "https://b.test/feed", true, 30, "", "UTC", "/data", "", "", false, "generic", false, 1, 0, nil, "", 1, nowUTC(), nowUTC())
 
 	listQuery := "\n\t\tSELECT " + subscriptionColumns + "\n\t\tFROM subscriptions ORDER BY sort_order ASC, id DESC\n\t"
 	mock.ExpectQuery(regexp.QuoteMeta(listQuery)).WillReturnRows(now)
@@ -55,11 +56,12 @@ func TestReorderSubscriptions_RejectsPartialIDs(t *testing.T) {
 
 	now := sqlmock.NewRows([]string{
 		"id", "name", "feed_url", "enabled", "poll_interval_minutes", "poll_cron", "poll_cron_timezone",
-		"download_dir", "include_keywords", "exclude_keywords", "use_proxy", "rss_parser", "last_fetched_at", "last_error",
-		"sort_order", "created_at", "updated_at",
+		"download_dir", "include_keywords", "exclude_keywords", "use_proxy", "rss_parser",
+		"ai_rename_enabled", "ai_rename_season", "ai_rename_episode_offset",
+		"last_fetched_at", "last_error", "sort_order", "created_at", "updated_at",
 	}).
-		AddRow(1, "A", "https://a.test/feed", true, 30, "", "UTC", "/data", "", "", false, "generic", nil, "", 0, nowUTC(), nowUTC()).
-		AddRow(2, "B", "https://b.test/feed", true, 30, "", "UTC", "/data", "", "", false, "generic", nil, "", 1, nowUTC(), nowUTC())
+		AddRow(1, "A", "https://a.test/feed", true, 30, "", "UTC", "/data", "", "", false, "generic", false, 1, 0, nil, "", 0, nowUTC(), nowUTC()).
+		AddRow(2, "B", "https://b.test/feed", true, 30, "", "UTC", "/data", "", "", false, "generic", false, 1, 0, nil, "", 1, nowUTC(), nowUTC())
 
 	listQuery := "\n\t\tSELECT " + subscriptionColumns + "\n\t\tFROM subscriptions ORDER BY sort_order ASC, id DESC\n\t"
 	mock.ExpectQuery(regexp.QuoteMeta(listQuery)).WillReturnRows(now)

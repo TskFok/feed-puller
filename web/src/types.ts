@@ -22,6 +22,12 @@ export type Subscription = {
   use_proxy: boolean;
   /** RSS 解析器：generic | mikan */
   rss_parser: string;
+  /** 下载完成后是否使用 AI 重命名为 SxxExx 格式 */
+  ai_rename_enabled: boolean;
+  /** 刮削用季度，从 1 开始 */
+  ai_rename_season: number;
+  /** 集数偏移，可为负数，默认 0 */
+  ai_rename_episode_offset: number;
   last_fetched_at?: string;
   last_error?: string;
   created_at?: string;
@@ -116,5 +122,24 @@ export type CompletedDownload = {
   url: string;
   dir: string;
   completed_at: string;
+};
+
+export type AIConfig = {
+  id: number;
+  /** 模型名称（展示用） */
+  name: string;
+  /** API 基础地址 */
+  url: string;
+  /** 模型标识 */
+  model: string;
+  api_key: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type AIConfigTestResult = {
+  ok: boolean;
+  message?: string;
+  error?: string;
 };
 

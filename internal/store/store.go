@@ -208,9 +208,9 @@ func (s *Store) CreateSubscription(ctx context.Context, sub Subscription) (Subsc
 		return Subscription{}, err
 	}
 	result, err := s.db.ExecContext(ctx, `
-		INSERT INTO subscriptions (name, feed_url, enabled, poll_interval_minutes, poll_cron, poll_cron_timezone, download_dir, include_keywords, exclude_keywords, use_proxy, rss_parser, sort_order)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MIN(sort_order), 1) - 1 FROM subscriptions AS s))
-	`, strings.TrimSpace(sub.Name), strings.TrimSpace(sub.FeedURL), sub.Enabled, sub.PollIntervalMinutes, NormalizePollCron(sub.PollCron), NormalizePollCronTimezone(sub.PollCronTimezone), strings.TrimSpace(sub.DownloadDir), sub.IncludeKeywords, sub.ExcludeKeywords, sub.UseProxy, rss.NormalizeParser(sub.RSSParser))
+		INSERT INTO subscriptions (name, feed_url, enabled, poll_interval_minutes, poll_cron, poll_cron_timezone, download_dir, include_keywords, exclude_keywords, use_proxy, rss_parser, ai_rename_enabled, ai_rename_season, ai_rename_episode_offset, sort_order)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MIN(sort_order), 1) - 1 FROM subscriptions AS s))
+	`, strings.TrimSpace(sub.Name), strings.TrimSpace(sub.FeedURL), sub.Enabled, sub.PollIntervalMinutes, NormalizePollCron(sub.PollCron), NormalizePollCronTimezone(sub.PollCronTimezone), strings.TrimSpace(sub.DownloadDir), sub.IncludeKeywords, sub.ExcludeKeywords, sub.UseProxy, rss.NormalizeParser(sub.RSSParser), sub.AIRenameEnabled, normalizeAIRenameSeason(sub.AIRenameSeason), sub.AIRenameEpOffset)
 	if err != nil {
 		return Subscription{}, fmt.Errorf("创建订阅失败: %w", err)
 	}
@@ -224,9 +224,9 @@ func (s *Store) UpdateSubscription(ctx context.Context, id int64, sub Subscripti
 	}
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE subscriptions
-		SET name = ?, feed_url = ?, enabled = ?, poll_interval_minutes = ?, poll_cron = ?, poll_cron_timezone = ?, download_dir = ?, include_keywords = ?, exclude_keywords = ?, use_proxy = ?, rss_parser = ?, updated_at = CURRENT_TIMESTAMP
+		SET name = ?, feed_url = ?, enabled = ?, poll_interval_minutes = ?, poll_cron = ?, poll_cron_timezone = ?, download_dir = ?, include_keywords = ?, exclude_keywords = ?, use_proxy = ?, rss_parser = ?, ai_rename_enabled = ?, ai_rename_season = ?, ai_rename_episode_offset = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
-	`, strings.TrimSpace(sub.Name), strings.TrimSpace(sub.FeedURL), sub.Enabled, sub.PollIntervalMinutes, NormalizePollCron(sub.PollCron), NormalizePollCronTimezone(sub.PollCronTimezone), strings.TrimSpace(sub.DownloadDir), sub.IncludeKeywords, sub.ExcludeKeywords, sub.UseProxy, rss.NormalizeParser(sub.RSSParser), id)
+	`, strings.TrimSpace(sub.Name), strings.TrimSpace(sub.FeedURL), sub.Enabled, sub.PollIntervalMinutes, NormalizePollCron(sub.PollCron), NormalizePollCronTimezone(sub.PollCronTimezone), strings.TrimSpace(sub.DownloadDir), sub.IncludeKeywords, sub.ExcludeKeywords, sub.UseProxy, rss.NormalizeParser(sub.RSSParser), sub.AIRenameEnabled, normalizeAIRenameSeason(sub.AIRenameSeason), sub.AIRenameEpOffset, id)
 	if err != nil {
 		return Subscription{}, fmt.Errorf("更新订阅失败: %w", err)
 	}
@@ -493,6 +493,13 @@ func validateSubscription(sub Subscription) error {
 		return err
 	}
 	return nil
+}
+
+func normalizeAIRenameSeason(season int) int {
+	if season < 1 {
+		return 1
+	}
+	return season
 }
 
 func nullableString(value string) any {

@@ -42,6 +42,8 @@ func New(cfg config.Config, store *store.Store, service *app.Service, log *slog.
 	mux.HandleFunc("/api/downloads/completed", server.requireAuth(server.handleCompletedDownloads))
 	mux.HandleFunc("/api/downloads", server.requireAuth(server.handleDownloads))
 	mux.HandleFunc("/api/downloads/", server.requireAuth(server.handleDownloadByID))
+	mux.HandleFunc("/api/ai-configs", server.requireAuth(server.handleAIConfigs))
+	mux.HandleFunc("/api/ai-configs/", server.requireAuth(server.handleAIConfigByID))
 	mux.HandleFunc("/api/settings/proxy", server.requireAuth(server.handleProxySetting))
 	mux.HandleFunc("/api/settings/feishu-binding", server.requireAuth(server.handleFeishuBinding))
 	mux.HandleFunc("/api/settings/feishu-bind-url", server.requireAuth(server.handleFeishuBindURL))

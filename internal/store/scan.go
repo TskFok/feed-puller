@@ -20,7 +20,7 @@ func scanUser(row rowScanner) (User, error) {
 func scanSubscription(row rowScanner) (Subscription, error) {
 	var sub Subscription
 	var lastFetched sql.NullTime
-	err := row.Scan(&sub.ID, &sub.Name, &sub.FeedURL, &sub.Enabled, &sub.PollIntervalMinutes, &sub.PollCron, &sub.PollCronTimezone, &sub.DownloadDir, &sub.IncludeKeywords, &sub.ExcludeKeywords, &sub.UseProxy, &sub.RSSParser, &lastFetched, &sub.LastError, &sub.SortOrder, &sub.CreatedAt, &sub.UpdatedAt)
+	err := row.Scan(&sub.ID, &sub.Name, &sub.FeedURL, &sub.Enabled, &sub.PollIntervalMinutes, &sub.PollCron, &sub.PollCronTimezone, &sub.DownloadDir, &sub.IncludeKeywords, &sub.ExcludeKeywords, &sub.UseProxy, &sub.RSSParser, &sub.AIRenameEnabled, &sub.AIRenameSeason, &sub.AIRenameEpOffset, &lastFetched, &sub.LastError, &sub.SortOrder, &sub.CreatedAt, &sub.UpdatedAt)
 	if lastFetched.Valid {
 		sub.LastFetchedAt = &lastFetched.Time
 	}

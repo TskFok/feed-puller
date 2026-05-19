@@ -25,6 +25,9 @@ type Subscription struct {
 	ExcludeKeywords     string     `json:"exclude_keywords"`
 	UseProxy            bool       `json:"use_proxy"`
 	RSSParser           string     `json:"rss_parser"`
+	AIRenameEnabled     bool       `json:"ai_rename_enabled"`
+	AIRenameSeason      int        `json:"ai_rename_season"`
+	AIRenameEpOffset    int        `json:"ai_rename_episode_offset"`
 	LastFetchedAt       *time.Time `json:"last_fetched_at,omitempty"`
 	LastError           string     `json:"last_error,omitempty"`
 	SortOrder           int        `json:"sort_order"`
@@ -90,4 +93,15 @@ type PendingDownload struct {
 	SubscriptionID int64
 	URL            string
 	Dir            string
+}
+
+// AIConfig 表示一条 OpenAI 兼容的 AI 服务配置。
+type AIConfig struct {
+	ID        int64     `json:"id"`
+	Name      string    `json:"name"`
+	BaseURL   string    `json:"url"`
+	Model     string    `json:"model"`
+	APIKey    string    `json:"api_key"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }

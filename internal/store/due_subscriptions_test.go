@@ -30,6 +30,9 @@ func addSubscriptionRow(
 		"",
 		false,
 		"generic",
+		false,
+		1,
+		0,
 		lastFetched,
 		"",
 		0,
@@ -51,8 +54,9 @@ func TestDueSubscriptions_ExcludesFreshNeverFetchedInterval(t *testing.T) {
 
 	rows := sqlmock.NewRows([]string{
 		"id", "name", "feed_url", "enabled", "poll_interval_minutes", "poll_cron", "poll_cron_timezone",
-		"download_dir", "include_keywords", "exclude_keywords", "use_proxy", "rss_parser", "last_fetched_at", "last_error",
-		"sort_order", "created_at", "updated_at",
+		"download_dir", "include_keywords", "exclude_keywords", "use_proxy", "rss_parser",
+		"ai_rename_enabled", "ai_rename_season", "ai_rename_episode_offset",
+		"last_fetched_at", "last_error", "sort_order", "created_at", "updated_at",
 	})
 	addSubscriptionRow(rows, 1, nil, created, 30, "")
 
@@ -85,8 +89,9 @@ func TestDueSubscriptions_IncludesIntervalAfterFirstWindow(t *testing.T) {
 
 	rows := sqlmock.NewRows([]string{
 		"id", "name", "feed_url", "enabled", "poll_interval_minutes", "poll_cron", "poll_cron_timezone",
-		"download_dir", "include_keywords", "exclude_keywords", "use_proxy", "rss_parser", "last_fetched_at", "last_error",
-		"sort_order", "created_at", "updated_at",
+		"download_dir", "include_keywords", "exclude_keywords", "use_proxy", "rss_parser",
+		"ai_rename_enabled", "ai_rename_season", "ai_rename_episode_offset",
+		"last_fetched_at", "last_error", "sort_order", "created_at", "updated_at",
 	})
 	addSubscriptionRow(rows, 1, nil, created, 30, "")
 
@@ -119,8 +124,9 @@ func TestDueSubscriptions_ExcludesFreshNeverFetchedCron(t *testing.T) {
 
 	rows := sqlmock.NewRows([]string{
 		"id", "name", "feed_url", "enabled", "poll_interval_minutes", "poll_cron", "poll_cron_timezone",
-		"download_dir", "include_keywords", "exclude_keywords", "use_proxy", "rss_parser", "last_fetched_at", "last_error",
-		"sort_order", "created_at", "updated_at",
+		"download_dir", "include_keywords", "exclude_keywords", "use_proxy", "rss_parser",
+		"ai_rename_enabled", "ai_rename_season", "ai_rename_episode_offset",
+		"last_fetched_at", "last_error", "sort_order", "created_at", "updated_at",
 	})
 	addSubscriptionRow(rows, 2, nil, created, 30, "0 * * * *")
 

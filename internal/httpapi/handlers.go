@@ -349,6 +349,9 @@ type subscriptionInput struct {
 	ExcludeKeywords     string `json:"exclude_keywords"`
 	UseProxy            bool   `json:"use_proxy"`
 	RSSParser           string `json:"rss_parser"`
+	AIRenameEnabled     bool   `json:"ai_rename_enabled"`
+	AIRenameSeason      int    `json:"ai_rename_season"`
+	AIRenameEpOffset    int    `json:"ai_rename_episode_offset"`
 }
 
 type nextPollPreviewInput struct {
@@ -412,6 +415,9 @@ func (input subscriptionInput) toSubscription() store.Subscription {
 		ExcludeKeywords:     strings.TrimSpace(input.ExcludeKeywords),
 		UseProxy:            input.UseProxy,
 		RSSParser:           rss.NormalizeParser(input.RSSParser),
+		AIRenameEnabled:     input.AIRenameEnabled,
+		AIRenameSeason:      input.AIRenameSeason,
+		AIRenameEpOffset:    input.AIRenameEpOffset,
 	}
 }
 

@@ -1,5 +1,7 @@
 import type {
   ActiveDownload,
+  AIConfig,
+  AIConfigTestResult,
   CompletedDownload,
   DownloadTask,
   FeedItem,
@@ -77,6 +79,13 @@ export const api = {
   feishuBinding: () => request<{ bound: boolean; feishu_name?: string; feishu_open_id?: string }>('/api/settings/feishu-binding'),
   getFeishuLoginUrl: () => request<{ url: string; goto: string }>('/api/auth/feishu/login-url'),
   getFeishuBindUrl: () => request<{ url: string; goto?: string }>('/api/settings/feishu-bind-url'),
-  unbindFeishu: () => request<{ ok: boolean }>('/api/settings/feishu-binding', { method: 'DELETE' })
+  unbindFeishu: () => request<{ ok: boolean }>('/api/settings/feishu-binding', { method: 'DELETE' }),
+  aiConfigs: async () => asArray<AIConfig>(await request<AIConfig[]>('/api/ai-configs')),
+  createAIConfig: (payload: Omit<AIConfig, 'id' | 'created_at' | 'updated_at'>) =>
+    request<AIConfig>('/api/ai-configs', { method: 'POST', json: payload }),
+  updateAIConfig: (id: number, payload: Omit<AIConfig, 'id' | 'created_at' | 'updated_at'>) =>
+    request<AIConfig>(`/api/ai-configs/${id}`, { method: 'PUT', json: payload }),
+  deleteAIConfig: (id: number) => request<{ ok: boolean }>(`/api/ai-configs/${id}`, { method: 'DELETE' }),
+  testAIConfig: (id: number) => request<AIConfigTestResult>(`/api/ai-configs/${id}/test`, { method: 'POST' })
 };
 

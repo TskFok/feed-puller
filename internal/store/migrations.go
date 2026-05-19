@@ -85,4 +85,17 @@ var migrations = []string{
 		MODIFY COLUMN download_status ENUM('pending', 'submitting', 'submitted', 'failed', 'skipped', 'completed') NOT NULL DEFAULT 'pending'`,
 	`ALTER TABLE download_tasks
 		MODIFY COLUMN status ENUM('pending', 'submitting', 'submitted', 'failed', 'skipped', 'completed') NOT NULL`,
+	`CREATE TABLE IF NOT EXISTS ai_configs (
+		id BIGINT PRIMARY KEY AUTO_INCREMENT,
+		name VARCHAR(255) NOT NULL,
+		base_url TEXT NOT NULL,
+		model VARCHAR(255) NOT NULL,
+		api_key TEXT NOT NULL,
+		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+	`ALTER TABLE subscriptions
+		ADD COLUMN IF NOT EXISTS ai_rename_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+		ADD COLUMN IF NOT EXISTS ai_rename_season INT NOT NULL DEFAULT 1,
+		ADD COLUMN IF NOT EXISTS ai_rename_episode_offset INT NOT NULL DEFAULT 0`,
 }

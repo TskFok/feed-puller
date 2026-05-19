@@ -1416,5 +1416,58 @@ describe('App', () => {
     expect(screen.getByText('示例番剧')).toBeInTheDocument();
     expect(screen.getByText('/data/anime')).toBeInTheDocument();
   });
+
+  it('登录后可进入 AI 配置并新增一条配置', async () => {
+    const createAIConfig = vi.fn(async () => ({
+      id: 1,
+      name: 'DeepSeek',
+      url: 'https://api.deepseek.com/v1',
+      model: 'deepseek-chat',
+      api_key: 'sk-test'
+    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/subscriptions') {
+          return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (path === '/api/ai-configs' && (!init || init.method === undefined)) {
+          return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (path === '/api/ai-configs' && init?.method === 'POST') {
+          return new Response(JSON.stringify(await createAIConfig()), {
+            status: 201,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'AI 配置' }));
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'AI 配置' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '新增配置' }));
+
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('模型名称'), { target: { value: 'DeepSeek' } });
+    fireEvent.change(within(dialog).getByLabelText('API 地址'), {
+      target: { value: 'https://api.deepseek.com/v1' }
+    });
+    fireEvent.change(within(dialog).getByLabelText('模型'), { target: { value: 'deepseek-chat' } });
+    fireEvent.change(within(dialog).getByLabelText('API Key'), { target: { value: 'sk-test' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存' }));
+
+    await waitFor(() => expect(createAIConfig).toHaveBeenCalled());
+    expect(await screen.findByText('DeepSeek')).toBeInTheDocument();
+  });
 });
 

@@ -9,6 +9,7 @@ import {
   Plus,
   RefreshCw,
   Rss,
+  Bot,
   Settings,
   ShieldCheck,
   Copy,
@@ -21,6 +22,7 @@ import { useFeishuQR } from './feishu-qr';
 import { fetchPreviewAction, isFetchPreviewSelectionLocked, useActionLoading } from './useActionLoading';
 import type {
   ActiveDownload,
+  AIConfig,
   CompletedDownload,
   FeedItem,
   PolledFeedItem,
@@ -29,7 +31,7 @@ import type {
   User
 } from './types';
 
-type Tab = 'subscriptions' | 'active' | 'completed' | 'settings';
+type Tab = 'subscriptions' | 'active' | 'completed' | 'ai-config' | 'settings';
 
 const IANA_TIMEZONE_GROUPS = [
   {
@@ -70,7 +72,10 @@ const emptySubscription: Omit<Subscription, 'id'> = {
   include_keywords: '',
   exclude_keywords: '',
   use_proxy: false,
-  rss_parser: 'generic'
+  rss_parser: 'generic',
+  ai_rename_enabled: false,
+  ai_rename_season: 1,
+  ai_rename_episode_offset: 0
 };
 
 const RSS_PARSER_OPTIONS = [
@@ -218,6 +223,7 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
           <NavButton tab="subscriptions" active={tab} setTab={setTab} icon={<Rss size={18} />} label="订阅" />
           <NavButton tab="active" active={tab} setTab={setTab} icon={<Loader2 size={18} />} label="下载中" />
           <NavButton tab="completed" active={tab} setTab={setTab} icon={<CheckCircle2 size={18} />} label="下载完成" />
+          <NavButton tab="ai-config" active={tab} setTab={setTab} icon={<Bot size={18} />} label="AI 配置" />
           <NavButton tab="settings" active={tab} setTab={setTab} icon={<Settings size={18} />} label="设置" />
         </nav>
         <div className="account">
@@ -232,6 +238,7 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
         {tab === 'subscriptions' && <SubscriptionsView />}
         {tab === 'active' && <ActiveDownloadsView />}
         {tab === 'completed' && <CompletedDownloadsView />}
+        {tab === 'ai-config' && <AIConfigView />}
         {tab === 'settings' && <SettingsView user={user} setUser={setUser} />}
       </main>
     </div>
@@ -396,7 +403,10 @@ function subscriptionToDraft(sub: Subscription): Omit<Subscription, 'id'> {
     include_keywords: sub.include_keywords ?? '',
     exclude_keywords: sub.exclude_keywords ?? '',
     use_proxy: sub.use_proxy,
-    rss_parser: sub.rss_parser?.trim() || 'generic'
+    rss_parser: sub.rss_parser?.trim() || 'generic',
+    ai_rename_enabled: sub.ai_rename_enabled ?? false,
+    ai_rename_season: sub.ai_rename_season ?? 1,
+    ai_rename_episode_offset: sub.ai_rename_episode_offset ?? 0
   };
 }
 
@@ -708,6 +718,54 @@ function SubscriptionModal({
                 spellCheck={false}
               />
             </label>
+          </fieldset>
+
+          <fieldset className="modal-fieldset">
+            <legend>
+              <span className="modal-section-title">AI 刮削重命名</span>
+            </legend>
+            <p className="modal-hint muted">
+              下载完成后将文件重命名为 S01E01 格式，便于媒体库刮削。需在「AI 配置」中至少添加一条可用模型。
+            </p>
+            <label className="check modal-check-inline">
+              <input
+                type="checkbox"
+                checked={draft.ai_rename_enabled}
+                onChange={(event) => setDraft({ ...draft, ai_rename_enabled: event.target.checked })}
+              />
+              启用 AI 重命名
+            </label>
+            {draft.ai_rename_enabled && (
+              <div className="modal-keyword-grid">
+                <label>
+                  季度
+                  <input
+                    type="number"
+                    min={1}
+                    value={draft.ai_rename_season}
+                    onChange={(event) =>
+                      setDraft({ ...draft, ai_rename_season: Math.max(1, Number(event.target.value) || 1) })
+                    }
+                    required
+                  />
+                </label>
+                <label>
+                  集数偏移
+                  <input
+                    type="number"
+                    value={draft.ai_rename_episode_offset}
+                    onChange={(event) =>
+                      setDraft({ ...draft, ai_rename_episode_offset: Number(event.target.value) || 0 })
+                    }
+                  />
+                </label>
+              </div>
+            )}
+            {draft.ai_rename_enabled && (
+              <p className="muted modal-hint">
+                例如季度 1、偏移 2：识别到「02」时将重命名为 S01E04。
+              </p>
+            )}
           </fieldset>
 
           <fieldset className="modal-fieldset">
@@ -1540,6 +1598,283 @@ function SubscriptionsView() {
   );
 }
 
+
+const emptyAIConfig: Omit<AIConfig, 'id'> = {
+  name: '',
+  url: '',
+  model: '',
+  api_key: ''
+};
+
+type AIConfigModalTarget = { mode: 'create' } | { mode: 'edit'; configId: number };
+
+function AIConfigModal({
+  target,
+  configs,
+  onClose,
+  onSuccess
+}: {
+  target: AIConfigModalTarget;
+  configs: AIConfig[];
+  onClose: () => void;
+  onSuccess: (saved: AIConfig) => void | Promise<void>;
+}) {
+  const isCreate = target.mode === 'create';
+  const existing = target.mode === 'edit' ? configs.find((c) => c.id === target.configId) : undefined;
+  const titleId = useId();
+  const firstFieldRef = useRef<HTMLInputElement>(null);
+  const [draft, setDraft] = useState<Omit<AIConfig, 'id'>>(() => {
+    if (isCreate || !existing) return { ...emptyAIConfig };
+    return {
+      name: existing.name,
+      url: existing.url,
+      model: existing.model,
+      api_key: existing.api_key
+    };
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  useEffect(() => {
+    firstFieldRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      const saved =
+        target.mode === 'create'
+          ? await api.createAIConfig(draft)
+          : await api.updateAIConfig(target.configId, draft);
+      await onSuccess(saved);
+      onClose();
+    } catch (err) {
+      setError(messageOf(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!isCreate && !existing) {
+    return null;
+  }
+
+  return (
+    <div className="modal-overlay" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="modal-panel"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header-row">
+          <div>
+            <h2 id={titleId} className="modal-title">
+              {isCreate ? '新增 AI 配置' : '编辑 AI 配置'}
+            </h2>
+            <p className="muted modal-subtitle">填写 OpenAI 兼容接口的地址、模型名称与 API Key。</p>
+          </div>
+          <button type="button" className="modal-close ghost" aria-label="关闭" onClick={onClose}>
+            <X size={20} aria-hidden="true" />
+          </button>
+        </div>
+        <form className="subscription-edit-form" onSubmit={submit}>
+          <label className="modal-full">
+            模型名称
+            <input
+              ref={firstFieldRef}
+              value={draft.name}
+              onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+              placeholder="例如：DeepSeek 主账号"
+              required
+            />
+          </label>
+          <label className="modal-full">
+            API 地址
+            <input
+              value={draft.url}
+              onChange={(event) => setDraft({ ...draft, url: event.target.value })}
+              placeholder="https://api.openai.com/v1"
+              required
+              spellCheck={false}
+            />
+          </label>
+          <label className="modal-full">
+            模型
+            <input
+              value={draft.model}
+              onChange={(event) => setDraft({ ...draft, model: event.target.value })}
+              placeholder="gpt-4o-mini"
+              required
+              spellCheck={false}
+            />
+          </label>
+          <label className="modal-full">
+            API Key
+            <input
+              value={draft.api_key}
+              onChange={(event) => setDraft({ ...draft, api_key: event.target.value })}
+              type="password"
+              autoComplete="off"
+              required
+            />
+          </label>
+          {error && <p className="error">{error}</p>}
+          <div className="modal-actions">
+            <button type="button" className="ghost" onClick={onClose}>
+              取消
+            </button>
+            <button className="primary" disabled={saving}>
+              {saving ? '保存中' : '保存'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function AIConfigView() {
+  const [configs, setConfigs] = useState<AIConfig[]>([]);
+  const [modal, setModal] = useState<AIConfigModalTarget | null>(null);
+  const [notice, setNotice] = useTransientNotice();
+  const [error, setError] = useState('');
+  const [testingId, setTestingId] = useState<number | null>(null);
+
+  const load = useCallback(() => {
+    return api
+      .aiConfigs()
+      .then(setConfigs)
+      .catch((err) => setError(messageOf(err)));
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  function upsert(saved: AIConfig) {
+    setConfigs((prev) => {
+      const idx = prev.findIndex((c) => c.id === saved.id);
+      if (idx < 0) return [saved, ...prev];
+      const next = [...prev];
+      next[idx] = saved;
+      return next;
+    });
+  }
+
+  async function testConfig(cfg: AIConfig) {
+    setTestingId(cfg.id);
+    setError('');
+    setNotice('');
+    try {
+      const result = await api.testAIConfig(cfg.id);
+      if (result.ok) {
+        setNotice(result.message || `「${cfg.name}」API 连通正常`);
+      } else {
+        setError(result.error || 'API 连通检查失败');
+      }
+    } catch (err) {
+      setError(messageOf(err));
+    } finally {
+      setTestingId(null);
+    }
+  }
+
+  const rowBusy = testingId !== null;
+
+  return (
+    <section className="view">
+      <Header title="AI 配置" description="管理 OpenAI 兼容的模型接入；列表中可检查 API 是否通畅。" />
+      {modal && (
+        <AIConfigModal
+          key={modal.mode === 'edit' ? modal.configId : 'create'}
+          target={modal}
+          configs={configs}
+          onClose={() => setModal(null)}
+          onSuccess={async (saved) => {
+            upsert(saved);
+            setNotice(modal.mode === 'create' ? 'AI 配置已创建' : 'AI 配置已更新');
+          }}
+        />
+      )}
+      <div className="subscriptions-toolbar">
+        <button type="button" className="primary" onClick={() => setModal({ mode: 'create' })}>
+          <Plus size={18} aria-hidden="true" />
+          新增配置
+        </button>
+      </div>
+      <Feedback notice={notice} error={error} />
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>模型名称</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {configs.map((cfg) => (
+              <tr key={cfg.id}>
+                <td>{cfg.name}</td>
+                <td className="actions">
+                  <button
+                    type="button"
+                    className="icon-text"
+                    disabled={rowBusy || testingId === cfg.id}
+                    onClick={() => testConfig(cfg)}
+                  >
+                    <ShieldCheck size={16} className={testingId === cfg.id ? 'icon-spinning' : undefined} aria-hidden="true" />
+                    检查连通
+                  </button>
+                  <button type="button" className="icon-text" disabled={rowBusy} onClick={() => setModal({ mode: 'edit', configId: cfg.id })}>
+                    <SquarePen size={16} />
+                    编辑
+                  </button>
+                  <button
+                    className="danger"
+                    disabled={rowBusy}
+                    onClick={() =>
+                      api
+                        .deleteAIConfig(cfg.id)
+                        .then(() => {
+                          setConfigs((prev) => prev.filter((c) => c.id !== cfg.id));
+                          setNotice('AI 配置已删除');
+                        })
+                        .catch((err) => setError(messageOf(err)))
+                    }
+                  >
+                    <Trash2 size={16} />
+                    删除
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {configs.length === 0 && <EmptyRow columns={2} text="暂无 AI 配置" />}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
 
 function SettingsView({ user, setUser }: { user: User; setUser: (user: User | null) => void }) {
   const [proxyURL, setProxyURL] = useState('');

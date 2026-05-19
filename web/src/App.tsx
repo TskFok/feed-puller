@@ -789,14 +789,35 @@ function feedItemDownloadButtonLabel(status: string): string {
   return '重新下载';
 }
 
-function fetchPreviewStatus(row: PolledFeedItem): string {
+type FetchPreviewStatusFilter = 'all' | 'pending' | 'submitted' | 'failed' | 'submitting' | 'completed' | 'no-download';
+
+const FETCH_PREVIEW_STATUS_FILTER_OPTIONS: { value: FetchPreviewStatusFilter; label: string }[] = [
+  { value: 'all', label: '全部' },
+  { value: 'pending', label: '未处理' },
+  { value: 'submitted', label: '已处理' },
+  { value: 'failed', label: '失败' },
+  { value: 'submitting', label: '提交中' },
+  { value: 'completed', label: '已完成' },
+  { value: 'no-download', label: '无可下载' }
+];
+
+function fetchPreviewStatusKey(row: PolledFeedItem): Exclude<FetchPreviewStatusFilter, 'all'> {
   const url = row.download_url?.trim();
-  if (!url) return '无可下载';
-  if (row.download_status === 'pending') return '未处理';
-  if (row.download_status === 'failed') return '失败';
-  if (row.download_status === 'submitting') return '提交中';
-  if (row.download_status === 'completed') return '已完成';
-  return '已处理';
+  if (!url) return 'no-download';
+  if (row.download_status === 'pending') return 'pending';
+  if (row.download_status === 'failed') return 'failed';
+  if (row.download_status === 'submitting') return 'submitting';
+  if (row.download_status === 'completed') return 'completed';
+  return 'submitted';
+}
+
+function fetchPreviewStatus(row: PolledFeedItem): string {
+  const key = fetchPreviewStatusKey(row);
+  return FETCH_PREVIEW_STATUS_FILTER_OPTIONS.find((option) => option.value === key)?.label ?? '已处理';
+}
+
+function matchesFetchPreviewStatusFilter(row: PolledFeedItem, filter: FetchPreviewStatusFilter): boolean {
+  return filter === 'all' || fetchPreviewStatusKey(row) === filter;
 }
 
 function FetchPreviewModal({
@@ -810,7 +831,9 @@ function FetchPreviewModal({
 }) {
   const titleId = useId();
   const selectAllId = useId();
+  const statusFilterId = useId();
   const [rows, setRows] = useState<PolledFeedItem[]>(initialItems);
+  const [statusFilter, setStatusFilter] = useState<FetchPreviewStatusFilter>('all');
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
   const [rowLoading, setRowLoading] = useState<number | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
@@ -818,9 +841,13 @@ function FetchPreviewModal({
   const [notice, setNotice] = useTransientNotice();
   const [error, setError] = useState('');
 
-  const selectableRows = useMemo(() => rows.filter((row) => canSelectFeedItem(row)), [rows]);
+  const filteredRows = useMemo(
+    () => rows.filter((row) => matchesFetchPreviewStatusFilter(row, statusFilter)),
+    [rows, statusFilter]
+  );
+  const selectableRows = useMemo(() => filteredRows.filter((row) => canSelectFeedItem(row)), [filteredRows]);
   const selectableIds = useMemo(() => selectableRows.map((row) => row.id), [selectableRows]);
-  const downloadableRows = useMemo(() => rows.filter((row) => canDownloadFeedItem(row)), [rows]);
+  const downloadableRows = useMemo(() => filteredRows.filter((row) => canDownloadFeedItem(row)), [filteredRows]);
   const downloadableIds = useMemo(() => downloadableRows.map((row) => row.id), [downloadableRows]);
   const selectedCount = useMemo(() => selectableIds.filter((id) => selected.has(id)).length, [selectableIds, selected]);
   const selectedDownloadableCount = useMemo(
@@ -969,6 +996,29 @@ function FetchPreviewModal({
         </div>
         {notice && <p className="notice modal-notice">{notice}</p>}
         {error && <p className="error modal-error">{error}</p>}
+        {rows.length > 0 && (
+          <div className="fetch-preview-filters">
+            <label className="fetch-preview-status-filter" htmlFor={statusFilterId}>
+              <span>状态筛选</span>
+              <select
+                id={statusFilterId}
+                className="form-select"
+                value={statusFilter}
+                disabled={batchBusy || rowLoading !== null}
+                onChange={(event) => setStatusFilter(event.target.value as FetchPreviewStatusFilter)}
+              >
+                {FETCH_PREVIEW_STATUS_FILTER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <span className="muted fetch-preview-filter-count">
+              显示 {filteredRows.length} / {rows.length} 条
+            </span>
+          </div>
+        )}
         {selectableIds.length > 0 && (
           <div className="fetch-preview-toolbar">
             <label className="check fetch-preview-select-all">
@@ -1027,7 +1077,7 @@ function FetchPreviewModal({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {filteredRows.map((row) => (
                 <tr key={row.id}>
                   <td className="fetch-preview-col-check">
                     {canSelectFeedItem(row) ? (
@@ -1069,6 +1119,13 @@ function FetchPreviewModal({
                 <tr>
                   <td colSpan={6} className="empty">
                     本次拉取没有新条目（可能已全部存在或被过滤）
+                  </td>
+                </tr>
+              )}
+              {rows.length > 0 && filteredRows.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="empty">
+                    没有符合当前状态筛选的条目
                   </td>
                 </tr>
               )}

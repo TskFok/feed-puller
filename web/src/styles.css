@@ -699,6 +699,31 @@ th {
   width: 1%;
 }
 
+.fetch-preview-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.fetch-preview-status-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.fetch-preview-status-filter select {
+  min-width: 132px;
+}
+
+.fetch-preview-filter-count {
+  font-size: 13px;
+}
+
 .fetch-preview-toolbar {
   display: flex;
   flex-wrap: wrap;

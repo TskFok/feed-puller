@@ -437,9 +437,10 @@ describe('App', () => {
 
     await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /拉取/ }));
-    expect(await screen.findByRole('heading', { name: /拉取结果 · Demo/ })).toBeInTheDocument();
-    expect(screen.getByText('Episode 1')).toBeInTheDocument();
-    expect(screen.getByText('未处理')).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: /拉取结果 · Demo/ })).toBeInTheDocument();
+    expect(within(dialog).getByText('Episode 1')).toBeInTheDocument();
+    expect(within(dialog).getByRole('cell', { name: '未处理' })).toBeInTheDocument();
   });
 
   it('拉取完成后提示会自动消失', async () => {
@@ -573,9 +574,10 @@ describe('App', () => {
 
     await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /拉取/ }));
-    expect(await screen.findByRole('heading', { name: /拉取结果 · Demo/ })).toBeInTheDocument();
-    expect(screen.getByText('已处理')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '重新下载' })).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: /拉取结果 · Demo/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole('cell', { name: '已处理' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: '重新下载' })).toBeInTheDocument();
   });
 
   it('拉取预览支持勾选后批量修改状态', async () => {
@@ -677,6 +679,103 @@ describe('App', () => {
     await waitFor(() => expect(statusCalls.length).toBe(2));
     expect(statusCalls[1]).toEqual({ item_ids: [202], download_status: 'pending' });
     expect(await within(dialog).findByText(/已将 1 条标记为未处理/)).toBeInTheDocument();
+  });
+
+  it('拉取预览支持按状态筛选', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input);
+        const method = (init?.method ?? 'GET').toUpperCase();
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/subscriptions') {
+          return new Response(
+            JSON.stringify([
+              {
+                id: 9,
+                name: 'Demo',
+                feed_url: 'https://example.test/feed.xml',
+                enabled: true,
+                poll_interval_minutes: 30,
+                poll_cron: '',
+                poll_cron_timezone: 'UTC',
+                download_dir: '/data',
+                include_keywords: '',
+                exclude_keywords: '',
+                use_proxy: false
+              }
+            ]),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        if (path === '/api/subscriptions/9/refresh' && method === 'POST') {
+          return new Response(
+            JSON.stringify({
+              items: [
+                {
+                  id: 301,
+                  subscription_id: 9,
+                  title: 'Pending Item',
+                  download_url: 'https://example.test/p.mp4',
+                  download_status: 'pending',
+                  created_at: '2026-05-19T10:00:00Z'
+                },
+                {
+                  id: 302,
+                  subscription_id: 9,
+                  title: 'Done Item',
+                  download_url: 'https://example.test/d.mp4',
+                  download_status: 'submitted',
+                  created_at: '2026-05-19T10:00:00Z'
+                },
+                {
+                  id: 303,
+                  subscription_id: 9,
+                  title: 'No URL Item',
+                  download_url: '',
+                  download_status: 'pending',
+                  created_at: '2026-05-19T10:00:00Z'
+                }
+              ]
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /拉取/ }));
+    const dialog = await screen.findByRole('dialog');
+
+    expect(within(dialog).getByText('Pending Item')).toBeInTheDocument();
+    expect(within(dialog).getByText('Done Item')).toBeInTheDocument();
+    expect(within(dialog).getByText('No URL Item')).toBeInTheDocument();
+    expect(within(dialog).getByText('显示 3 / 3 条')).toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByLabelText('状态筛选'), { target: { value: 'pending' } });
+    expect(within(dialog).getByText('Pending Item')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Done Item')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('No URL Item')).not.toBeInTheDocument();
+    expect(within(dialog).getByText('显示 1 / 3 条')).toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByLabelText('状态筛选'), { target: { value: 'submitted' } });
+    expect(within(dialog).queryByText('Pending Item')).not.toBeInTheDocument();
+    expect(within(dialog).getByText('Done Item')).toBeInTheDocument();
+    expect(within(dialog).queryByText('No URL Item')).not.toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByLabelText('状态筛选'), { target: { value: 'no-download' } });
+    expect(within(dialog).queryByText('Pending Item')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('Done Item')).not.toBeInTheDocument();
+    expect(within(dialog).getByText('No URL Item')).toBeInTheDocument();
   });
 
   it('拉取预览支持勾选后批量下载', async () => {

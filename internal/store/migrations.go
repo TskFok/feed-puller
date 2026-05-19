@@ -16,8 +16,7 @@ var migrations = []string{
 		expires_at TIMESTAMP NOT NULL,
 		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		INDEX idx_sessions_user_id (user_id),
-		INDEX idx_sessions_expires_at (expires_at),
-		CONSTRAINT fk_sessions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+		INDEX idx_sessions_expires_at (expires_at)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 	`CREATE TABLE IF NOT EXISTS settings (
 		name VARCHAR(128) PRIMARY KEY,
@@ -31,6 +30,8 @@ var migrations = []string{
 		enabled BOOLEAN NOT NULL DEFAULT TRUE,
 		poll_interval_minutes INT NOT NULL DEFAULT 30,
 		download_dir TEXT NOT NULL,
+		include_keywords TEXT NULL,
+		exclude_keywords TEXT NULL,
 		use_proxy BOOLEAN NOT NULL DEFAULT FALSE,
 		last_fetched_at TIMESTAMP NULL,
 		last_error TEXT NULL,
@@ -52,8 +53,7 @@ var migrations = []string{
 		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 		UNIQUE KEY uniq_feed_items_subscription_dedupe (subscription_id, dedupe_key),
-		INDEX idx_feed_items_status (download_status),
-		CONSTRAINT fk_feed_items_subscription FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE CASCADE
+		INDEX idx_feed_items_status (download_status)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 	`CREATE TABLE IF NOT EXISTS download_tasks (
 		id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -67,8 +67,13 @@ var migrations = []string{
 		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 		INDEX idx_download_tasks_item_id (item_id),
-		INDEX idx_download_tasks_status (status),
-		CONSTRAINT fk_download_tasks_item FOREIGN KEY (item_id) REFERENCES feed_items(id) ON DELETE CASCADE,
-		CONSTRAINT fk_download_tasks_subscription FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE CASCADE
+		INDEX idx_download_tasks_status (status)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+	`ALTER TABLE subscriptions
+		ADD COLUMN IF NOT EXISTS include_keywords TEXT NULL,
+		ADD COLUMN IF NOT EXISTS exclude_keywords TEXT NULL`,
+	`ALTER TABLE subscriptions
+		ADD COLUMN IF NOT EXISTS poll_cron VARCHAR(512) NOT NULL DEFAULT ''`,
+	`ALTER TABLE subscriptions
+		ADD COLUMN IF NOT EXISTS poll_cron_timezone VARCHAR(128) NOT NULL DEFAULT 'UTC'`,
 }

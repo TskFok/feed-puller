@@ -18,7 +18,7 @@ func scanUser(row rowScanner) (User, error) {
 func scanSubscription(row rowScanner) (Subscription, error) {
 	var sub Subscription
 	var lastFetched sql.NullTime
-	err := row.Scan(&sub.ID, &sub.Name, &sub.FeedURL, &sub.Enabled, &sub.PollIntervalMinutes, &sub.DownloadDir, &sub.UseProxy, &lastFetched, &sub.LastError, &sub.CreatedAt, &sub.UpdatedAt)
+	err := row.Scan(&sub.ID, &sub.Name, &sub.FeedURL, &sub.Enabled, &sub.PollIntervalMinutes, &sub.PollCron, &sub.PollCronTimezone, &sub.DownloadDir, &sub.IncludeKeywords, &sub.ExcludeKeywords, &sub.UseProxy, &lastFetched, &sub.LastError, &sub.CreatedAt, &sub.UpdatedAt)
 	if lastFetched.Valid {
 		sub.LastFetchedAt = &lastFetched.Time
 	}
@@ -26,7 +26,8 @@ func scanSubscription(row rowScanner) (Subscription, error) {
 }
 
 func scanSubscriptions(rows *sql.Rows) ([]Subscription, error) {
-	var subscriptions []Subscription
+	// 使用非 nil 空切片，JSON 编码为 []；nil 切片会变成 null，前端 .map 会崩溃。
+	subscriptions := make([]Subscription, 0)
 	for rows.Next() {
 		sub, err := scanSubscription(rows)
 		if err != nil {
@@ -37,16 +38,24 @@ func scanSubscriptions(rows *sql.Rows) ([]Subscription, error) {
 	return subscriptions, rows.Err()
 }
 
+func scanItemRow(row rowScanner) (Item, error) {
+	var item Item
+	var published sql.NullTime
+	if err := row.Scan(&item.ID, &item.SubscriptionID, &item.GUID, &item.Title, &item.Link, &item.DownloadURL, &item.DedupeKey, &published, &item.DownloadStatus, &item.CreatedAt, &item.UpdatedAt); err != nil {
+		return Item{}, err
+	}
+	if published.Valid {
+		item.PublishedAt = &published.Time
+	}
+	return item, nil
+}
+
 func scanItems(rows *sql.Rows) ([]Item, error) {
-	var items []Item
+	items := make([]Item, 0)
 	for rows.Next() {
-		var item Item
-		var published sql.NullTime
-		if err := rows.Scan(&item.ID, &item.SubscriptionID, &item.GUID, &item.Title, &item.Link, &item.DownloadURL, &item.DedupeKey, &published, &item.DownloadStatus, &item.CreatedAt, &item.UpdatedAt); err != nil {
+		item, err := scanItemRow(rows)
+		if err != nil {
 			return nil, err
-		}
-		if published.Valid {
-			item.PublishedAt = &published.Time
 		}
 		items = append(items, item)
 	}
@@ -54,7 +63,7 @@ func scanItems(rows *sql.Rows) ([]Item, error) {
 }
 
 func scanDownloadTasks(rows *sql.Rows) ([]DownloadTask, error) {
-	var tasks []DownloadTask
+	tasks := make([]DownloadTask, 0)
 	for rows.Next() {
 		var task DownloadTask
 		if err := rows.Scan(&task.ID, &task.ItemID, &task.SubscriptionID, &task.URL, &task.Dir, &task.Status, &task.Aria2GID, &task.Error, &task.CreatedAt, &task.UpdatedAt); err != nil {

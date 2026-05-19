@@ -18,10 +18,15 @@ type Subscription struct {
 	FeedURL             string     `json:"feed_url"`
 	Enabled             bool       `json:"enabled"`
 	PollIntervalMinutes int        `json:"poll_interval_minutes"`
+	PollCron            string     `json:"poll_cron"`
+	PollCronTimezone    string     `json:"poll_cron_timezone"`
 	DownloadDir         string     `json:"download_dir"`
+	IncludeKeywords     string     `json:"include_keywords"`
+	ExcludeKeywords     string     `json:"exclude_keywords"`
 	UseProxy            bool       `json:"use_proxy"`
 	LastFetchedAt       *time.Time `json:"last_fetched_at,omitempty"`
 	LastError           string     `json:"last_error,omitempty"`
+	NextPollAt          *time.Time `json:"next_poll_at,omitempty"` // 由 ApplySubscriptionNextPoll 计算，不入库
 	CreatedAt           time.Time  `json:"created_at"`
 	UpdatedAt           time.Time  `json:"updated_at"`
 }

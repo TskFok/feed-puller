@@ -59,6 +59,32 @@ func TestFetcherReturnsConfigurationErrorWhenProxyRequiredButMissing(t *testing.
 	}
 }
 
+func TestFetcherProbeContentLength(t *testing.T) {
+	var sawHEAD bool
+	fetcher := &Fetcher{
+		directClient: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			if r.Method != http.MethodHead {
+				t.Fatalf("method = %q", r.Method)
+			}
+			sawHEAD = true
+			return &http.Response{
+				StatusCode:    http.StatusOK,
+				ContentLength: 2048,
+				Body:          io.NopCloser(bytes.NewBuffer(nil)),
+				Header:        make(http.Header),
+			}, nil
+		})},
+		proxyURL: "",
+	}
+	n, ok := fetcher.ProbeContentLength(context.Background(), "https://example.com/bin", false)
+	if !ok || n != 2048 {
+		t.Fatalf("ProbeContentLength = (%d, %v)", n, ok)
+	}
+	if !sawHEAD {
+		t.Fatal("expected HEAD request")
+	}
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (fn roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {

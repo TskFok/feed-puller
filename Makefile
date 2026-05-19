@@ -21,6 +21,9 @@ dev:
 docker-build:
 	docker build -t feed-puller:local .
 
+docker-build-amd64:
+	docker build --platform linux/amd64 -t feed-puller:amd64 .
+
 docker-up:
 	docker compose up -d --build
 

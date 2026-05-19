@@ -84,7 +84,8 @@ label {
   font-weight: 600;
 }
 
-input {
+input,
+textarea {
   min-height: 42px;
   border: 1px solid #ccd6e3;
   border-radius: 6px;
@@ -93,7 +94,14 @@ input {
   color: #18212f;
 }
 
+textarea {
+  min-height: 88px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
 input:focus,
+textarea:focus,
 button:focus-visible,
 a:focus-visible {
   outline: 3px solid rgba(20, 184, 166, 0.28);
@@ -203,6 +211,11 @@ button,
 .view {
   display: grid;
   gap: 18px;
+}
+
+.subscriptions-toolbar {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .view-header {
@@ -358,6 +371,207 @@ th {
   align-content: start;
 }
 
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: rgba(16, 24, 39, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.modal-panel {
+  width: min(720px, 100%);
+  max-height: min(92dvh, 900px);
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #dce3ed;
+  border-radius: 10px;
+  padding: 20px 22px 22px;
+  box-shadow: 0 26px 80px rgba(16, 24, 39, 0.2);
+}
+
+.modal-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #edf1f6;
+}
+
+.modal-title {
+  font-size: 20px;
+  margin: 0 0 4px;
+}
+
+.subscription-poll-meta {
+  margin: 0.75rem 0 0;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  background: var(--surface-muted, rgba(0, 0, 0, 0.04));
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.subscription-poll-meta p {
+  margin: 0;
+}
+
+.subscription-poll-meta p + p {
+  margin-top: 0.35rem;
+}
+
+.subscription-poll-meta strong {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.sub-schedule-cell {
+  min-width: 12rem;
+}
+
+.sub-schedule-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.sub-schedule-label {
+  display: inline-block;
+  min-width: 2.2rem;
+  color: var(--muted);
+}
+
+.modal-subtitle {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.modal-close {
+  min-height: 40px;
+  min-width: 40px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.subscription-edit-form {
+  display: grid;
+  gap: 18px;
+}
+
+.modal-fieldset {
+  margin: 0;
+  padding: 14px 0 0;
+  border: 0;
+  border-top: 1px solid #edf1f6;
+  display: grid;
+  gap: 12px;
+}
+
+.subscription-edit-form > .modal-fieldset:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.modal-fieldset legend {
+  padding: 0;
+  margin: 0 0 10px;
+}
+
+.modal-section-title {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #0f766e;
+}
+
+.modal-full {
+  grid-column: 1 / -1;
+}
+
+.modal-fieldset-schedule {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.schedule-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 20px;
+  grid-column: 1 / -1;
+}
+
+.modal-schedule-help {
+  margin: -2px 0 2px;
+  font-size: 13px;
+  grid-column: 1 / -1;
+}
+
+.modal-check-inline {
+  margin-top: 2px;
+}
+
+@media (min-width: 560px) {
+  .modal-fieldset-schedule {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 20px;
+    align-items: center;
+  }
+
+  /* 调度控件占满宽度；启用的两个勾选项并排 */
+  .modal-fieldset-schedule > .schedule-mode-row,
+  .modal-fieldset-schedule > .modal-schedule-help,
+  .modal-fieldset-schedule > label:not(.modal-check-inline):not(.check) {
+    grid-column: 1 / -1;
+  }
+}
+
+.modal-hint {
+  margin: 0;
+  font-size: 13px;
+  grid-column: 1 / -1;
+}
+
+.modal-keyword-grid {
+  display: grid;
+  gap: 12px;
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 640px) {
+  .modal-keyword-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+}
+
+.modal-error {
+  margin: 0;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+  border-top: 1px solid #edf1f6;
+  margin-top: 4px;
+}
+
 @media (max-width: 900px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -380,5 +594,82 @@ th {
   .view-header {
     display: grid;
   }
+}
+
+@keyframes icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.icon-spinning {
+  animation: icon-spin 0.85s linear infinite;
+}
+
+.fetch-preview-modal.modal-panel {
+  width: min(1180px, 96vw);
+  max-width: none;
+  max-height: min(94dvh, 960px);
+  display: flex;
+  flex-direction: column;
+}
+
+.fetch-preview-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  max-height: min(72dvh, 720px);
+  margin-top: 4px;
+}
+
+.fetch-preview-modal table {
+  min-width: 1080px;
+}
+
+.fetch-preview-modal th:last-child,
+.fetch-preview-modal td.actions {
+  white-space: nowrap;
+  width: 1%;
+}
+
+.fetch-preview-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.fetch-preview-select-all {
+  margin: 0;
+}
+
+.fetch-preview-col-check {
+  width: 44px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.fetch-preview-col-check input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.modal-notice {
+  margin: 0 0 10px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 

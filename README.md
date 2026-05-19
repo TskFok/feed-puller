@@ -6,7 +6,7 @@
 
 - 账号密码登录，启动时通过环境变量初始化管理员。
 - 飞书作为备用登录：管理员登录后在设置页绑定飞书账号。
-- 每个 RSS 订阅可配置拉取间隔、下载目录、启用状态和是否使用代理。
+- 每个 RSS 订阅可配置名称、订阅地址、拉取计划（固定间隔分钟数，或可选标准五字段 crontab：分 时 日 月 周）、crontab 所用 **IANA 时区**（如 `Asia/Shanghai`，空则用 UTC）、保存路径、启用状态、是否使用代理、包含/排除关键字（每行一条 Go 正则，对标题、链接与下载地址联合匹配；排除优先，包含非空时须命中至少一条）。
 - 全局 HTTP/HTTPS 代理只用于获取 RSS 内容，不用于 aria2 RPC，也不参与实际下载。
 - 解析 RSS/Atom 标准字段，优先使用 `enclosure`，也支持条目链接、magnet、torrent URL。
 - 条目按 `guid`、规范化链接、下载 URL 去重；已触发下载的条目不会重复进入队列。
@@ -117,10 +117,11 @@ docker build -t feed-puller:local .
 - `GET /api/auth/me`
 - `GET /api/auth/feishu/start`
 - `GET /api/auth/feishu/callback`
-- `GET/POST /api/subscriptions`
+- `GET/POST /api/subscriptions` — **新建订阅不会立即拉取 RSS**；首次内容依赖定时调度（按创建时间与间隔/crontab 计算）或 `refresh` 手动拉取。
 - `GET/PUT/DELETE /api/subscriptions/{id}`
-- `POST /api/subscriptions/{id}/refresh`
+- `POST /api/subscriptions/{id}/refresh` — 拉取 RSS 并写入条目，响应 `{ "items": [...] }`（条目含可选 `content_length` 字节数）；**不会**自动提交 aria2 下载。
 - `GET /api/items`
+- `POST /api/items/{id}/download` — 将单条条目提交给 aria2（等同于队列中的单条处理）。
 - `GET /api/downloads`
 - `GET/PUT /api/settings/proxy`
 - `GET/DELETE /api/settings/feishu-binding`

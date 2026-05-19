@@ -39,7 +39,7 @@ func (s *Scheduler) runOnce(ctx context.Context) {
 		return
 	}
 	for _, sub := range subscriptions {
-		if err := s.service.PollSubscription(ctx, sub); err != nil {
+		if _, err := s.service.PollSubscription(ctx, sub); err != nil {
 			s.log.Warn("订阅拉取失败", "subscription_id", sub.ID, "error", err)
 		}
 	}

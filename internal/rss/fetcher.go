@@ -84,3 +84,35 @@ func (f *Fetcher) Fetch(ctx context.Context, feedURL string, useProxy bool) (Fee
 	}
 	return ParseFeed(body)
 }
+
+// ProbeContentLength 通过 HEAD 探测资源的 Content-Length；不支持或失败时返回 ok=false。
+func (f *Fetcher) ProbeContentLength(ctx context.Context, resourceURL string, useProxy bool) (int64, bool) {
+	raw := strings.TrimSpace(resourceURL)
+	if raw == "" {
+		return 0, false
+	}
+	client := f.directClient
+	if useProxy {
+		if f.proxyURL == "" || f.proxyClient == nil {
+			return 0, false
+		}
+		client = f.proxyClient
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodHead, raw, nil)
+	if err != nil {
+		return 0, false
+	}
+	request.Header.Set("User-Agent", "feed-puller/1.0")
+	response, err := client.Do(request)
+	if err != nil {
+		return 0, false
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return 0, false
+	}
+	if response.ContentLength >= 0 {
+		return response.ContentLength, true
+	}
+	return 0, false
+}

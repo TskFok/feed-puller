@@ -1,6 +1,19 @@
-import type { DownloadTask, FeedItem, Subscription, User } from './types';
+import type {
+  DownloadTask,
+  FeedItem,
+  PolledFeedItem,
+  BatchDownloadResult,
+  PollSchedulePreviewInput,
+  PollSchedulePreviewResult,
+  Subscription,
+  User
+} from './types';
 
 type RequestOptions = RequestInit & { json?: unknown };
+
+function asArray<T>(data: unknown): T[] {
+  return Array.isArray(data) ? data : [];
+}
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);
@@ -27,16 +40,24 @@ export const api = {
   login: (email: string, password: string) =>
     request<User>('/api/auth/login', { method: 'POST', json: { email, password } }),
   logout: () => request<{ ok: boolean }>('/api/auth/logout', { method: 'POST' }),
-  subscriptions: () => request<Subscription[]>('/api/subscriptions'),
+  subscriptions: async () => asArray<Subscription>(await request<Subscription[]>('/api/subscriptions')),
   createSubscription: (payload: Omit<Subscription, 'id'>) =>
     request<Subscription>('/api/subscriptions', { method: 'POST', json: payload }),
   updateSubscription: (id: number, payload: Omit<Subscription, 'id'>) =>
     request<Subscription>(`/api/subscriptions/${id}`, { method: 'PUT', json: payload }),
   deleteSubscription: (id: number) => request<{ ok: boolean }>(`/api/subscriptions/${id}`, { method: 'DELETE' }),
-  refreshSubscription: (id: number) => request<{ ok: boolean }>(`/api/subscriptions/${id}/refresh`, { method: 'POST' }),
-  items: (subscriptionId?: number) =>
-    request<FeedItem[]>(subscriptionId ? `/api/items?subscription_id=${subscriptionId}` : '/api/items'),
-  downloads: () => request<DownloadTask[]>('/api/downloads'),
+  refreshSubscription: (id: number) =>
+    request<{ items: PolledFeedItem[] }>(`/api/subscriptions/${id}/refresh`, { method: 'POST' }),
+  previewNextPoll: (payload: PollSchedulePreviewInput) =>
+    request<PollSchedulePreviewResult>('/api/subscriptions/preview-next-poll', { method: 'POST', json: payload }),
+  downloadFeedItem: (id: number) => request<FeedItem>(`/api/items/${id}/download`, { method: 'POST' }),
+  batchDownloadFeedItems: (itemIds: number[]) =>
+    request<BatchDownloadResult>('/api/items/batch-download', { method: 'POST', json: { item_ids: itemIds } }),
+  items: async (subscriptionId?: number) =>
+    asArray<FeedItem>(
+      await request<FeedItem[]>(subscriptionId ? `/api/items?subscription_id=${subscriptionId}` : '/api/items')
+    ),
+  downloads: async () => asArray<DownloadTask>(await request<DownloadTask[]>('/api/downloads')),
   proxy: () => request<{ proxy_url: string }>('/api/settings/proxy'),
   saveProxy: (proxy_url: string) =>
     request<{ proxy_url: string }>('/api/settings/proxy', { method: 'PUT', json: { proxy_url } }),

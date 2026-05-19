@@ -14,7 +14,9 @@ describe('App', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
+    window.location.hash = '';
   });
 
   it('未登录时显示账号密码登录和飞书登录入口', async () => {
@@ -1373,6 +1375,80 @@ describe('App', () => {
     expect(screen.getByText('1.0 KB/s')).toBeInTheDocument();
   });
 
+  it('下载中列表在上一次 active 请求未完成时不会重复请求', async () => {
+    let activeCallCount = 0;
+    let resolveActive: (() => void) | undefined;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/subscriptions') {
+          return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (path === '/api/downloads/active') {
+          activeCallCount += 1;
+          return new Promise<Response>((resolve) => {
+            resolveActive = () => {
+              resolve(
+                new Response(
+                  JSON.stringify([
+                    {
+                      id: 2,
+                      item_id: 11,
+                      subscription_id: 3,
+                      subscription_name: '动漫',
+                      title: '进行中番剧',
+                      url: 'https://example.test/b.mp4',
+                      dir: '/data/anime',
+                      aria2_gid: 'gid-2',
+                      submitted_at: '2026-05-19T11:00:00Z',
+                      aria2_status: 'active',
+                      completed_length: 500,
+                      total_length: 1000,
+                      download_speed: 1024,
+                      progress_percent: 50
+                    }
+                  ]),
+                  { status: 200, headers: { 'Content-Type': 'application/json' } }
+                )
+              );
+            };
+          });
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '下载中' }));
+    await waitFor(() => expect(screen.getByRole('heading', { name: '下载中' })).toBeInTheDocument());
+    expect(activeCallCount).toBe(1);
+
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+      expect(activeCallCount).toBe(1);
+
+      await act(async () => {
+        resolveActive?.();
+      });
+      await waitFor(() => expect(screen.getByText('进行中番剧')).toBeInTheDocument());
+      expect(activeCallCount).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('登录后可进入下载完成列表', async () => {
     vi.stubGlobal(
       'fetch',
@@ -1415,6 +1491,74 @@ describe('App', () => {
     expect(screen.getByText('动漫')).toBeInTheDocument();
     expect(screen.getByText('示例番剧')).toBeInTheDocument();
     expect(screen.getByText('/data/anime')).toBeInTheDocument();
+  });
+
+  it('下载完成列表在上一次 completed 请求未完成时不会重复请求', async () => {
+    let completedCallCount = 0;
+    let resolveCompleted: (() => void) | undefined;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/subscriptions') {
+          return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (path === '/api/downloads/completed') {
+          completedCallCount += 1;
+          return new Promise<Response>((resolve) => {
+            resolveCompleted = () => {
+              resolve(
+                new Response(
+                  JSON.stringify([
+                    {
+                      id: 1,
+                      item_id: 10,
+                      subscription_id: 2,
+                      subscription_name: '动漫',
+                      title: '示例番剧',
+                      url: 'https://example.test/a.mp4',
+                      dir: '/data/anime',
+                      completed_at: '2026-05-19T12:00:00Z'
+                    }
+                  ]),
+                  { status: 200, headers: { 'Content-Type': 'application/json' } }
+                )
+              );
+            };
+          });
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '下载完成' }));
+    await waitFor(() => expect(screen.getByRole('heading', { name: '下载完成' })).toBeInTheDocument());
+    expect(completedCallCount).toBe(1);
+
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30000);
+      });
+      expect(completedCallCount).toBe(1);
+
+      await act(async () => {
+        resolveCompleted?.();
+      });
+      await waitFor(() => expect(screen.getByText('示例番剧')).toBeInTheDocument());
+      expect(completedCallCount).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('登录后可进入 AI 配置并新增一条配置', async () => {
@@ -1468,6 +1612,61 @@ describe('App', () => {
 
     await waitFor(() => expect(createAIConfig).toHaveBeenCalled());
     expect(await screen.findByText('DeepSeek')).toBeInTheDocument();
+  });
+
+  it('刷新后根据 URL hash 恢复当前标签页', async () => {
+    window.location.hash = '#active';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/subscriptions') {
+          return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (path === '/api/downloads/active') {
+          return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('heading', { name: '下载中' })).toBeInTheDocument());
+    expect(screen.queryByRole('heading', { name: '订阅' })).not.toBeInTheDocument();
+  });
+
+  it('切换标签页时同步 URL hash', async () => {
+    window.location.hash = '';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/subscriptions') {
+          return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (path === '/api/downloads/completed') {
+          return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '下载完成' }));
+    await waitFor(() => expect(window.location.hash).toBe('#completed'));
   });
 });
 

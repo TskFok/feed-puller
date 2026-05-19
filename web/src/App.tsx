@@ -33,6 +33,33 @@ import type {
 
 type Tab = 'subscriptions' | 'active' | 'completed' | 'ai-config' | 'settings';
 
+const APP_TABS: Tab[] = ['subscriptions', 'active', 'completed', 'ai-config', 'settings'];
+
+function tabFromHash(hash: string): Tab {
+  const id = hash.replace(/^#/, '').trim();
+  if (!id) {
+    return 'subscriptions';
+  }
+  return APP_TABS.includes(id as Tab) ? (id as Tab) : 'subscriptions';
+}
+
+function hashForTab(tab: Tab): string {
+  return tab === 'subscriptions' ? '' : `#${tab}`;
+}
+
+function readTabFromLocation(): Tab {
+  return tabFromHash(window.location.hash);
+}
+
+function writeTabToLocation(tab: Tab) {
+  const nextHash = hashForTab(tab);
+  const nextUrl = `${window.location.pathname}${window.location.search}${nextHash}`;
+  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  if (nextUrl !== currentUrl) {
+    history.replaceState(null, '', nextUrl);
+  }
+}
+
 const IANA_TIMEZONE_GROUPS = [
   {
     label: '常用',
@@ -205,7 +232,18 @@ function LoginView({ onLogin, error, setError }: { onLogin: (user: User) => void
 }
 
 function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => void }) {
-  const [tab, setTab] = useState<Tab>('subscriptions');
+  const [tab, setTab] = useState<Tab>(() => readTabFromLocation());
+
+  const selectTab = useCallback((next: Tab) => {
+    setTab(next);
+    writeTabToLocation(next);
+  }, []);
+
+  useEffect(() => {
+    const onHashChange = () => setTab(readTabFromLocation());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
 
   async function logout() {
     await api.logout().catch(() => null);
@@ -220,11 +258,11 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
           <span>feed-puller</span>
         </div>
         <nav className="nav" aria-label="主导航">
-          <NavButton tab="subscriptions" active={tab} setTab={setTab} icon={<Rss size={18} />} label="订阅" />
-          <NavButton tab="active" active={tab} setTab={setTab} icon={<Loader2 size={18} />} label="下载中" />
-          <NavButton tab="completed" active={tab} setTab={setTab} icon={<CheckCircle2 size={18} />} label="下载完成" />
-          <NavButton tab="ai-config" active={tab} setTab={setTab} icon={<Bot size={18} />} label="AI 配置" />
-          <NavButton tab="settings" active={tab} setTab={setTab} icon={<Settings size={18} />} label="设置" />
+          <NavButton tab="subscriptions" active={tab} setTab={selectTab} icon={<Rss size={18} />} label="订阅" />
+          <NavButton tab="active" active={tab} setTab={selectTab} icon={<Loader2 size={18} />} label="下载中" />
+          <NavButton tab="completed" active={tab} setTab={selectTab} icon={<CheckCircle2 size={18} />} label="下载完成" />
+          <NavButton tab="ai-config" active={tab} setTab={selectTab} icon={<Bot size={18} />} label="AI 配置" />
+          <NavButton tab="settings" active={tab} setTab={selectTab} icon={<Settings size={18} />} label="设置" />
         </nav>
         <div className="account">
           <span>{user.email}</span>
@@ -247,7 +285,7 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
 
 function NavButton({ tab, active, setTab, icon, label }: { tab: Tab; active: Tab; setTab: (tab: Tab) => void; icon: JSX.Element; label: string }) {
   return (
-    <button className={active === tab ? 'nav-button active' : 'nav-button'} onClick={() => setTab(tab)}>
+    <button type="button" className={active === tab ? 'nav-button active' : 'nav-button'} onClick={() => setTab(tab)}>
       {icon}
       {label}
     </button>
@@ -1241,25 +1279,37 @@ function ActiveDownloadsView() {
   const [rows, setRows] = useState<ActiveDownload[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const inFlightRef = useRef(false);
+  const mountedRef = useRef(true);
 
   const load = useCallback(async () => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     try {
-      setRows(await api.activeDownloads());
+      const data = await api.activeDownloads();
+      if (!mountedRef.current) return;
+      setRows(data);
       setError('');
     } catch (err) {
+      if (!mountedRef.current) return;
       setError(messageOf(err));
     } finally {
-      setLoading(false);
+      inFlightRef.current = false;
+      if (mountedRef.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     setLoading(true);
     void load();
     const timer = window.setInterval(() => {
       void load();
     }, 5000);
-    return () => window.clearInterval(timer);
+    return () => {
+      mountedRef.current = false;
+      window.clearInterval(timer);
+    };
   }, [load]);
 
   return (
@@ -1330,25 +1380,37 @@ function CompletedDownloadsView() {
   const [rows, setRows] = useState<CompletedDownload[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const inFlightRef = useRef(false);
+  const mountedRef = useRef(true);
 
   const load = useCallback(async () => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     try {
-      setRows(await api.completedDownloads());
+      const data = await api.completedDownloads();
+      if (!mountedRef.current) return;
+      setRows(data);
       setError('');
     } catch (err) {
+      if (!mountedRef.current) return;
       setError(messageOf(err));
     } finally {
-      setLoading(false);
+      inFlightRef.current = false;
+      if (mountedRef.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     setLoading(true);
     void load();
     const timer = window.setInterval(() => {
       void load();
     }, 30000);
-    return () => window.clearInterval(timer);
+    return () => {
+      mountedRef.current = false;
+      window.clearInterval(timer);
+    };
   }, [load]);
 
   return (

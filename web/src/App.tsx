@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Download,
   LogOut,
@@ -12,8 +13,8 @@ import {
   X
 } from 'lucide-react';
 import { api } from './api';
+import { useFeishuQR } from './feishu-qr';
 import type {
-  DownloadTask,
   FeedItem,
   PolledFeedItem,
   PollSchedulePreviewInput,
@@ -21,7 +22,7 @@ import type {
   User
 } from './types';
 
-type Tab = 'subscriptions' | 'items' | 'downloads' | 'settings';
+type Tab = 'subscriptions' | 'settings';
 
 /** 下拉快捷项；仍可手动输入任意 IANA 标识 */
 const COMMON_IANA_TIMEZONES = [
@@ -77,6 +78,36 @@ function LoginView({ onLogin, error, setError }: { onLogin: (user: User) => void
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [mode, setMode] = useState<'password' | 'feishu'>('password');
+  const [feishuGoto, setFeishuGoto] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (mode === 'feishu') {
+      setError('');
+      api
+        .getFeishuLoginUrl()
+        .then((data) => setFeishuGoto(data.goto ?? null))
+        .catch(() => setError('获取飞书登录地址失败'));
+    } else {
+      setFeishuGoto(null);
+    }
+  }, [mode, setError]);
+
+  const handleFeishuLoginSuccess = useCallback(
+    (user: unknown) => {
+      onLogin(user as User);
+    },
+    [onLogin]
+  );
+
+  useFeishuQR({
+    authUrl: feishuGoto,
+    mode: 'login',
+    qrContainerId: 'feishuLoginQRContainer',
+    iframeContainerId: 'feishuLoginIframeContainer',
+    onLoginSuccess: handleFeishuLoginSuccess,
+    onError: setError
+  });
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -99,23 +130,42 @@ function LoginView({ onLogin, error, setError }: { onLogin: (user: User) => void
           <h1 id="login-title">feed-puller</h1>
           <p className="muted">登录后管理订阅、代理和 aria2 下载任务。</p>
         </div>
-        <form onSubmit={submit} className="form">
-          <label>
-            邮箱
-            <input value={email} type="email" autoComplete="email" onChange={(event) => setEmail(event.target.value)} required />
-          </label>
-          <label>
-            密码
-            <input value={password} type="password" autoComplete="current-password" onChange={(event) => setPassword(event.target.value)} required />
-          </label>
-          {error && <p className="error">{error}</p>}
-          <button className="primary" disabled={submitting}>
-            {submitting ? '登录中' : '登录'}
+        <div className="login-tabs">
+          <button type="button" className={mode === 'password' ? 'active' : ''} onClick={() => setMode('password')}>
+            账号密码登录
           </button>
-          <a className="secondary-link" href="/api/auth/feishu/start">
-            使用已绑定的飞书账号登录
-          </a>
-        </form>
+          <button type="button" className={mode === 'feishu' ? 'active' : ''} onClick={() => setMode('feishu')}>
+            飞书登录
+          </button>
+        </div>
+        {mode === 'password' ? (
+          <form onSubmit={submit} className="form">
+            <label>
+              邮箱
+              <input value={email} type="email" autoComplete="email" onChange={(event) => setEmail(event.target.value)} required />
+            </label>
+            <label>
+              密码
+              <input value={password} type="password" autoComplete="current-password" onChange={(event) => setPassword(event.target.value)} required />
+            </label>
+            {error && <p className="error">{error}</p>}
+            <button className="primary" disabled={submitting}>
+              {submitting ? '登录中' : '登录'}
+            </button>
+          </form>
+        ) : (
+          <div className="form auth-form-feishu">
+            {error && <p className="error">{error}</p>}
+            {feishuGoto == null && !error && <p className="feishu-qr-hint">正在加载飞书扫码...</p>}
+            {feishuGoto != null && (
+              <>
+                <div id="feishuLoginIframeContainer" className="feishu-iframe-host" aria-hidden />
+                <div id="feishuLoginQRContainer" className="feishu-qr-inline" />
+                <p className="feishu-qr-hint">使用飞书 App 扫码即可登录</p>
+              </>
+            )}
+          </div>
+        )}
       </section>
     </main>
   );
@@ -138,8 +188,6 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
         </div>
         <nav className="nav" aria-label="主导航">
           <NavButton tab="subscriptions" active={tab} setTab={setTab} icon={<Rss size={18} />} label="订阅" />
-          <NavButton tab="items" active={tab} setTab={setTab} icon={<SquarePen size={18} />} label="条目" />
-          <NavButton tab="downloads" active={tab} setTab={setTab} icon={<Download size={18} />} label="下载" />
           <NavButton tab="settings" active={tab} setTab={setTab} icon={<Settings size={18} />} label="设置" />
         </nav>
         <div className="account">
@@ -152,8 +200,6 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
       </aside>
       <main className="workspace">
         {tab === 'subscriptions' && <SubscriptionsView />}
-        {tab === 'items' && <ItemsView />}
-        {tab === 'downloads' && <DownloadsView />}
         {tab === 'settings' && <SettingsView user={user} setUser={setUser} />}
       </main>
     </div>
@@ -1027,126 +1073,55 @@ function SubscriptionsView() {
   );
 }
 
-function ItemsView() {
-  const [items, setItems] = useState<FeedItem[]>([]);
-  const [rowLoading, setRowLoading] = useState<number | null>(null);
-  const [notice, setNotice] = useState('');
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    api.items().then(setItems).catch((err) => setError(messageOf(err)));
-  }, []);
-
-  async function downloadItem(item: FeedItem) {
-    setError('');
-    setNotice('');
-    setRowLoading(item.id);
-    try {
-      const updated = await api.downloadFeedItem(item.id);
-      setItems((prev) => prev.map((row) => (row.id === updated.id ? updated : row)));
-      setNotice('下载任务已提交');
-    } catch (err) {
-      setError(messageOf(err));
-    } finally {
-      setRowLoading(null);
-    }
-  }
-
-  return (
-    <section className="view">
-      <Header title="条目" description="已入库 RSS 条目；可手动下载或重新下载（已提交 aria2 的条目亦可再次提交）。" />
-      <Feedback notice={notice} error={error} />
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>标题</th>
-              <th>下载地址</th>
-              <th>状态</th>
-              <th>发布时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item.id}>
-                <td className="break">{item.title || item.link || item.download_url}</td>
-                <td className="break">{item.download_url || '无可下载地址'}</td>
-                <td><Status value={item.download_status} /></td>
-                <td>{formatTime(item.published_at) || formatTime(item.created_at)}</td>
-                <td className="actions">
-                  {canDownloadFeedItem(item) ? (
-                    <button
-                      type="button"
-                      className="icon-text"
-                      disabled={rowLoading === item.id}
-                      onClick={() => downloadItem(item)}
-                    >
-                      <Download size={16} aria-hidden="true" />
-                      {rowLoading === item.id ? '提交中…' : feedItemDownloadButtonLabel(item.download_status)}
-                    </button>
-                  ) : (
-                    <span className="muted">—</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {items.length === 0 && <EmptyRow columns={5} text="暂无条目" />}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
-function DownloadsView() {
-  const [downloads, setDownloads] = useState<DownloadTask[]>([]);
-  const [error, setError] = useState('');
-  useEffect(() => {
-    api.downloads().then(setDownloads).catch((err) => setError(messageOf(err)));
-  }, []);
-  return (
-    <section className="view">
-      <Header title="下载" description="展示提交给外部 aria2 的任务结果。" />
-      <Feedback error={error} />
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>任务</th>
-              <th>目录</th>
-              <th>状态</th>
-              <th>aria2 GID</th>
-              <th>错误</th>
-            </tr>
-          </thead>
-          <tbody>
-            {downloads.map((task) => (
-              <tr key={task.id}>
-                <td className="break">{task.url}</td>
-                <td className="break">{task.dir}</td>
-                <td><Status value={task.status} /></td>
-                <td>{task.aria2_gid || '-'}</td>
-                <td className="break">{task.error || '-'}</td>
-              </tr>
-            ))}
-            {downloads.length === 0 && <EmptyRow columns={5} text="暂无下载任务" />}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
 
 function SettingsView({ user, setUser }: { user: User; setUser: (user: User | null) => void }) {
   const [proxyURL, setProxyURL] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [bindFeishuAuthUrl, setBindFeishuAuthUrl] = useState<string | null>(null);
+  const [bindModalOpen, setBindModalOpen] = useState(false);
   const feishuLabel = useMemo(() => (user.feishu_bound ? user.feishu_name || user.feishu_open_id || '已绑定' : '未绑定'), [user]);
 
   useEffect(() => {
     api.proxy().then((data) => setProxyURL(data.proxy_url)).catch((err) => setError(messageOf(err)));
   }, []);
+
+  const closeBindModal = useCallback(() => {
+    setBindModalOpen(false);
+    setBindFeishuAuthUrl(null);
+  }, []);
+
+  const handleBindSuccess = useCallback(async () => {
+    closeBindModal();
+    try {
+      const fresh = await api.me();
+      setUser(fresh);
+      setNotice('飞书账号绑定成功');
+    } catch (err) {
+      setError(messageOf(err));
+    }
+  }, [closeBindModal, setUser]);
+
+  useFeishuQR({
+    authUrl: bindModalOpen ? bindFeishuAuthUrl : null,
+    mode: 'bind',
+    qrContainerId: 'feishuBindQRContainer',
+    iframeContainerId: 'feishuBindIframeContainer',
+    onBindSuccess: handleBindSuccess,
+    onError: (message) => {
+      closeBindModal();
+      setError(message);
+    }
+  });
+
+  useEffect(() => {
+    if (!bindModalOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [bindModalOpen]);
 
   async function saveProxy(event: FormEvent) {
     event.preventDefault();
@@ -1156,6 +1131,18 @@ function SettingsView({ user, setUser }: { user: User; setUser: (user: User | nu
       const saved = await api.saveProxy(proxyURL);
       setProxyURL(saved.proxy_url);
       setNotice('代理设置已保存');
+    } catch (err) {
+      setError(messageOf(err));
+    }
+  }
+
+  async function startBind() {
+    setNotice('');
+    setError('');
+    try {
+      const data = await api.getFeishuBindUrl();
+      setBindFeishuAuthUrl(data.goto ?? null);
+      setBindModalOpen(true);
     } catch (err) {
       setError(messageOf(err));
     }
@@ -1174,6 +1161,26 @@ function SettingsView({ user, setUser }: { user: User; setUser: (user: User | nu
     }
   }
 
+  const bindFeishuModal =
+    bindModalOpen && bindFeishuAuthUrl ? (
+      <div className="bind-feishu-overlay" onClick={closeBindModal} role="presentation">
+        <div className="bind-feishu-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-labelledby="bind-feishu-title">
+          <h3 id="bind-feishu-title" className="bind-feishu-title">
+            <span className="bind-feishu-icon" aria-hidden>
+              品
+            </span>
+            绑定飞书
+          </h3>
+          <p className="bind-feishu-desc">使用飞书 App 扫码，可将飞书账号绑定到当前用户</p>
+          <div id="feishuBindIframeContainer" className="feishu-iframe-host" aria-hidden />
+          <div id="feishuBindQRContainer" className="feishu-qr-inline bind-feishu-qr-sdk" />
+          <button type="button" className="bind-feishu-close" onClick={closeBindModal}>
+            关闭
+          </button>
+        </div>
+      </div>
+    ) : null;
+
   return (
     <section className="view">
       <Header title="设置" description="代理只用于拉取 RSS 内容，不参与 aria2 RPC 或实际下载。" />
@@ -1190,10 +1197,10 @@ function SettingsView({ user, setUser }: { user: User; setUser: (user: User | nu
           <h2>飞书备用登录</h2>
           <p className="muted">当前状态：{feishuLabel}</p>
           <div className="horizontal-actions">
-            <a className="primary-link" href="/api/auth/feishu/start">
+            <button type="button" className="primary-link" onClick={startBind}>
               <ShieldCheck size={16} />
               绑定飞书
-            </a>
+            </button>
             {user.feishu_bound && (
               <button className="ghost" onClick={unbind}>
                 解绑
@@ -1202,6 +1209,7 @@ function SettingsView({ user, setUser }: { user: User; setUser: (user: User | nu
           </div>
         </div>
       </div>
+      {bindFeishuModal != null ? createPortal(bindFeishuModal, document.body) : null}
       <Feedback notice={notice} error={error} />
     </section>
   );

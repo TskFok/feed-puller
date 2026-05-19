@@ -26,6 +26,8 @@ func New(cfg config.Config, store *store.Store, service *app.Service, log *slog.
 	mux.HandleFunc("/api/auth/login", server.handleLogin)
 	mux.HandleFunc("/api/auth/logout", server.handleLogout)
 	mux.HandleFunc("/api/auth/me", server.handleMe)
+	mux.HandleFunc("/api/auth/feishu/login-url", server.handleFeishuLoginURL)
+	mux.HandleFunc("/api/auth/feishu/login", server.handleFeishuLoginRedirect)
 	mux.HandleFunc("/api/auth/feishu/start", server.handleFeishuStart)
 	mux.HandleFunc("/api/auth/feishu/callback", server.handleFeishuCallback)
 	mux.HandleFunc("/api/subscriptions/preview-next-poll", server.requireAuth(server.handleSubscriptionNextPollPreview))
@@ -38,6 +40,7 @@ func New(cfg config.Config, store *store.Store, service *app.Service, log *slog.
 	mux.HandleFunc("/api/downloads/", server.requireAuth(server.handleDownloadByID))
 	mux.HandleFunc("/api/settings/proxy", server.requireAuth(server.handleProxySetting))
 	mux.HandleFunc("/api/settings/feishu-binding", server.requireAuth(server.handleFeishuBinding))
+	mux.HandleFunc("/api/settings/feishu-bind-url", server.requireAuth(server.handleFeishuBindURL))
 	mux.HandleFunc("/", server.handleStatic)
 	server.handler = server.withOptionalUser(mux)
 	return server

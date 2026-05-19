@@ -23,7 +23,37 @@ describe('App', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: 'feed-puller' })).toBeInTheDocument());
     expect(screen.getByLabelText('邮箱')).toBeInTheDocument();
     expect(screen.getByLabelText('密码')).toBeInTheDocument();
-    expect(screen.getByText('使用已绑定的飞书账号登录')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '飞书登录' })).toBeInTheDocument();
+  });
+
+  it('切换到飞书登录时会请求 login-url', async () => {
+    const getFeishuLoginUrl = vi.fn(async () => ({
+      url: '/api/auth/feishu/login?state=login',
+      goto: 'https://www.feishu.cn/suite/passport/oauth/authorize?state=login'
+    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ error: '未登录' }), { status: 401 });
+        }
+        if (path === '/api/auth/feishu/login-url') {
+          return new Response(JSON.stringify(await getFeishuLoginUrl()), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('button', { name: '飞书登录' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '飞书登录' }));
+
+    await waitFor(() => expect(getFeishuLoginUrl).toHaveBeenCalled());
+    expect(await screen.findByText('使用飞书 App 扫码即可登录')).toBeInTheDocument();
   });
 
   it('登录后订阅列表为 JSON null 时不崩溃并显示空状态', async () => {

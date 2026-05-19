@@ -62,6 +62,8 @@ export const api = {
   saveProxy: (proxy_url: string) =>
     request<{ proxy_url: string }>('/api/settings/proxy', { method: 'PUT', json: { proxy_url } }),
   feishuBinding: () => request<{ bound: boolean; feishu_name?: string; feishu_open_id?: string }>('/api/settings/feishu-binding'),
+  getFeishuLoginUrl: () => request<{ url: string; goto: string }>('/api/auth/feishu/login-url'),
+  getFeishuBindUrl: () => request<{ url: string; goto?: string }>('/api/settings/feishu-bind-url'),
   unbindFeishu: () => request<{ ok: boolean }>('/api/settings/feishu-binding', { method: 'DELETE' })
 };
 

@@ -673,3 +673,130 @@ th {
   border: 0;
 }
 
+.login-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.login-tabs button {
+  min-height: 40px;
+  border: 1px solid #ccd6e3;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #344054;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.login-tabs button.active {
+  border-color: #0f766e;
+  background: rgba(15, 118, 110, 0.08);
+  color: #0f766e;
+}
+
+.auth-form-feishu {
+  align-items: center;
+  text-align: center;
+}
+
+.feishu-qr-inline {
+  width: 280px;
+  height: 280px;
+  margin: 8px auto 0;
+  border: 1px solid #dce3ed;
+  border-radius: 8px;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.feishu-qr-hint {
+  margin: 12px 0 0;
+  color: #5d6878;
+  font-size: 14px;
+}
+
+.feishu-iframe-host {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+#feishuLoginQRContainer > *,
+#feishuBindQRContainer > *,
+#feishuLoginQRContainer iframe,
+#feishuBindQRContainer iframe {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.bind-feishu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(24, 33, 47, 0.45);
+}
+
+.bind-feishu-modal {
+  width: min(420px, 100%);
+  background: #ffffff;
+  border: 1px solid #dce3ed;
+  border-radius: 10px;
+  padding: 24px;
+  box-shadow: 0 24px 60px rgba(24, 33, 47, 0.18);
+}
+
+.bind-feishu-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.bind-feishu-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #0f766e;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.bind-feishu-desc {
+  margin: 0 0 8px;
+  color: #5d6878;
+  line-height: 1.5;
+}
+
+.bind-feishu-close {
+  width: 100%;
+  margin-top: 16px;
+  min-height: 40px;
+  border: 0;
+  border-radius: 6px;
+  background: #eef3f8;
+  color: #263244;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.bind-feishu-close:hover {
+  background: #e3ebf3;
+}
+
+.bind-feishu-qr-sdk {
+  margin-top: 8px;
+}
+

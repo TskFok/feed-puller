@@ -2,16 +2,12 @@ package httpapi
 
 import (
 	"context"
-	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -159,7 +155,7 @@ func sanitizeUser(user store.User) map[string]any {
 	}
 }
 
-func (s *Server) handleFeishuStart(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleFeishuLoginURL(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w)
 		return
@@ -168,19 +164,63 @@ func (s *Server) handleFeishuStart(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "飞书应用未配置")
 		return
 	}
-	mode := "login"
-	userID := int64(0)
-	if user, ok := s.currentUser(r); ok {
-		mode = "bind"
-		userID = user.ID
+	state := "login"
+	writeJSON(w, http.StatusOK, map[string]string{
+		"url":  "/api/auth/feishu/login?state=" + state,
+		"goto": feishuPassportAuthorizeURLFor(s.cfg.BaseURL, s.cfg.FeishuAppID, state),
+	})
+}
+
+func (s *Server) handleFeishuLoginRedirect(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return
 	}
-	state := s.signOAuthState(mode, userID, time.Now())
-	redirectURI := s.cfg.BaseURL + "/api/auth/feishu/callback"
-	values := url.Values{}
-	values.Set("app_id", s.cfg.FeishuAppID)
-	values.Set("redirect_uri", redirectURI)
-	values.Set("state", state)
-	http.Redirect(w, r, "https://open.feishu.cn/open-apis/authen/v1/authorize?"+values.Encode(), http.StatusFound)
+	if s.cfg.FeishuAppID == "" || s.cfg.FeishuAppSecret == "" {
+		writeError(w, http.StatusBadRequest, "飞书应用未配置")
+		return
+	}
+	state := strings.TrimSpace(r.URL.Query().Get("state"))
+	if state == "" {
+		state = "login"
+	}
+	http.Redirect(w, r, feishuPassportAuthorizeURLFor(s.cfg.BaseURL, s.cfg.FeishuAppID, state), http.StatusFound)
+}
+
+func (s *Server) handleFeishuStart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return
+	}
+	state := "login"
+	if user, ok := s.currentUser(r); ok {
+		state = fmt.Sprintf("bind:%d", user.ID)
+	}
+	http.Redirect(w, r, "/api/auth/feishu/login?state="+url.QueryEscape(state), http.StatusFound)
+}
+
+func (s *Server) handleFeishuBindURL(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return
+	}
+	user, ok := s.currentUser(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "未登录")
+		return
+	}
+	if s.cfg.FeishuAppID == "" || s.cfg.FeishuAppSecret == "" {
+		writeError(w, http.StatusBadRequest, "飞书应用未配置")
+		return
+	}
+	state := fmt.Sprintf("bind:%d", user.ID)
+	out := map[string]string{
+		"url": "/api/auth/feishu/login?state=" + state,
+	}
+	if s.cfg.FeishuAppID != "" {
+		out["goto"] = feishuPassportAuthorizeURLFor(s.cfg.BaseURL, s.cfg.FeishuAppID, state)
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) handleFeishuCallback(w http.ResponseWriter, r *http.Request) {
@@ -190,39 +230,57 @@ func (s *Server) handleFeishuCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	code := strings.TrimSpace(r.URL.Query().Get("code"))
 	state := strings.TrimSpace(r.URL.Query().Get("state"))
-	mode, stateUserID, err := s.verifyOAuthState(state)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+	if code == "" {
+		writeError(w, http.StatusBadRequest, "缺少 code")
 		return
 	}
 	identity, err := s.exchangeFeishuCode(r.Context(), code)
 	if err != nil {
-		writeError(w, http.StatusBadGateway, err.Error())
-		return
-	}
-	if mode == "bind" {
-		user, ok := s.currentUser(r)
-		if !ok || user.ID != stateUserID {
-			writeError(w, http.StatusUnauthorized, "绑定飞书需要先登录")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if strings.HasPrefix(state, "bind:") {
+			_, _ = w.Write([]byte(feishuBindCallbackHTML("feishu_bind_error", jsonString(err.Error()))))
 			return
 		}
-		if err := s.store.BindFeishu(r.Context(), user.ID, identity.OpenID, identity.Name); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		http.Redirect(w, r, "/settings?feishu=bound", http.StatusFound)
+		_, _ = w.Write([]byte(feishuLoginCallbackHTML("feishu_login_error", "", jsonString(err.Error()))))
 		return
 	}
+
+	if strings.HasPrefix(state, "bind:") {
+		var userID int64
+		if _, err := fmt.Sscanf(state, "bind:%d", &userID); err != nil || userID <= 0 {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_, _ = w.Write([]byte(feishuBindCallbackHTML("feishu_bind_error", jsonString("无效的绑定 state"))))
+			return
+		}
+		if existing, err := s.store.UserByFeishuOpenID(r.Context(), identity.OpenID); err == nil && existing.ID != userID {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_, _ = w.Write([]byte(feishuBindCallbackHTML("feishu_bind_error", jsonString("该飞书账号已绑定其他用户"))))
+			return
+		}
+		if err := s.store.BindFeishu(r.Context(), userID, identity.OpenID, identity.Name); err != nil {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_, _ = w.Write([]byte(feishuBindCallbackHTML("feishu_bind_error", jsonString(err.Error()))))
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(feishuBindCallbackHTML("feishu_bind_success", "")))
+		return
+	}
+
 	user, err := s.store.UserByFeishuOpenID(r.Context(), identity.OpenID)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "该飞书账号尚未绑定管理员")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(feishuLoginCallbackHTML("feishu_login_error", "", jsonString("该飞书账号尚未绑定管理员"))))
 		return
 	}
 	if err := s.setSession(r.Context(), w, user.ID); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(feishuLoginCallbackHTML("feishu_login_error", "", jsonString(err.Error()))))
 		return
 	}
-	http.Redirect(w, r, "/", http.StatusFound)
+	userJSON, _ := json.Marshal(sanitizeUser(user))
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(feishuLoginCallbackHTML("feishu_login_success", string(userJSON), "")))
 }
 
 func (s *Server) handleFeishuBinding(w http.ResponseWriter, r *http.Request) {
@@ -243,42 +301,4 @@ func (s *Server) handleFeishuBinding(w http.ResponseWriter, r *http.Request) {
 	default:
 		methodNotAllowed(w)
 	}
-}
-
-func (s *Server) signOAuthState(mode string, userID int64, now time.Time) string {
-	payload := fmt.Sprintf("%s|%d|%d", mode, userID, now.Unix())
-	mac := hmac.New(sha256.New, []byte(s.cfg.SessionSecret))
-	_, _ = mac.Write([]byte(payload))
-	signature := mac.Sum(nil)
-	return base64.RawURLEncoding.EncodeToString([]byte(payload)) + "." + base64.RawURLEncoding.EncodeToString(signature)
-}
-
-func (s *Server) verifyOAuthState(state string) (string, int64, error) {
-	parts := strings.Split(state, ".")
-	if len(parts) != 2 {
-		return "", 0, fmt.Errorf("OAuth state 无效")
-	}
-	payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[0])
-	if err != nil {
-		return "", 0, fmt.Errorf("OAuth state 无效")
-	}
-	signature, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return "", 0, fmt.Errorf("OAuth state 无效")
-	}
-	mac := hmac.New(sha256.New, []byte(s.cfg.SessionSecret))
-	_, _ = mac.Write(payloadBytes)
-	if !hmac.Equal(mac.Sum(nil), signature) {
-		return "", 0, fmt.Errorf("OAuth state 签名无效")
-	}
-	fields := strings.Split(string(payloadBytes), "|")
-	if len(fields) != 3 {
-		return "", 0, fmt.Errorf("OAuth state 无效")
-	}
-	createdAt, err := strconv.ParseInt(fields[2], 10, 64)
-	if err != nil || time.Since(time.Unix(createdAt, 0)) > 10*time.Minute {
-		return "", 0, fmt.Errorf("OAuth state 已过期")
-	}
-	userID, _ := strconv.ParseInt(fields[1], 10, 64)
-	return fields[0], userID, nil
 }

@@ -17,7 +17,7 @@ import {
   Trash2,
   X
 } from 'lucide-react';
-import { Banner } from './Banner';
+import { ToastProvider, useToast } from './Toast';
 import { api } from './api';
 import { useFeishuQR } from './feishu-qr';
 import { fetchPreviewAction, isFetchPreviewSelectionLocked, useActionLoading } from './useActionLoading';
@@ -114,7 +114,6 @@ const RSS_PARSER_OPTIONS = [
 export function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
   useEffect(() => {
     api
@@ -124,18 +123,21 @@ export function App() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return <div className="boot">正在加载 feed-puller</div>;
-  }
-
-  if (!user) {
-    return <LoginView onLogin={setUser} error={error} setError={setError} />;
-  }
-
-  return <Shell user={user} setUser={setUser} />;
+  return (
+    <ToastProvider>
+      {loading ? (
+        <div className="boot">正在加载 feed-puller</div>
+      ) : !user ? (
+        <LoginView onLogin={setUser} />
+      ) : (
+        <Shell user={user} setUser={setUser} />
+      )}
+    </ToastProvider>
+  );
 }
 
-function LoginView({ onLogin, error, setError }: { onLogin: (user: User) => void; error: string; setError: (value: string) => void }) {
+function LoginView({ onLogin }: { onLogin: (user: User) => void }) {
+  const { showToast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -144,15 +146,14 @@ function LoginView({ onLogin, error, setError }: { onLogin: (user: User) => void
 
   useEffect(() => {
     if (mode === 'feishu') {
-      setError('');
       api
         .getFeishuLoginUrl()
         .then((data) => setFeishuGoto(data.goto ?? null))
-        .catch(() => setError('获取飞书登录地址失败'));
+        .catch(() => showToast('获取飞书登录地址失败', 'error'));
     } else {
       setFeishuGoto(null);
     }
-  }, [mode, setError]);
+  }, [mode, showToast]);
 
   const handleFeishuLoginSuccess = useCallback(
     (user: unknown) => {
@@ -167,17 +168,16 @@ function LoginView({ onLogin, error, setError }: { onLogin: (user: User) => void
     qrContainerId: 'feishuLoginQRContainer',
     iframeContainerId: 'feishuLoginIframeContainer',
     onLoginSuccess: handleFeishuLoginSuccess,
-    onError: setError
+    onError: (message) => showToast(message, 'error')
   });
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
-    setError('');
     try {
       onLogin(await api.login(email, password));
     } catch (err) {
-      setError(err instanceof Error ? err.message : '登录失败');
+      showToast(err instanceof Error ? err.message : '登录失败', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -209,23 +209,13 @@ function LoginView({ onLogin, error, setError }: { onLogin: (user: User) => void
               密码
               <input value={password} type="password" autoComplete="current-password" onChange={(event) => setPassword(event.target.value)} required />
             </label>
-            {error && (
-              <Banner variant="error" onDismiss={() => setError('')}>
-                {error}
-              </Banner>
-            )}
             <button className="primary" disabled={submitting}>
               {submitting ? '登录中' : '登录'}
             </button>
           </form>
         ) : (
           <div className="form auth-form-feishu">
-            {error && (
-              <Banner variant="error" onDismiss={() => setError('')}>
-                {error}
-              </Banner>
-            )}
-            {feishuGoto == null && !error && <p className="feishu-qr-hint">正在加载飞书扫码...</p>}
+            {feishuGoto == null && <p className="feishu-qr-hint">正在加载飞书扫码...</p>}
             {feishuGoto != null && (
               <>
                 <div id="feishuLoginIframeContainer" className="feishu-iframe-host" aria-hidden />
@@ -499,7 +489,7 @@ function SubscriptionModal({
     return source.poll_cron.trim() !== '' ? 'cron' : 'interval';
   });
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const { showToast } = useToast();
 
   const previewAnchors = useMemo(
     () => ({
@@ -533,7 +523,6 @@ function SubscriptionModal({
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
-    setError('');
     try {
       const payload: Omit<Subscription, 'id'> =
         scheduleKind === 'cron'
@@ -550,7 +539,7 @@ function SubscriptionModal({
       await onSuccess(saved);
       onClose();
     } catch (err) {
-      setError(messageOf(err));
+      showToast(messageOf(err), 'error');
     } finally {
       setSaving(false);
     }
@@ -848,11 +837,6 @@ function SubscriptionModal({
             </div>
           </fieldset>
 
-          {error && (
-            <Banner variant="error" className="banner-in-modal" onDismiss={() => setError('')}>
-              {error}
-            </Banner>
-          )}
           <div className="modal-actions">
             <button type="button" className="ghost" disabled={saving} onClick={onClose}>
               取消
@@ -946,8 +930,7 @@ function FetchPreviewModal({
   const [statusFilter, setStatusFilter] = useState<FetchPreviewStatusFilter>('all');
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
   const action = useActionLoading();
-  const [notice, setNotice] = useTransientNotice();
-  const [error, setError] = useState('');
+  const { showToast } = useToast();
   const selectionLocked = isFetchPreviewSelectionLocked(action.active);
 
   const filteredRows = useMemo(
@@ -1014,8 +997,6 @@ function FetchPreviewModal({
   }, [onClose]);
 
   async function downloadRow(row: PolledFeedItem) {
-    setError('');
-    setNotice('');
     try {
       await action.run(fetchPreviewAction.downloadRow(row.id), async () => {
         const updated = await api.downloadFeedItem(row.id);
@@ -1027,15 +1008,13 @@ function FetchPreviewModal({
         });
       });
     } catch (err) {
-      setError(messageOf(err));
+      showToast(messageOf(err), 'error');
     }
   }
 
   async function downloadSelected() {
     const ids = downloadableIds.filter((id) => selected.has(id));
     if (ids.length === 0) return;
-    setError('');
-    setNotice('');
     try {
       await action.run(fetchPreviewAction.batchDownload, async () => {
         const result = await api.batchDownloadFeedItems(ids);
@@ -1048,15 +1027,15 @@ function FetchPreviewModal({
         const ok = result.items.length;
         const failed = result.failures?.length ?? 0;
         if (ok > 0) {
-          setNotice(`已提交 ${ok} 条下载任务`);
+          showToast(`已提交 ${ok} 条下载任务`);
         }
         if (failed > 0) {
           const detail = result.failures!.map((f) => `#${f.item_id}: ${f.error}`).join('；');
-          setError(`有 ${failed} 条未成功：${detail}`);
+          showToast(`有 ${failed} 条未成功：${detail}`, 'error');
         }
       });
     } catch (err) {
-      setError(messageOf(err));
+      showToast(messageOf(err), 'error');
     }
   }
 
@@ -1065,17 +1044,15 @@ function FetchPreviewModal({
     if (ids.length === 0) return;
     const actionKey =
       downloadStatus === 'pending' ? fetchPreviewAction.statusPending : fetchPreviewAction.statusSubmitted;
-    setError('');
-    setNotice('');
     try {
       await action.run(actionKey, async () => {
         const result = await api.batchUpdateFeedItemStatus(ids, downloadStatus);
         applyUpdatedItems(result.items);
         const label = downloadStatus === 'pending' ? '未处理' : '已处理';
-        setNotice(`已将 ${result.items.length} 条标记为${label}`);
+        showToast(`已将 ${result.items.length} 条标记为${label}`);
       });
     } catch (err) {
-      setError(messageOf(err));
+      showToast(messageOf(err), 'error');
     }
   }
 
@@ -1101,16 +1078,6 @@ function FetchPreviewModal({
             <X size={20} aria-hidden="true" />
           </button>
         </div>
-        {notice && (
-          <Banner variant="success" className="banner-in-modal">
-            {notice}
-          </Banner>
-        )}
-        {error && (
-          <Banner variant="error" className="banner-in-modal" onDismiss={() => setError('')}>
-            {error}
-          </Banner>
-        )}
         {rows.length > 0 && (
           <div className="fetch-preview-filters">
             <label className="fetch-preview-status-filter" htmlFor={statusFilterId}>
@@ -1297,11 +1264,14 @@ function aria2StatusLabel(status: string): string {
 }
 
 function ActiveDownloadsView() {
+  const { showToast } = useToast();
   const [rows, setRows] = useState<ActiveDownload[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const rowsRef = useRef(rows);
   const inFlightRef = useRef(false);
   const mountedRef = useRef(true);
+  const loadErrorToastedRef = useRef(false);
+  rowsRef.current = rows;
 
   const load = useCallback(async () => {
     if (inFlightRef.current) return;
@@ -1310,15 +1280,18 @@ function ActiveDownloadsView() {
       const data = await api.activeDownloads();
       if (!mountedRef.current) return;
       setRows(data);
-      setError('');
+      loadErrorToastedRef.current = false;
     } catch (err) {
       if (!mountedRef.current) return;
-      setError(messageOf(err));
+      if (rowsRef.current.length === 0 && !loadErrorToastedRef.current) {
+        showToast(messageOf(err), 'error');
+        loadErrorToastedRef.current = true;
+      }
     } finally {
       inFlightRef.current = false;
       if (mountedRef.current) setLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -1336,11 +1309,6 @@ function ActiveDownloadsView() {
   return (
     <section className="view">
       <Header title="下载中" description="展示已提交 aria2 的任务及实时进度，每 5 秒刷新。" />
-      {error && (
-        <Banner variant="error" onDismiss={() => setError('')}>
-          {error}
-        </Banner>
-      )}
       {loading && rows.length === 0 ? (
         <p className="muted">正在加载…</p>
       ) : (
@@ -1427,13 +1395,16 @@ function DownloadProgressCell({ row }: { row: ActiveDownload }) {
 }
 
 function CompletedDownloadsView() {
+  const { showToast } = useToast();
   const [rows, setRows] = useState<CompletedDownload[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [renameBusyId, setRenameBusyId] = useState<number | null>(null);
   const [renameHint, setRenameHint] = useState('');
+  const rowsRef = useRef(rows);
   const inFlightRef = useRef(false);
   const mountedRef = useRef(true);
+  const loadErrorToastedRef = useRef(false);
+  rowsRef.current = rows;
 
   const load = useCallback(async () => {
     if (inFlightRef.current) return;
@@ -1442,15 +1413,18 @@ function CompletedDownloadsView() {
       const data = await api.completedDownloads();
       if (!mountedRef.current) return;
       setRows(data);
-      setError('');
+      loadErrorToastedRef.current = false;
     } catch (err) {
       if (!mountedRef.current) return;
-      setError(messageOf(err));
+      if (rowsRef.current.length === 0 && !loadErrorToastedRef.current) {
+        showToast(messageOf(err), 'error');
+        loadErrorToastedRef.current = true;
+      }
     } finally {
       inFlightRef.current = false;
       if (mountedRef.current) setLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -1474,7 +1448,7 @@ function CompletedDownloadsView() {
       setRenameHint(result.message || (result.skipped ? '无需重命名' : '重命名成功'));
     } catch (err) {
       if (!mountedRef.current) return;
-      setRenameHint(messageOf(err));
+      showToast(messageOf(err), 'error');
     } finally {
       if (mountedRef.current) setRenameBusyId(null);
     }
@@ -1486,11 +1460,6 @@ function CompletedDownloadsView() {
         title="下载完成"
         description="aria2 任务完成后会自动出现在此列表；可对已启用 AI 重命名的订阅手动重试刮削重命名。"
       />
-      {error && (
-        <Banner variant="error" onDismiss={() => setError('')}>
-          {error}
-        </Banner>
-      )}
       {renameHint && <p className="muted">{renameHint}</p>}
       {loading && rows.length === 0 ? (
         <p className="muted">正在加载…</p>
@@ -1546,16 +1515,15 @@ function SubscriptionsView() {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [reorderSaving, setReorderSaving] = useState(false);
-  const [notice, setNotice] = useTransientNotice();
-  const [error, setError] = useState('');
+  const { showToast } = useToast();
 
   async function load() {
     setSubscriptions(await api.subscriptions());
   }
 
   useEffect(() => {
-    load().catch((err) => setError(messageOf(err)));
-  }, []);
+    load().catch((err) => showToast(messageOf(err), 'error'));
+  }, [showToast]);
 
   function edit(sub: Subscription) {
     setSubscriptionModal({ mode: 'edit', subscriptionId: sub.id });
@@ -1579,14 +1547,13 @@ function SubscriptionsView() {
 
   async function pullSubscription(sub: Subscription) {
     setFetchLoadingId(sub.id);
-    setError('');
     try {
       const { items } = await api.refreshSubscription(sub.id);
       setFetchPreview({ name: sub.name, items });
-      setNotice('拉取完成');
+      showToast('拉取完成');
       await load();
     } catch (err) {
-      setError(messageOf(err));
+      showToast(messageOf(err), 'error');
     } finally {
       setFetchLoadingId(null);
     }
@@ -1598,13 +1565,12 @@ function SubscriptionsView() {
     const next = moveListItem(subscriptions, from, to);
     setSubscriptions(next);
     setReorderSaving(true);
-    setError('');
     try {
       await api.reorderSubscriptions(next.map((sub) => sub.id));
-      setNotice('订阅顺序已保存');
+      showToast('订阅顺序已保存');
     } catch (err) {
       setSubscriptions(previous);
-      setError(messageOf(err));
+      showToast(messageOf(err), 'error');
     } finally {
       setReorderSaving(false);
     }
@@ -1637,9 +1603,9 @@ function SubscriptionsView() {
           onSuccess={async (saved) => {
             upsertSubscription(saved);
             if (subscriptionModal.mode === 'create') {
-              setNotice('订阅已创建，请使用「拉取」或等待定时调度');
+              showToast('订阅已创建，请使用「拉取」或等待定时调度');
             } else {
-              setNotice('订阅已更新');
+              showToast('订阅已更新');
             }
           }}
         />
@@ -1650,7 +1616,6 @@ function SubscriptionsView() {
           新增订阅
         </button>
       </div>
-      <Feedback notice={notice} error={error} onDismissError={() => setError('')} />
       <div className="table-wrap">
         <table>
           <thead>
@@ -1734,7 +1699,12 @@ function SubscriptionsView() {
                   <button
                     className="danger"
                     disabled={rowBusy}
-                    onClick={() => api.deleteSubscription(sub.id).then(load).catch((err) => setError(messageOf(err)))}
+                    onClick={() =>
+                      api
+                        .deleteSubscription(sub.id)
+                        .then(load)
+                        .catch((err) => showToast(messageOf(err), 'error'))
+                    }
                   >
                     <Trash2 size={16} />
                     删除
@@ -1785,7 +1755,7 @@ function AIConfigModal({
     };
   });
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const { showToast } = useToast();
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -1810,7 +1780,6 @@ function AIConfigModal({
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
-    setError('');
     try {
       const saved =
         target.mode === 'create'
@@ -1819,7 +1788,7 @@ function AIConfigModal({
       await onSuccess(saved);
       onClose();
     } catch (err) {
-      setError(messageOf(err));
+      showToast(messageOf(err), 'error');
     } finally {
       setSaving(false);
     }
@@ -1890,11 +1859,6 @@ function AIConfigModal({
               required
             />
           </label>
-          {error && (
-            <Banner variant="error" className="banner-in-modal" onDismiss={() => setError('')}>
-              {error}
-            </Banner>
-          )}
           <div className="modal-actions">
             <button type="button" className="ghost" onClick={onClose}>
               取消
@@ -1912,16 +1876,15 @@ function AIConfigModal({
 function AIConfigView() {
   const [configs, setConfigs] = useState<AIConfig[]>([]);
   const [modal, setModal] = useState<AIConfigModalTarget | null>(null);
-  const [notice, setNotice] = useTransientNotice();
-  const [error, setError] = useState('');
+  const { showToast } = useToast();
   const [testingId, setTestingId] = useState<number | null>(null);
 
   const load = useCallback(() => {
     return api
       .aiConfigs()
       .then(setConfigs)
-      .catch((err) => setError(messageOf(err)));
-  }, []);
+      .catch((err) => showToast(messageOf(err), 'error'));
+  }, [showToast]);
 
   useEffect(() => {
     void load();
@@ -1939,17 +1902,15 @@ function AIConfigView() {
 
   async function testConfig(cfg: AIConfig) {
     setTestingId(cfg.id);
-    setError('');
-    setNotice('');
     try {
       const result = await api.testAIConfig(cfg.id);
       if (result.ok) {
-        setNotice(result.message || `「${cfg.name}」API 连通正常`);
+        showToast(result.message || `「${cfg.name}」API 连通正常`);
       } else {
-        setError(result.error || 'API 连通检查失败');
+        showToast(result.error || 'API 连通检查失败', 'error');
       }
     } catch (err) {
-      setError(messageOf(err));
+      showToast(messageOf(err), 'error');
     } finally {
       setTestingId(null);
     }
@@ -1968,7 +1929,7 @@ function AIConfigView() {
           onClose={() => setModal(null)}
           onSuccess={async (saved) => {
             upsert(saved);
-            setNotice(modal.mode === 'create' ? 'AI 配置已创建' : 'AI 配置已更新');
+            showToast(modal.mode === 'create' ? 'AI 配置已创建' : 'AI 配置已更新');
           }}
         />
       )}
@@ -1978,7 +1939,6 @@ function AIConfigView() {
           新增配置
         </button>
       </div>
-      <Feedback notice={notice} error={error} onDismissError={() => setError('')} />
       <div className="table-wrap">
         <table>
           <thead>
@@ -2013,9 +1973,9 @@ function AIConfigView() {
                         .deleteAIConfig(cfg.id)
                         .then(() => {
                           setConfigs((prev) => prev.filter((c) => c.id !== cfg.id));
-                          setNotice('AI 配置已删除');
+                          showToast('AI 配置已删除');
                         })
-                        .catch((err) => setError(messageOf(err)))
+                        .catch((err) => showToast(messageOf(err), 'error'))
                     }
                   >
                     <Trash2 size={16} />
@@ -2034,15 +1994,14 @@ function AIConfigView() {
 
 function SettingsView({ user, setUser }: { user: User; setUser: (user: User | null) => void }) {
   const [proxyURL, setProxyURL] = useState('');
-  const [notice, setNotice] = useTransientNotice();
-  const [error, setError] = useState('');
+  const { showToast } = useToast();
   const [bindFeishuAuthUrl, setBindFeishuAuthUrl] = useState<string | null>(null);
   const [bindModalOpen, setBindModalOpen] = useState(false);
   const feishuLabel = useMemo(() => (user.feishu_bound ? user.feishu_name || user.feishu_open_id || '已绑定' : '未绑定'), [user]);
 
   useEffect(() => {
-    api.proxy().then((data) => setProxyURL(data.proxy_url)).catch((err) => setError(messageOf(err)));
-  }, []);
+    api.proxy().then((data) => setProxyURL(data.proxy_url)).catch((err) => showToast(messageOf(err), 'error'));
+  }, [showToast]);
 
   const closeBindModal = useCallback(() => {
     setBindModalOpen(false);
@@ -2054,11 +2013,11 @@ function SettingsView({ user, setUser }: { user: User; setUser: (user: User | nu
     try {
       const fresh = await api.me();
       setUser(fresh);
-      setNotice('飞书账号绑定成功');
+      showToast('飞书账号绑定成功');
     } catch (err) {
-      setError(messageOf(err));
+      showToast(messageOf(err), 'error');
     }
-  }, [closeBindModal, setUser]);
+  }, [closeBindModal, setUser, showToast]);
 
   useFeishuQR({
     authUrl: bindModalOpen ? bindFeishuAuthUrl : null,
@@ -2068,7 +2027,7 @@ function SettingsView({ user, setUser }: { user: User; setUser: (user: User | nu
     onBindSuccess: handleBindSuccess,
     onError: (message) => {
       closeBindModal();
-      setError(message);
+      showToast(message, 'error');
     }
   });
 
@@ -2083,39 +2042,33 @@ function SettingsView({ user, setUser }: { user: User; setUser: (user: User | nu
 
   async function saveProxy(event: FormEvent) {
     event.preventDefault();
-    setNotice('');
-    setError('');
     try {
       const saved = await api.saveProxy(proxyURL);
       setProxyURL(saved.proxy_url);
-      setNotice('代理设置已保存');
+      showToast('代理设置已保存');
     } catch (err) {
-      setError(messageOf(err));
+      showToast(messageOf(err), 'error');
     }
   }
 
   async function startBind() {
-    setNotice('');
-    setError('');
     try {
       const data = await api.getFeishuBindUrl();
       setBindFeishuAuthUrl(data.goto ?? null);
       setBindModalOpen(true);
     } catch (err) {
-      setError(messageOf(err));
+      showToast(messageOf(err), 'error');
     }
   }
 
   async function unbind() {
-    setNotice('');
-    setError('');
     try {
       await api.unbindFeishu();
       const fresh = await api.me();
       setUser(fresh);
-      setNotice('飞书账号已解绑');
+      showToast('飞书账号已解绑');
     } catch (err) {
-      setError(messageOf(err));
+      showToast(messageOf(err), 'error');
     }
   }
 
@@ -2168,7 +2121,6 @@ function SettingsView({ user, setUser }: { user: User; setUser: (user: User | nu
         </div>
       </div>
       {bindFeishuModal != null ? createPortal(bindFeishuModal, document.body) : null}
-      <Feedback notice={notice} error={error} onDismissError={() => setError('')} />
     </section>
   );
 }
@@ -2179,59 +2131,6 @@ function Header({ title, description }: { title: string; description: string }) 
       <h1>{title}</h1>
       <p>{description}</p>
     </header>
-  );
-}
-
-const NOTICE_DISMISS_MS = 4000;
-
-function useTransientNotice() {
-  const [notice, setNoticeState] = useState('');
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const clearNoticeTimer = useCallback(() => {
-    if (timerRef.current !== null) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-  }, []);
-
-  const setNotice = useCallback(
-    (message: string) => {
-      clearNoticeTimer();
-      setNoticeState(message);
-      if (message) {
-        timerRef.current = setTimeout(() => {
-          setNoticeState('');
-          timerRef.current = null;
-        }, NOTICE_DISMISS_MS);
-      }
-    },
-    [clearNoticeTimer]
-  );
-
-  useEffect(() => () => clearNoticeTimer(), [clearNoticeTimer]);
-
-  return [notice, setNotice] as const;
-}
-
-function Feedback({
-  notice,
-  error,
-  onDismissError
-}: {
-  notice?: string;
-  error?: string;
-  onDismissError: () => void;
-}) {
-  return (
-    <>
-      {notice && <Banner variant="success">{notice}</Banner>}
-      {error && (
-        <Banner variant="error" onDismiss={onDismissError}>
-          {error}
-        </Banner>
-      )}
-    </>
   );
 }
 

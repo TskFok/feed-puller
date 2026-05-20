@@ -740,14 +740,14 @@ describe('App', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /标记已处理（1）/ }));
     await waitFor(() => expect(statusCalls.length).toBe(1));
     expect(statusCalls[0]).toEqual({ item_ids: [201], download_status: 'submitted' });
-    expect(await within(dialog).findByText(/已将 1 条标记为已处理/)).toBeInTheDocument();
+    expect(await screen.findByText(/已将 1 条标记为已处理/)).toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole('checkbox', { name: '选择 Pending' }));
     fireEvent.click(within(dialog).getByRole('checkbox', { name: '选择 Done' }));
     fireEvent.click(within(dialog).getByRole('button', { name: /标记未处理（1）/ }));
     await waitFor(() => expect(statusCalls.length).toBe(2));
     expect(statusCalls[1]).toEqual({ item_ids: [202], download_status: 'pending' });
-    expect(await within(dialog).findByText(/已将 1 条标记为未处理/)).toBeInTheDocument();
+    expect(await screen.findByText(/已将 1 条标记为未处理/)).toBeInTheDocument();
   });
 
   it('拉取预览批量修改状态时仅被点击的按钮显示更新中', async () => {
@@ -1237,7 +1237,7 @@ describe('App', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /批量下载（2）/ }));
     await waitFor(() => expect(batchCalls.length).toBe(1));
     expect(batchCalls[0]).toEqual(expect.arrayContaining([101, 102]));
-    expect(await within(dialog).findByText(/已提交 2 条下载任务/)).toBeInTheDocument();
+    expect(await screen.findByText(/已提交 2 条下载任务/)).toBeInTheDocument();
   });
 
   it('订阅列表可通过拖拽手柄调整顺序', async () => {

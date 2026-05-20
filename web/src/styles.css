@@ -359,22 +359,90 @@ th {
   color: #92400e;
 }
 
-.banner {
+.toast-viewport {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1200;
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  border-radius: 6px;
-  padding: 10px 12px;
-  margin: 0;
+  flex-direction: column;
+  gap: 10px;
+  width: min(360px, calc(100vw - 32px));
+  pointer-events: none;
 }
 
-.banner-body {
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: #ffffff;
+  box-shadow:
+    0 10px 15px -3px rgba(15, 23, 42, 0.12),
+    0 4px 6px -4px rgba(15, 23, 42, 0.08);
+  pointer-events: auto;
+  animation: toast-in 0.22s ease-out;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.toast-success {
+  border-color: #a7f3d0;
+  border-left: 4px solid #10b981;
+}
+
+.toast-error {
+  border-color: #fecaca;
+  border-left: 4px solid #ef4444;
+}
+
+.toast-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.toast-success .toast-icon {
+  color: #059669;
+}
+
+.toast-error .toast-icon {
+  color: #dc2626;
+}
+
+.toast-body {
   flex: 1;
   min-width: 0;
+}
+
+.toast-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #64748b;
+}
+
+.toast-message {
+  margin: 2px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #0f172a;
   word-break: break-word;
 }
 
-.banner-dismiss {
+.toast-dismiss {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -384,33 +452,18 @@ th {
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: inherit;
+  color: #64748b;
   cursor: pointer;
-  opacity: 0.7;
 }
 
-.banner-dismiss:hover {
-  opacity: 1;
-  background: rgba(0, 0, 0, 0.06);
+.toast-dismiss:hover {
+  color: #0f172a;
+  background: #f1f5f9;
 }
 
-.banner-dismiss:focus-visible {
-  outline: 2px solid currentColor;
+.toast-dismiss:focus-visible {
+  outline: 2px solid #94a3b8;
   outline-offset: 2px;
-}
-
-.banner-success {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.banner-error {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.banner-in-modal {
-  margin: 0 0 10px;
 }
 
 .inline-error {

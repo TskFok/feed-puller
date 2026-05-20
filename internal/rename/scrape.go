@@ -2,7 +2,6 @@ package rename
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -46,28 +45,6 @@ func BuildScrapeFilename(originalPath string, season, episode int) string {
 	}
 	newBase := fmt.Sprintf("%s S%02dE%02d%s", cleaned, season, episode, ext)
 	return filepath.Join(dir, newBase)
-}
-
-// RenameFile 将文件重命名为目标路径；目标已存在时返回错误。
-func RenameFile(fromPath, toPath string) error {
-	fromPath = strings.TrimSpace(fromPath)
-	toPath = strings.TrimSpace(toPath)
-	if fromPath == "" || toPath == "" {
-		return fmt.Errorf("文件路径不能为空")
-	}
-	if fromPath == toPath {
-		return nil
-	}
-	if _, err := os.Stat(fromPath); err != nil {
-		return fmt.Errorf("源文件不存在: %w", err)
-	}
-	if _, err := os.Stat(toPath); err == nil {
-		return fmt.Errorf("目标文件已存在: %s", toPath)
-	}
-	if err := os.Rename(fromPath, toPath); err != nil {
-		return fmt.Errorf("重命名文件失败: %w", err)
-	}
-	return nil
 }
 
 // FinalEpisode 计算应用偏移后的最终集数。

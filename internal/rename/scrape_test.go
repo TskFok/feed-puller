@@ -1,7 +1,6 @@
 package rename
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 )
@@ -45,23 +44,5 @@ func TestFinalEpisode(t *testing.T) {
 	_, err = FinalEpisode(1, -2)
 	if err == nil {
 		t.Fatal("expected error for negative result")
-	}
-}
-
-func TestRenameFile(t *testing.T) {
-	dir := t.TempDir()
-	from := filepath.Join(dir, "old.mp4")
-	to := filepath.Join(dir, "new S01E01.mp4")
-	if err := os.WriteFile(from, []byte("x"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := RenameFile(from, to); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(to); err != nil {
-		t.Fatalf("target missing: %v", err)
-	}
-	if _, err := os.Stat(from); !os.IsNotExist(err) {
-		t.Fatal("source should be gone")
 	}
 }

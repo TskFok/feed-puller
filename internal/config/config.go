@@ -20,8 +20,10 @@ type Config struct {
 	Aria2HookSecret string
 	FeishuAppID     string
 	FeishuAppSecret string
-	HTTPTimeout     time.Duration
-	StaticDir       string
+	HTTPTimeout                  time.Duration
+	StaticDir                    string
+	DownloadPathHostPrefix       string
+	DownloadPathContainerPrefix  string
 }
 
 func Load() (Config, error) {
@@ -38,7 +40,9 @@ func Load() (Config, error) {
 		FeishuAppID:     strings.TrimSpace(os.Getenv("FEISHU_APP_ID")),
 		FeishuAppSecret: os.Getenv("FEISHU_APP_SECRET"),
 		HTTPTimeout:     20 * time.Second,
-		StaticDir:       env("STATIC_DIR", "web/dist"),
+		StaticDir:                   env("STATIC_DIR", "web/dist"),
+		DownloadPathHostPrefix:      env("DOWNLOAD_PATH_HOST_PREFIX", ""),
+		DownloadPathContainerPrefix: env("DOWNLOAD_PATH_CONTAINER_PREFIX", ""),
 	}
 	if raw := strings.TrimSpace(os.Getenv("HTTP_TIMEOUT_SECONDS")); raw != "" {
 		value, err := strconv.Atoi(raw)

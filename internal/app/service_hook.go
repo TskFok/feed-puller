@@ -149,7 +149,7 @@ func (s *Service) isAria2DownloadFullyComplete(ctx context.Context, gid, filePat
 
 // resolveAria2HookFilePath 在整任务完成时尽量返回真实媒体路径（跳过 [METADATA]）。
 func (s *Service) resolveAria2HookFilePath(ctx context.Context, gid, hookPath string) string {
-	hookPath = strings.TrimSpace(hookPath)
+	hookPath = strings.TrimSpace(s.mapDownloadPath(hookPath))
 	if hookPath != "" && !downloader.IsMetadataDownloadPath(hookPath) {
 		return hookPath
 	}
@@ -158,7 +158,7 @@ func (s *Service) resolveAria2HookFilePath(ctx context.Context, gid, hookPath st
 		return hookPath
 	}
 	if path, err := downloader.Aria2DownloadPath(status); err == nil {
-		return path
+		return s.mapDownloadPath(path)
 	}
 	return hookPath
 }

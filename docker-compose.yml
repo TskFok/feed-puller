@@ -3,7 +3,10 @@ services:
     build:
       context: .
     image: feed-puller:local
+    user: "${PUID:-1000}:${PGID:-1000}"
     environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
       PORT: ${PORT:-8080}
       BASE_URL: ${BASE_URL:-http://localhost:8080}
       MYSQL_DSN: ${MYSQL_DSN}
@@ -16,6 +19,12 @@ services:
       FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
       STATIC_DIR: /app/web/dist
       ARIA2_HOOK_SECRET:
+      # 仅当 aria2 返回宿主机路径、与容器挂载路径不一致时配置（例如 /Users/... → /data）
+      DOWNLOAD_PATH_HOST_PREFIX: ${DOWNLOAD_PATH_HOST_PREFIX:-}
+      DOWNLOAD_PATH_CONTAINER_PREFIX: ${DOWNLOAD_PATH_CONTAINER_PREFIX:-}
+    # 若你已完成目录映射，在此追加自己的 volumes，勿与下方示例重复挂载
+    # volumes:
+    #   - /你的宿主机下载目录:/容器内同一路径
     ports:
       - "8080:8080"
     restart: unless-stopped

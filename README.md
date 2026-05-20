@@ -98,6 +98,17 @@ docker build -t feed-puller:local .
 docker compose up -d --build
 ```
 
+**AI 重命名与文件权限**：重命名在 feed-puller 进程内直接操作磁盘文件。目录已映射仍报 `permission denied` 时，通常是 **PUID/PGID 与 aria2 写文件的用户不一致**（不是挂载缺失）。
+
+在 Linux 上重命名需要**父目录写权限**（`w+x`），与文件本身是否只读无关。仅把 `PUID`/`PGID` 设为 `0` 在 macOS Docker 上通常无效：容器内 root 仍无法改写由宿主机用户属主的目录。
+
+1. **`PUID` / `PGID`**：与 aria2 进程一致（`.env` 注入 compose 的 `user:`）。查看：`docker exec <aria2容器> id` 或对已下载文件 `ls -n` 看 uid。
+2. **订阅 `download_dir`**：填写**容器内**可见路径（与 volumes 映射一致）。
+3. **路径映射**（可选）：仅当 aria2 钩子返回宿主机路径、与容器内挂载路径**不同**时设置 `DOWNLOAD_PATH_HOST_PREFIX` / `DOWNLOAD_PATH_CONTAINER_PREFIX`；已做同路径映射（如 `/data:/data`）则留空。
+4. **volumes**：在 `docker-compose.yml` 自行配置；项目不再强制添加默认挂载，避免与已有映射冲突。
+
+重命名失败时，错误信息会附带进程 uid、文件/目录属主 uid、目录是否可写。
+
 停止：
 
 ```bash

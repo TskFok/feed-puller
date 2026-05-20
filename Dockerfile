@@ -33,6 +33,7 @@ COPY --from=backend /out/feed-puller /app/feed-puller
 COPY --from=frontend /src/web/dist /app/web/dist
 
 EXPOSE 8080
-USER nonroot:nonroot
+# 运行时 UID/GID 由 docker-compose 的 user 与 environment 中的 PUID/PGID 决定（默认 1000:1000）。
+USER 1000:1000
 ENTRYPOINT ["/app/feed-puller"]
 

@@ -52,7 +52,7 @@ func (s *Service) maybeRenameDownloadFileAt(ctx context.Context, sub store.Subsc
 
 // renameDownloadFileAt 执行刮削重命名，返回原路径、目标路径及是否因已是目标格式而跳过。
 func (s *Service) renameDownloadFileAt(ctx context.Context, sub store.Subscription, itemTitle, filePath string) (from, to string, skipped bool, err error) {
-	from = strings.TrimSpace(filePath)
+	from = strings.TrimSpace(s.mapDownloadPath(filePath))
 	if from == "" {
 		return "", "", false, errEmptyRenamePath
 	}

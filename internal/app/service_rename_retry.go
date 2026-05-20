@@ -72,13 +72,14 @@ func (s *Service) resolveCompletedDownloadFilePath(ctx context.Context, task sto
 		_, status, err := s.aria2.TellStatusEffective(ctx, gid)
 		if err == nil {
 			if path, pathErr := downloader.Aria2DownloadPath(status); pathErr == nil {
+				path = s.mapDownloadPath(path)
 				if _, statErr := os.Stat(path); statErr == nil {
 					return path, nil
 				}
 			}
 		}
 	}
-	dir := strings.TrimSpace(task.Dir)
+	dir := strings.TrimSpace(s.mapDownloadPath(task.Dir))
 	if dir == "" {
 		return "", fmt.Errorf("下载目录为空")
 	}

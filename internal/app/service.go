@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"feed-puller/internal/downloader"
+	"feed-puller/internal/paths"
 	"feed-puller/internal/rss"
 	"feed-puller/internal/store"
 )
@@ -14,13 +15,22 @@ import (
 const proxySettingKey = "proxy_url"
 
 type Service struct {
-	store *store.Store
-	aria2 *downloader.Aria2Client
-	log   *slog.Logger
+	store   *store.Store
+	aria2   *downloader.Aria2Client
+	log     *slog.Logger
+	pathMap paths.Mapper
 }
 
-func NewService(store *store.Store, aria2 *downloader.Aria2Client, log *slog.Logger) *Service {
-	return &Service{store: store, aria2: aria2, log: log}
+func NewService(store *store.Store, aria2 *downloader.Aria2Client, log *slog.Logger, pathMap ...paths.Mapper) *Service {
+	s := &Service{store: store, aria2: aria2, log: log}
+	if len(pathMap) > 0 {
+		s.pathMap = pathMap[0]
+	}
+	return s
+}
+
+func (s *Service) mapDownloadPath(path string) string {
+	return s.pathMap.Map(path)
 }
 
 func (s *Service) PollSubscription(ctx context.Context, sub store.Subscription) ([]store.Item, error) {

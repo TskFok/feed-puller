@@ -17,6 +17,7 @@ import (
 	"feed-puller/internal/config"
 	"feed-puller/internal/downloader"
 	"feed-puller/internal/httpapi"
+	"feed-puller/internal/paths"
 	"feed-puller/internal/store"
 )
 
@@ -58,7 +59,14 @@ func main() {
 	}
 
 	aria2 := downloader.NewAria2Client(cfg.Aria2RPCURL, cfg.Aria2RPCSecret)
-	service := app.NewService(repo, aria2, log)
+	pathMap := paths.NewMapper(cfg.DownloadPathHostPrefix, cfg.DownloadPathContainerPrefix)
+	if pathMap.Enabled() {
+		log.Info("下载路径映射已启用",
+			"host_prefix", cfg.DownloadPathHostPrefix,
+			"container_prefix", cfg.DownloadPathContainerPrefix)
+	}
+	log.Info("进程身份", "uid", os.Geteuid(), "gid", os.Getegid())
+	service := app.NewService(repo, aria2, log, pathMap)
 	scheduler := app.NewScheduler(repo, service, log)
 	go scheduler.Run(ctx)
 

@@ -4,12 +4,42 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"sync/atomic"
 	"time"
 )
+
+// Aria2RPCError 表示 aria2 JSON-RPC 接口返回的结构化错误。
+// 暴露错误码与原始消息，便于上层做条件分支（如 GID 已被 aria2 清理）。
+type Aria2RPCError struct {
+	Code    int
+	Message string
+}
+
+func (e *Aria2RPCError) Error() string {
+	return fmt.Sprintf("aria2 错误 %d: %s", e.Code, e.Message)
+}
+
+// IsGIDNotFound 判断错误是否为 aria2「GID 不存在」类型。
+// aria2 仅在任务进入终态（complete/error/removed）后才会从结果列表中清理记录，
+// 因此 GID 不存在通常意味着任务已结束、记录被清理或 aria2 已重启。
+func IsGIDNotFound(err error) bool {
+	var rpcErr *Aria2RPCError
+	if !errors.As(err, &rpcErr) {
+		return false
+	}
+	msg := strings.ToLower(rpcErr.Message)
+	if strings.Contains(msg, "is not found") {
+		return true
+	}
+	if strings.Contains(msg, "no such") && strings.Contains(msg, "gid") {
+		return true
+	}
+	return false
+}
 
 type Aria2Client struct {
 	endpoint   string
@@ -127,7 +157,7 @@ func (c *Aria2Client) call(ctx context.Context, method string, params []any, res
 		return fmt.Errorf("解析 aria2 响应失败: %w", err)
 	}
 	if rpcResponse.Error != nil {
-		return fmt.Errorf("aria2 错误 %d: %s", rpcResponse.Error.Code, rpcResponse.Error.Message)
+		return &Aria2RPCError{Code: rpcResponse.Error.Code, Message: rpcResponse.Error.Message}
 	}
 	encoded, err := json.Marshal(rpcResponse.Result)
 	if err != nil {

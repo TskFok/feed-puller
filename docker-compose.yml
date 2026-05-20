@@ -15,6 +15,7 @@ services:
       FEISHU_APP_ID: ${FEISHU_APP_ID:-}
       FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
       STATIC_DIR: /app/web/dist
+      ARIA2_HOOK_SECRET:
     ports:
       - "8080:8080"
     restart: unless-stopped

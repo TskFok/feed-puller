@@ -11,7 +11,7 @@ import (
 	"feed-puller/internal/store"
 )
 
-// maybeRenameDownloadFile 在下载完成后按订阅配置进行 AI 刮削重命名。
+// maybeRenameDownloadFile 在下载完成后按订阅配置进行 AI 刮削重命名（aria2 tellStatus 路径）。
 func (s *Service) maybeRenameDownloadFile(ctx context.Context, sub store.Subscription, itemTitle string, aria2Status map[string]any) {
 	if !sub.AIRenameEnabled {
 		return
@@ -19,6 +19,19 @@ func (s *Service) maybeRenameDownloadFile(ctx context.Context, sub store.Subscri
 	filePath, err := downloader.Aria2DownloadPath(aria2Status)
 	if err != nil {
 		s.log.Warn("获取下载文件路径失败，跳过重命名", "subscription_id", sub.ID, "error", err)
+		return
+	}
+	s.maybeRenameDownloadFileAt(ctx, sub, itemTitle, filePath)
+}
+
+// maybeRenameDownloadFileAt 在已知文件路径时执行 AI 重命名，供 aria2 hook 直接复用。
+func (s *Service) maybeRenameDownloadFileAt(ctx context.Context, sub store.Subscription, itemTitle, filePath string) {
+	if !sub.AIRenameEnabled {
+		return
+	}
+	filePath = strings.TrimSpace(filePath)
+	if filePath == "" {
+		s.log.Warn("下载文件路径为空，跳过重命名", "subscription_id", sub.ID)
 		return
 	}
 	configs, err := s.store.ListAIConfigs(ctx)

@@ -55,6 +55,24 @@ func (s *Store) ListActiveDownloads(ctx context.Context, limit int) ([]ActiveDow
 	return out, rows.Err()
 }
 
+// DownloadTaskByAria2GID 按 aria2 gid 查找下载任务，供 aria2 hook 回调使用。
+// 找不到时返回 sql.ErrNoRows 包裹的错误，调用方应据此返回 404，避免误报。
+func (s *Store) DownloadTaskByAria2GID(ctx context.Context, gid string) (DownloadTask, error) {
+	gid = strings.TrimSpace(gid)
+	if gid == "" {
+		return DownloadTask{}, fmt.Errorf("aria2 gid 不能为空")
+	}
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, item_id, subscription_id, url, dir, status, COALESCE(aria2_gid, ''), COALESCE(error, ''), created_at, updated_at
+		FROM download_tasks WHERE aria2_gid = ? ORDER BY id DESC LIMIT 1
+	`, gid)
+	var task DownloadTask
+	if err := row.Scan(&task.ID, &task.ItemID, &task.SubscriptionID, &task.URL, &task.Dir, &task.Status, &task.Aria2GID, &task.Error, &task.CreatedAt, &task.UpdatedAt); err != nil {
+		return DownloadTask{}, err
+	}
+	return task, nil
+}
+
 // CompleteDownloadTask 将下载任务与对应 feed 条目标记为已完成。
 func (s *Store) CompleteDownloadTask(ctx context.Context, taskID, itemID int64) error {
 	tx, err := s.db.BeginTx(ctx, nil)

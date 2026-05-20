@@ -27,6 +27,10 @@ cp .env.example .env
 - `SESSION_SECRET`：至少 32 个字符。
 - `ARIA2_RPC_URL`：外部 aria2 JSON-RPC 地址，例如 `http://127.0.0.1:6800/jsonrpc`。
 
+可选项：
+
+- `ARIA2_HOOK_SECRET`：启用 aria2 钩子推送通道（详见下文「aria2 钩子接入」），未设置时 `/api/downloads/aria2-hook` 一律 401。
+
 飞书登录需要在飞书开放平台配置回调地址：
 
 ```text
@@ -126,6 +130,45 @@ docker build -t feed-puller:local .
 - `GET /api/items`
 - `POST /api/items/{id}/download` — 将单条条目提交给 aria2（等同于队列中的单条处理）。
 - `GET /api/downloads`
+- `POST /api/downloads/aria2-hook` — aria2 钩子上报回调，**无 session**，鉴权使用 `Authorization: Bearer ${ARIA2_HOOK_SECRET}`。
 - `GET/PUT /api/settings/proxy`
 - `GET/DELETE /api/settings/feishu-binding`
 - `GET /api/settings/feishu-bind-url` — 获取当前用户飞书绑定扫码地址
+
+## aria2 钩子接入（可选，强烈推荐）
+
+默认 scheduler 每分钟轮询 `aria2.tellStatus`，存在最多 60 秒延迟，且 aria2 重启 / 清理 `max-download-result` 后 GID 丢失时只能在「下载完成」页推迟显示。开启钩子后改为 aria2 主动 push，**秒级**进入「下载完成」列表，并能用钩子传入的真实文件路径直接做 AI 重命名。
+
+步骤：
+
+1. 在 `.env` 设置 `ARIA2_HOOK_SECRET=<随机字符串>`，重启服务。
+2. 把 `scripts/aria2-hook.sh` 复制到能被 aria2 进程访问到的路径（例如 `/etc/aria2/feed-puller-hook.sh`），赋可执行权限。
+3. 给脚本注入两个环境变量（在 systemd unit、docker `environment:` 或 aria2 启动脚本里）：
+   - `FEED_PULLER_URL=http://feed-puller:8080`（aria2 容器/主机可达的地址）
+   - `ARIA2_HOOK_SECRET=<与服务端一致>`
+4. 在 `aria2.conf` 中追加（**每个钩子只能写一条命令**）：
+
+   **若 `on-download-complete` 已占用（例如 P3TERX `clean.sh`）**，用项目自带的串联脚本，不要覆盖原有 clean：
+
+   ```conf
+   on-download-complete=/path/to/scripts/aria2-on-download-complete.sh
+   on-bt-download-complete=/path/to/scripts/aria2-hook.sh bt-complete
+   on-download-error=/path/to/scripts/aria2-hook.sh error
+   on-download-stop=/path/to/scripts/aria2-hook.sh stop
+   ```
+
+   可通过环境变量覆盖 clean 路径：`ARIA2_CLEAN_SCRIPT=/Users/ushopal/Downloads/clean.sh`（此为脚本默认值）。
+
+   **若没有其它 on-download-complete 脚本**，可简化为：
+
+   ```conf
+   on-download-complete=/path/to/scripts/aria2-hook.sh file-complete
+   on-bt-download-complete=/path/to/scripts/aria2-hook.sh bt-complete
+   ```
+
+注意事项：
+
+- 磁力/BT 会先完成 `[METADATA]` 占位文件并触发 `on-download-complete`，**必须用不同事件名**：`file-complete`（单文件，不写库）与 `bt-complete`（整任务完成）。旧版两钩子都传 `complete` 时服务端会查 `tellStatus` 兜底，但仍建议按上文区分。
+- `on-download-complete` 与 `on-bt-download-complete` 职责不同：前者可多次触发（含元数据文件），后者表示整任务结束；**不要**把 `bt-complete` 写到 `on-download-complete` 上。
+- 钩子和轮询并存：钩子失败/丢失时仍由 scheduler 兜底，端点幂等可多次调用。
+- 未匹配到 gid（用户在 aria2 里手动添加的下载）端点返回 200 + `matched=false`，不会干扰脚本。

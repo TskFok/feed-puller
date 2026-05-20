@@ -20,12 +20,27 @@ func (s *Service) SyncAria2DownloadStatus(ctx context.Context) error {
 		}
 		status, err := s.aria2.TellStatus(ctx, gid)
 		if err != nil {
+			if downloader.IsGIDNotFound(err) {
+				// aria2 仅会在任务进入终态后清理记录，因此 GID 已不存在视为已完成；
+				// 跳过重命名（无 files 列表），仅写库以便出现在「下载完成」列表中。
+				if completeErr := s.store.CompleteDownloadTask(ctx, task.ID, task.ItemID); completeErr != nil {
+					s.log.Warn("记录下载完成失败", "task_id", task.ID, "error", completeErr)
+					continue
+				}
+				s.log.Info("aria2 已无任务记录，按完成处理", "task_id", task.ID, "item_id", task.ItemID, "gid", gid)
+				continue
+			}
 			s.log.Warn("查询 aria2 任务状态失败", "task_id", task.ID, "gid", gid, "error", err)
 			continue
 		}
 		state, errMsg := downloader.ParseAria2TaskStatus(status)
 		switch state {
 		case downloader.Aria2TaskComplete:
+			if !downloader.IsAria2DownloadReady(status) {
+				s.log.Info("aria2 报告 complete 但尚无已完成的实体文件，继续等待",
+					"task_id", task.ID, "item_id", task.ItemID, "gid", gid)
+				continue
+			}
 			sub, subErr := s.store.GetSubscription(ctx, task.SubscriptionID)
 			itemTitle := ""
 			if item, itemErr := s.store.GetItem(ctx, task.ItemID); itemErr == nil {

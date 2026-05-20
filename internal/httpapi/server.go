@@ -40,6 +40,7 @@ func New(cfg config.Config, store *store.Store, service *app.Service, log *slog.
 	mux.HandleFunc("/api/items", server.requireAuth(server.handleItemsList))
 	mux.HandleFunc("/api/downloads/active", server.requireAuth(server.handleActiveDownloads))
 	mux.HandleFunc("/api/downloads/completed", server.requireAuth(server.handleCompletedDownloads))
+	mux.HandleFunc("/api/downloads/aria2-hook", server.handleAria2Hook)
 	mux.HandleFunc("/api/downloads", server.requireAuth(server.handleDownloads))
 	mux.HandleFunc("/api/downloads/", server.requireAuth(server.handleDownloadByID))
 	mux.HandleFunc("/api/ai-configs", server.requireAuth(server.handleAIConfigs))

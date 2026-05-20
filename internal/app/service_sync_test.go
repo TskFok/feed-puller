@@ -86,6 +86,99 @@ func TestSyncAria2DownloadStatusMarksComplete(t *testing.T) {
 	}
 }
 
+// TestSyncAria2DownloadStatusMarksCompleteWhenGIDMissing 复现并防止回归：
+// aria2 因清理 max-download-result 或重启等原因丢失 GID 记录时（返回 "GID xxx is not found"），
+// 系统应将下载任务按完成处理，使其出现在「下载完成」列表中。
+func TestSyncAria2DownloadStatusMarksCompleteWhenGIDMissing(t *testing.T) {
+	aria2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"jsonrpc": "2.0",
+			"id":      "1",
+			"error": map[string]any{
+				"code":    1,
+				"message": "GID abcdef1234567890 is not found",
+			},
+		})
+	}))
+	defer aria2.Close()
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	repo := store.New(db)
+	svc := NewService(repo, downloader.NewAria2Client(aria2.URL, ""), slog.New(slog.NewTextHandler(os.Stderr, nil)))
+
+	now := time.Now().UTC()
+	mock.ExpectQuery(regexp.QuoteMeta(`FROM download_tasks`)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "created_at", "updated_at",
+		}).AddRow(1, 10, 2, "https://example.test/a.mp4", "/data", "submitted", "abcdef1234567890", "", now, now))
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE download_tasks SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).
+		WithArgs(int64(1)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE feed_items SET download_status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).
+		WithArgs(int64(10)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	if err := svc.SyncAria2DownloadStatus(context.Background()); err != nil {
+		t.Fatalf("SyncAria2DownloadStatus: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSyncAria2DownloadStatus_SkipsCompleteWhenOnlyMetadata(t *testing.T) {
+	aria2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"jsonrpc": "2.0",
+			"id":      "1",
+			"result": map[string]any{
+				"status": "complete",
+				"files": []any{
+					map[string]any{
+						"path":            "/data/[METADATA][ANi]+foo+.mp4",
+						"completedLength": "100",
+						"length":          "100",
+					},
+					map[string]any{
+						"path":            "/data/[ANi]foo - 07.mp4",
+						"completedLength": "1",
+						"length":          "1000",
+					},
+				},
+			},
+		})
+	}))
+	defer aria2.Close()
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	repo := store.New(db)
+	svc := NewService(repo, downloader.NewAria2Client(aria2.URL, ""), slog.New(slog.NewTextHandler(os.Stderr, nil)))
+
+	now := time.Now().UTC()
+	mock.ExpectQuery(regexp.QuoteMeta(`FROM download_tasks`)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "created_at", "updated_at",
+		}).AddRow(1, 10, 2, "magnet:?xt=urn:btih:abc", "/data", "submitted", "gid-meta", "", now, now))
+
+	if err := svc.SyncAria2DownloadStatus(context.Background()); err != nil {
+		t.Fatalf("SyncAria2DownloadStatus: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestMaybeRenameDownloadFile_WithLocalFallback(t *testing.T) {
 	dir := t.TempDir()
 	from := filepath.Join(dir, "xxx 02.mp4")

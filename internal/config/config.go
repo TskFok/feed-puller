@@ -17,6 +17,7 @@ type Config struct {
 	BaseURL         string
 	Aria2RPCURL     string
 	Aria2RPCSecret  string
+	Aria2HookSecret string
 	FeishuAppID     string
 	FeishuAppSecret string
 	HTTPTimeout     time.Duration
@@ -33,6 +34,7 @@ func Load() (Config, error) {
 		BaseURL:         strings.TrimRight(env("BASE_URL", "http://localhost:8080"), "/"),
 		Aria2RPCURL:     strings.TrimSpace(os.Getenv("ARIA2_RPC_URL")),
 		Aria2RPCSecret:  os.Getenv("ARIA2_RPC_SECRET"),
+		Aria2HookSecret: strings.TrimSpace(os.Getenv("ARIA2_HOOK_SECRET")),
 		FeishuAppID:     strings.TrimSpace(os.Getenv("FEISHU_APP_ID")),
 		FeishuAppSecret: os.Getenv("FEISHU_APP_SECRET"),
 		HTTPTimeout:     20 * time.Second,

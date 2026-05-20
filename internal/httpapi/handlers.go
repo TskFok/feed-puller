@@ -279,6 +279,7 @@ func (s *Server) handleCompletedDownloads(w http.ResponseWriter, r *http.Request
 		methodNotAllowed(w)
 		return
 	}
+	_ = s.service.SyncAria2DownloadStatus(r.Context())
 	rows, err := s.store.ListCompletedDownloads(r.Context(), 200)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())

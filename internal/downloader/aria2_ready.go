@@ -16,8 +16,6 @@ func IsAria2DownloadReady(status map[string]any) bool {
 
 	var hasRealFile bool
 	var hasCompleteRealFile bool
-	var hasRealFileWithLength bool
-	onlyMetadata := true
 
 	for _, raw := range files {
 		entry, ok := raw.(map[string]any)
@@ -32,29 +30,49 @@ func IsAria2DownloadReady(status map[string]any) bool {
 		if IsMetadataDownloadPath(path) {
 			continue
 		}
-		onlyMetadata = false
-		hasRealFile = true
-		if aria2Numeric(entry["length"]) > 0 {
-			hasRealFileWithLength = true
+		if !aria2FileEntrySelected(entry) {
+			continue
 		}
+		hasRealFile = true
 		if aria2FileEntryComplete(entry) {
 			hasCompleteRealFile = true
 		}
 	}
 
-	if onlyMetadata {
-		return false
-	}
 	if hasCompleteRealFile {
 		return true
 	}
-	if hasRealFileWithLength {
-		// 有实体文件且带长度信息，但未下完——即使 status 误报 complete 也不结单。
+	// 仅有元数据文件时不要结单。
+	if !hasRealFile {
 		return false
 	}
-	if hasRealFile {
-		// 无 per-file 长度时（部分 HTTP 任务），信任整体 status。
+
+	// 整体 status 已为 complete 且存在实体文件：用 tellStatus 全局进度兜底，
+	// 避免 per-file completedLength 与 length 因舍入/aria2 行为不一致导致永远无法结单。
+	progress := ParseAria2Progress(status)
+	if progress.TotalLength > 0 && progress.CompletedLength >= progress.TotalLength {
 		return true
 	}
-	return true
+
+	// 有实体文件路径但无可用长度信息时，信任整体 complete。
+	if progress.TotalLength <= 0 {
+		return true
+	}
+	return false
+}
+
+// aria2FileEntrySelected 未标记 selected 或 selected=true 时视为参与下载的文件。
+func aria2FileEntrySelected(entry map[string]any) bool {
+	raw, ok := entry["selected"]
+	if !ok {
+		return true
+	}
+	switch v := raw.(type) {
+	case string:
+		return strings.TrimSpace(strings.ToLower(v)) != "false"
+	case bool:
+		return v
+	default:
+		return true
+	}
 }

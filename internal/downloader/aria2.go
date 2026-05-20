@@ -12,6 +12,9 @@ import (
 	"time"
 )
 
+// ErrEmptyGID 表示未提供 aria2 GID。
+var ErrEmptyGID = errors.New("aria2 gid 不能为空")
+
 // Aria2RPCError 表示 aria2 JSON-RPC 接口返回的结构化错误。
 // 暴露错误码与原始消息，便于上层做条件分支（如 GID 已被 aria2 清理）。
 type Aria2RPCError struct {

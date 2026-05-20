@@ -152,7 +152,7 @@ docker build -t feed-puller:local .
 
    ```conf
    on-download-complete=/path/to/scripts/aria2-on-download-complete.sh
-   on-bt-download-complete=/path/to/scripts/aria2-hook.sh bt-complete
+   on-bt-download-complete=/path/to/scripts/aria2-on-bt-download-complete.sh
    on-download-error=/path/to/scripts/aria2-hook.sh error
    on-download-stop=/path/to/scripts/aria2-hook.sh stop
    ```
@@ -169,6 +169,7 @@ docker build -t feed-puller:local .
 注意事项：
 
 - 磁力/BT 会先完成 `[METADATA]` 占位文件并触发 `on-download-complete`，**必须用不同事件名**：`file-complete`（单文件，不写库）与 `bt-complete`（整任务完成）。旧版两钩子都传 `complete` 时服务端会查 `tellStatus` 兜底，但仍建议按上文区分。
+- 磁力下载在元数据阶段与实体文件阶段 **aria2 GID 不同**（`followedBy` / `following`）。feed-puller 会自动把数据库中的 `aria2_gid` 切换到实体下载的 GID，并用该 GID 统计进度与结单；钩子若只打到新 GID，也会通过 `following` 反查任务。
 - `on-download-complete` 与 `on-bt-download-complete` 职责不同：前者可多次触发（含元数据文件），后者表示整任务结束；**不要**把 `bt-complete` 写到 `on-download-complete` 上。
 - 钩子和轮询并存：钩子失败/丢失时仍由 scheduler 兜底，端点幂等可多次调用。
 - 未匹配到 gid（用户在 aria2 里手动添加的下载）端点返回 200 + `matched=false`，不会干扰脚本。

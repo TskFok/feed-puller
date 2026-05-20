@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -59,9 +58,9 @@ func (s *Service) HandleAria2Hook(ctx context.Context, gid string, event Aria2Ho
 	if gid == "" {
 		return fmt.Errorf("aria2 gid 不能为空")
 	}
-	task, err := s.store.DownloadTaskByAria2GID(ctx, gid)
+	task, err := s.findDownloadTaskForAria2Hook(ctx, gid)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, ErrAria2HookTaskNotFound) {
 			return ErrAria2HookTaskNotFound
 		}
 		return fmt.Errorf("查询下载任务失败: %w", err)
@@ -136,12 +135,13 @@ func (s *Service) shouldFinalizeAria2Hook(ctx context.Context, gid string, event
 }
 
 func (s *Service) isAria2DownloadFullyComplete(ctx context.Context, gid, filePath string) bool {
-	status, err := s.aria2.TellStatus(ctx, gid)
+	_, status, err := s.aria2.TellStatusEffective(ctx, gid)
 	if err != nil {
 		if downloader.IsGIDNotFound(err) {
 			path := strings.TrimSpace(filePath)
 			return path != "" && !downloader.IsMetadataDownloadPath(path)
 		}
+		s.log.Warn("aria2 hook: 查询 tellStatus 失败", "gid", gid, "error", err)
 		return false
 	}
 	return downloader.IsAria2DownloadReady(status)
@@ -153,7 +153,7 @@ func (s *Service) resolveAria2HookFilePath(ctx context.Context, gid, hookPath st
 	if hookPath != "" && !downloader.IsMetadataDownloadPath(hookPath) {
 		return hookPath
 	}
-	status, err := s.aria2.TellStatus(ctx, gid)
+	_, status, err := s.aria2.TellStatusEffective(ctx, gid)
 	if err != nil {
 		return hookPath
 	}

@@ -903,7 +903,27 @@ th {
 .download-progress {
   display: grid;
   gap: 6px;
-  min-width: 160px;
+  min-width: 180px;
+}
+
+.download-progress-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.download-progress-percent {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f766e;
+  font-variant-numeric: tabular-nums;
+}
+
+.download-progress-size {
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
 }
 
 .download-progress-bar {
@@ -918,10 +938,5 @@ th {
   background: #0f766e;
   border-radius: 4px;
   transition: width 0.35s ease;
-}
-
-.download-progress-label {
-  font-size: 12px;
-  line-height: 1.4;
 }
 

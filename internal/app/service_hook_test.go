@@ -287,7 +287,9 @@ func TestHandleAria2Hook_BTCompleteWaitsForRealFile(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"id": "1",
 			"result": map[string]any{
-				"status": "complete",
+				"status":          "complete",
+				"completedLength": "110",
+				"totalLength":     "1000",
 				"files": []any{
 					map[string]any{
 						"path":            "/data/[METADATA][ANi]+foo+.mp4",

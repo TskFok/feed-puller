@@ -179,6 +179,73 @@ func TestSyncAria2DownloadStatus_SkipsCompleteWhenOnlyMetadata(t *testing.T) {
 	}
 }
 
+func TestSyncAria2DownloadStatus_MarksCompleteWhenGlobalProgressDone(t *testing.T) {
+	aria2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"jsonrpc": "2.0",
+			"id":      "1",
+			"result": map[string]any{
+				"status":          "complete",
+				"completedLength": "1000000",
+				"totalLength":     "1000000",
+				"files": []any{
+					map[string]any{
+						"path":            "/data/[ANi]foo - 07.mp4",
+						"completedLength": "999999",
+						"length":          "1000000",
+					},
+				},
+			},
+		})
+	}))
+	defer aria2.Close()
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	repo := store.New(db)
+	svc := NewService(repo, downloader.NewAria2Client(aria2.URL, ""), slog.New(slog.NewTextHandler(os.Stderr, nil)))
+
+	now := time.Now().UTC()
+	mock.ExpectQuery(regexp.QuoteMeta(`FROM download_tasks`)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "created_at", "updated_at",
+		}).AddRow(1, 10, 2, "magnet:?xt=urn:btih:abc", "/data", "submitted", "gid-bt-done", "", now, now))
+
+	mock.ExpectQuery(regexp.QuoteMeta(`FROM subscriptions WHERE id = ?`)).
+		WithArgs(int64(2)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "name", "feed_url", "enabled", "poll_interval_minutes", "poll_cron", "poll_cron_timezone",
+			"download_dir", "include_keywords", "exclude_keywords", "use_proxy", "rss_parser",
+			"ai_rename_enabled", "ai_rename_season", "ai_rename_episode_offset",
+			"last_fetched_at", "last_error", "sort_order", "created_at", "updated_at",
+		}).AddRow(2, "动漫", "https://example.test/feed", true, 30, "", "UTC", "/data", "", "", false, "mikan", false, 1, 0, nil, "", 0, now, now))
+
+	mock.ExpectQuery(regexp.QuoteMeta(`FROM feed_items WHERE id = ?`)).
+		WithArgs(int64(10)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "subscription_id", "guid", "title", "link", "download_url", "dedupe_key", "published_at", "download_status", "created_at", "updated_at",
+		}).AddRow(10, 2, "", "第7话", "", "magnet:?xt=urn:btih:abc", "k", nil, "submitted", now, now))
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE download_tasks SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).
+		WithArgs(int64(1)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE feed_items SET download_status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).
+		WithArgs(int64(10)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	if err := svc.SyncAria2DownloadStatus(context.Background()); err != nil {
+		t.Fatalf("SyncAria2DownloadStatus: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestMaybeRenameDownloadFile_WithLocalFallback(t *testing.T) {
 	dir := t.TempDir()
 	from := filepath.Join(dir, "xxx 02.mp4")

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"feed-puller/internal/downloader"
+	"feed-puller/internal/store"
 )
 
 // ActiveDownloadWithProgress 进行中的下载及 aria2 实时进度。
@@ -47,17 +48,22 @@ func (s *Service) ListActiveDownloadsWithProgress(ctx context.Context) ([]Active
 			Aria2GID:         row.Aria2GID,
 			SubmittedAt:      row.SubmittedAt.UTC().Format("2006-01-02T15:04:05Z"),
 		}
-		gid := strings.TrimSpace(row.Aria2GID)
-		if gid == "" {
+		if strings.TrimSpace(row.Aria2GID) == "" {
 			out = append(out, item)
 			continue
 		}
-		status, err := s.aria2.TellStatus(ctx, gid)
+		task := store.DownloadTask{
+			ID:       row.ID,
+			ItemID:   row.ItemID,
+			Aria2GID: row.Aria2GID,
+		}
+		effectiveGID, status, err := s.tellStatusForDownloadTask(ctx, task)
 		if err != nil {
 			item.StatusError = err.Error()
 			out = append(out, item)
 			continue
 		}
+		item.Aria2GID = effectiveGID
 		progress := downloader.ParseAria2Progress(status)
 		item.Aria2Status = progress.Status
 		item.CompletedLength = progress.CompletedLength

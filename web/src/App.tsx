@@ -1353,25 +1353,50 @@ function ActiveDownloadsView() {
   );
 }
 
+function activeDownloadProgressPercent(row: ActiveDownload): number | null {
+  if (row.status_error) {
+    return null;
+  }
+  if (row.progress_percent != null && Number.isFinite(row.progress_percent)) {
+    return Math.min(100, Math.max(0, row.progress_percent));
+  }
+  if (row.total_length > 0) {
+    return Math.min(100, Math.max(0, (row.completed_length / row.total_length) * 100));
+  }
+  return null;
+}
+
 function DownloadProgressCell({ row }: { row: ActiveDownload }) {
   if (row.status_error) {
     return <span className="muted">—</span>;
   }
-  const percent = row.progress_percent;
+  const percent = activeDownloadProgressPercent(row);
   const hasTotal = row.total_length > 0;
   const label = hasTotal
     ? `${formatBytes(row.completed_length)} / ${formatBytes(row.total_length)}`
     : formatBytes(row.completed_length);
-  const width = percent != null ? Math.min(100, Math.max(0, percent)) : 0;
+  const width = percent ?? 0;
 
   return (
     <div className="download-progress">
-      <div className="download-progress-bar" role="progressbar" aria-valuenow={width} aria-valuemin={0} aria-valuemax={100}>
-        <div className="download-progress-fill" style={{ width: hasTotal ? `${width}%` : '0%' }} />
+      <div className="download-progress-head">
+        {percent != null ? (
+          <span className="download-progress-percent">{percent.toFixed(1)}%</span>
+        ) : (
+          <span className="download-progress-percent muted">{aria2StatusLabel(row.aria2_status)}</span>
+        )}
+        <span className="download-progress-size muted">{label}</span>
       </div>
-      <span className="download-progress-label muted">
-        {hasTotal && percent != null ? `${percent.toFixed(1)}% · ${label}` : `${aria2StatusLabel(row.aria2_status)} · ${label}`}
-      </span>
+      <div
+        className="download-progress-bar"
+        role="progressbar"
+        aria-valuenow={width}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={percent != null ? `下载进度 ${percent.toFixed(1)}%` : '下载进度未知'}
+      >
+        <div className="download-progress-fill" style={{ width: percent != null ? `${width}%` : '0%' }} />
+      </div>
     </div>
   );
 }

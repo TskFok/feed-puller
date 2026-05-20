@@ -29,3 +29,33 @@ func TestParseAria2ProgressNoTotal(t *testing.T) {
 		t.Fatalf("expected nil percent, got %v", got.ProgressPercent)
 	}
 }
+
+func TestParseAria2Progress_AggregatesFromFilesWhenGlobalTotalZero(t *testing.T) {
+	t.Parallel()
+	got := ParseAria2Progress(map[string]any{
+		"status":          "active",
+		"completedLength": "0",
+		"totalLength":     "0",
+		"downloadSpeed":   "2048",
+		"files": []any{
+			map[string]any{
+				"path":            "/data/[METADATA][ANi]+foo+.mp4",
+				"completedLength": "100",
+				"length":          "100",
+				"selected":        "true",
+			},
+			map[string]any{
+				"path":            "/data/[ANi]foo - 07.mp4",
+				"completedLength": "250",
+				"length":          "1000",
+				"selected":        "true",
+			},
+		},
+	})
+	if got.TotalLength != 1000 || got.CompletedLength != 250 {
+		t.Fatalf("lengths = %d / %d, want 250 / 1000", got.CompletedLength, got.TotalLength)
+	}
+	if got.ProgressPercent == nil || *got.ProgressPercent != 25 {
+		t.Fatalf("percent = %v, want 25", got.ProgressPercent)
+	}
+}

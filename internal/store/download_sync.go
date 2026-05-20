@@ -73,6 +73,21 @@ func (s *Store) DownloadTaskByAria2GID(ctx context.Context, gid string) (Downloa
 	return task, nil
 }
 
+// UpdateDownloadTaskAria2GID 更新下载任务关联的 aria2 GID（磁力元数据完成后 followedBy 切换时使用）。
+func (s *Store) UpdateDownloadTaskAria2GID(ctx context.Context, taskID int64, gid string) error {
+	gid = strings.TrimSpace(gid)
+	if gid == "" {
+		return fmt.Errorf("aria2 gid 不能为空")
+	}
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE download_tasks SET aria2_gid = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+	`, gid, taskID)
+	if err != nil {
+		return fmt.Errorf("更新下载任务 GID 失败: %w", err)
+	}
+	return nil
+}
+
 // CompleteDownloadTask 将下载任务与对应 feed 条目标记为已完成。
 func (s *Store) CompleteDownloadTask(ctx context.Context, taskID, itemID int64) error {
 	tx, err := s.db.BeginTx(ctx, nil)

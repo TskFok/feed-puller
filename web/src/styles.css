@@ -359,20 +359,61 @@ th {
   color: #92400e;
 }
 
-.notice,
-.error {
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   border-radius: 6px;
   padding: 10px 12px;
   margin: 0;
 }
 
-.notice {
+.banner-body {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.banner-dismiss {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: -2px -4px -2px 0;
+  padding: 2px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.banner-dismiss:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.banner-dismiss:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.banner-success {
   background: #d1fae5;
   color: #065f46;
 }
 
-.error {
+.banner-error {
   background: #fee2e2;
+  color: #991b1b;
+}
+
+.banner-in-modal {
+  margin: 0 0 10px;
+}
+
+.inline-error {
   color: #991b1b;
 }
 
@@ -626,10 +667,6 @@ th {
   }
 }
 
-.modal-error {
-  margin: 0;
-}
-
 .modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -755,10 +792,6 @@ th {
   width: 16px;
   height: 16px;
   margin: 0;
-}
-
-.modal-notice {
-  margin: 0 0 10px;
 }
 
 .sr-only {

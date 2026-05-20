@@ -17,6 +17,7 @@ import {
   Trash2,
   X
 } from 'lucide-react';
+import { Banner } from './Banner';
 import { api } from './api';
 import { useFeishuQR } from './feishu-qr';
 import { fetchPreviewAction, isFetchPreviewSelectionLocked, useActionLoading } from './useActionLoading';
@@ -208,14 +209,22 @@ function LoginView({ onLogin, error, setError }: { onLogin: (user: User) => void
               密码
               <input value={password} type="password" autoComplete="current-password" onChange={(event) => setPassword(event.target.value)} required />
             </label>
-            {error && <p className="error">{error}</p>}
+            {error && (
+              <Banner variant="error" onDismiss={() => setError('')}>
+                {error}
+              </Banner>
+            )}
             <button className="primary" disabled={submitting}>
               {submitting ? '登录中' : '登录'}
             </button>
           </form>
         ) : (
           <div className="form auth-form-feishu">
-            {error && <p className="error">{error}</p>}
+            {error && (
+              <Banner variant="error" onDismiss={() => setError('')}>
+                {error}
+              </Banner>
+            )}
             {feishuGoto == null && !error && <p className="feishu-qr-hint">正在加载飞书扫码...</p>}
             {feishuGoto != null && (
               <>
@@ -839,7 +848,11 @@ function SubscriptionModal({
             </div>
           </fieldset>
 
-          {error && <p className="error modal-error">{error}</p>}
+          {error && (
+            <Banner variant="error" className="banner-in-modal" onDismiss={() => setError('')}>
+              {error}
+            </Banner>
+          )}
           <div className="modal-actions">
             <button type="button" className="ghost" disabled={saving} onClick={onClose}>
               取消
@@ -1088,8 +1101,16 @@ function FetchPreviewModal({
             <X size={20} aria-hidden="true" />
           </button>
         </div>
-        {notice && <p className="notice modal-notice">{notice}</p>}
-        {error && <p className="error modal-error">{error}</p>}
+        {notice && (
+          <Banner variant="success" className="banner-in-modal">
+            {notice}
+          </Banner>
+        )}
+        {error && (
+          <Banner variant="error" className="banner-in-modal" onDismiss={() => setError('')}>
+            {error}
+          </Banner>
+        )}
         {rows.length > 0 && (
           <div className="fetch-preview-filters">
             <label className="fetch-preview-status-filter" htmlFor={statusFilterId}>
@@ -1315,7 +1336,11 @@ function ActiveDownloadsView() {
   return (
     <section className="view">
       <Header title="下载中" description="展示已提交 aria2 的任务及实时进度，每 5 秒刷新。" />
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <Banner variant="error" onDismiss={() => setError('')}>
+          {error}
+        </Banner>
+      )}
       {loading && rows.length === 0 ? (
         <p className="muted">正在加载…</p>
       ) : (
@@ -1340,7 +1365,7 @@ function ActiveDownloadsView() {
                   </td>
                   <td className="muted">{row.status_error ? '—' : formatSpeed(row.download_speed)}</td>
                   <td className="muted">
-                    {row.status_error ? <span className="error">{row.status_error}</span> : aria2StatusLabel(row.aria2_status)}
+                    {row.status_error ? <span className="inline-error">{row.status_error}</span> : aria2StatusLabel(row.aria2_status)}
                   </td>
                 </tr>
               ))}
@@ -1461,7 +1486,11 @@ function CompletedDownloadsView() {
         title="下载完成"
         description="aria2 任务完成后会自动出现在此列表；可对已启用 AI 重命名的订阅手动重试刮削重命名。"
       />
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <Banner variant="error" onDismiss={() => setError('')}>
+          {error}
+        </Banner>
+      )}
       {renameHint && <p className="muted">{renameHint}</p>}
       {loading && rows.length === 0 ? (
         <p className="muted">正在加载…</p>
@@ -1621,7 +1650,7 @@ function SubscriptionsView() {
           新增订阅
         </button>
       </div>
-      <Feedback notice={notice} error={error} />
+      <Feedback notice={notice} error={error} onDismissError={() => setError('')} />
       <div className="table-wrap">
         <table>
           <thead>
@@ -1861,7 +1890,11 @@ function AIConfigModal({
               required
             />
           </label>
-          {error && <p className="error">{error}</p>}
+          {error && (
+            <Banner variant="error" className="banner-in-modal" onDismiss={() => setError('')}>
+              {error}
+            </Banner>
+          )}
           <div className="modal-actions">
             <button type="button" className="ghost" onClick={onClose}>
               取消
@@ -1945,7 +1978,7 @@ function AIConfigView() {
           新增配置
         </button>
       </div>
-      <Feedback notice={notice} error={error} />
+      <Feedback notice={notice} error={error} onDismissError={() => setError('')} />
       <div className="table-wrap">
         <table>
           <thead>
@@ -2135,7 +2168,7 @@ function SettingsView({ user, setUser }: { user: User; setUser: (user: User | nu
         </div>
       </div>
       {bindFeishuModal != null ? createPortal(bindFeishuModal, document.body) : null}
-      <Feedback notice={notice} error={error} />
+      <Feedback notice={notice} error={error} onDismissError={() => setError('')} />
     </section>
   );
 }
@@ -2181,11 +2214,23 @@ function useTransientNotice() {
   return [notice, setNotice] as const;
 }
 
-function Feedback({ notice, error }: { notice?: string; error?: string }) {
+function Feedback({
+  notice,
+  error,
+  onDismissError
+}: {
+  notice?: string;
+  error?: string;
+  onDismissError: () => void;
+}) {
   return (
     <>
-      {notice && <p className="notice">{notice}</p>}
-      {error && <p className="error">{error}</p>}
+      {notice && <Banner variant="success">{notice}</Banner>}
+      {error && (
+        <Banner variant="error" onDismiss={onDismissError}>
+          {error}
+        </Banner>
+      )}
     </>
   );
 }

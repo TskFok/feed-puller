@@ -66,24 +66,40 @@ func (s *Service) renameDownloadFileAt(ctx context.Context, sub store.Subscripti
 	cfg := configs[0]
 
 	filename := filepath.Base(from)
-	detected, err := aiclient.ExtractEpisode(ctx, cfg.BaseURL, cfg.APIKey, cfg.Model, filename, itemTitle)
-	if err != nil {
-		if local, ok := rename.DetectEpisodeLocally(filename, itemTitle); ok {
-			detected = local
-			s.log.Info("AI 识别集数失败，使用本地规则", "subscription_id", sub.ID, "episode", detected, "error", err)
-		} else {
-			return from, "", false, fmt.Errorf("识别集数失败: %w", err)
+	var aiExtract *rename.AnimeExtract
+	aiInfo, aiErr := aiclient.ExtractAnimeInfo(ctx, cfg.BaseURL, cfg.APIKey, cfg.Model, filename, itemTitle)
+	if aiErr == nil {
+		aiExtract = &rename.AnimeExtract{
+			AnimeName: aiInfo.AnimeName,
+			Episode:   aiInfo.Episode,
 		}
 	}
-	finalEpisode, err := rename.FinalEpisode(detected, sub.AIRenameEpOffset)
-	if err != nil {
-		return from, "", false, err
+	localEpisode, localOK := rename.DetectEpisodeLocally(filename, itemTitle)
+	if aiExtract == nil {
+		if !localOK {
+			return from, "", false, fmt.Errorf("识别番剧信息失败: %w", aiErr)
+		}
+		s.log.Info("AI 识别失败，使用本地规则", "subscription_id", sub.ID, "episode", localEpisode, "error", aiErr)
 	}
+
 	season := sub.AIRenameSeason
 	if season < 1 {
 		season = 1
 	}
-	targetPath := rename.BuildScrapeFilename(from, season, finalEpisode)
+	scrape, err := rename.ResolveScrapeTarget(rename.ScrapeInput{
+		FilePath:           from,
+		Filename:           filename,
+		Title:              itemTitle,
+		SubscriptionSeason: season,
+		EpisodeOffset:      sub.AIRenameEpOffset,
+		AI:                 aiExtract,
+		LocalEpisode:       localEpisode,
+		LocalEpisodeOK:     localOK,
+	})
+	if err != nil {
+		return from, "", false, err
+	}
+	targetPath := scrape.Path
 	if strings.TrimSpace(targetPath) == strings.TrimSpace(from) {
 		return from, from, true, nil
 	}

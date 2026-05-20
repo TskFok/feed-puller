@@ -33,9 +33,8 @@ func StripEpisodeSuffix(nameWithoutExt string) string {
 	}
 }
 
-// BuildScrapeFilename 根据原始路径、季度与集数生成 SxxExx 刮削文件名。
+// BuildScrapeFilename 根据原始路径、番剧名、季度与集数生成刮削文件名（兼容旧调用）。
 func BuildScrapeFilename(originalPath string, season, episode int) string {
-	dir := filepath.Dir(originalPath)
 	base := filepath.Base(originalPath)
 	ext := filepath.Ext(base)
 	nameWithoutExt := strings.TrimSuffix(base, ext)
@@ -43,8 +42,7 @@ func BuildScrapeFilename(originalPath string, season, episode int) string {
 	if cleaned == "" {
 		cleaned = nameWithoutExt
 	}
-	newBase := fmt.Sprintf("%s S%02dE%02d%s", cleaned, season, episode, ext)
-	return filepath.Join(dir, newBase)
+	return BuildScrapeTargetPath(originalPath, cleaned, season, episode)
 }
 
 // FinalEpisode 计算应用偏移后的最终集数。

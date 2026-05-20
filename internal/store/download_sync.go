@@ -138,7 +138,7 @@ func (s *Store) ListCompletedDownloads(ctx context.Context, limit int) ([]Comple
 		limit = 100
 	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT dt.id, dt.item_id, dt.subscription_id, sub.name, COALESCE(i.title, ''), dt.url, dt.dir, dt.updated_at
+		SELECT dt.id, dt.item_id, dt.subscription_id, sub.name, COALESCE(i.title, ''), dt.url, dt.dir, sub.ai_rename_enabled, dt.updated_at
 		FROM download_tasks dt
 		JOIN feed_items i ON i.id = dt.item_id
 		JOIN subscriptions sub ON sub.id = dt.subscription_id
@@ -153,7 +153,7 @@ func (s *Store) ListCompletedDownloads(ctx context.Context, limit int) ([]Comple
 	out := make([]CompletedDownload, 0)
 	for rows.Next() {
 		var row CompletedDownload
-		if err := rows.Scan(&row.ID, &row.ItemID, &row.SubscriptionID, &row.SubscriptionName, &row.Title, &row.URL, &row.Dir, &row.CompletedAt); err != nil {
+		if err := rows.Scan(&row.ID, &row.ItemID, &row.SubscriptionID, &row.SubscriptionName, &row.Title, &row.URL, &row.Dir, &row.AIRenameEnabled, &row.CompletedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, row)

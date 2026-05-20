@@ -73,8 +73,30 @@ func TestAria2Hook_RejectsWrongBearer(t *testing.T) {
 }
 
 func TestAria2Hook_AcceptsXHookSecretHeader(t *testing.T) {
-	srv, mock, cleanup := newHookServer(t, testHookSecret)
-	defer cleanup()
+	aria2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"jsonrpc": "2.0",
+			"id":      "1",
+			"result": map[string]any{
+				"status":          "complete",
+				"completedLength": "1000",
+				"totalLength":     "1000",
+				"files": []any{
+					map[string]any{"path": "/data/a.mp4", "completedLength": "1000", "length": "1000"},
+				},
+			},
+		})
+	}))
+	defer aria2.Close()
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := store.New(db)
+	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	svc := app.NewService(repo, downloader.NewAria2Client(aria2.URL, ""), log)
+	srv := New(config.Config{Aria2HookSecret: testHookSecret}, repo, svc, log)
 	now := time.Now().UTC()
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM download_tasks WHERE aria2_gid = ?`)).
 		WithArgs("gid-h-1").
@@ -119,6 +141,7 @@ func TestAria2Hook_AcceptsXHookSecretHeader(t *testing.T) {
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
 	}
+	_ = db.Close()
 }
 
 func TestAria2Hook_ReturnsMatchedFalseForUnknownGID(t *testing.T) {

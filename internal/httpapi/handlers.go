@@ -289,20 +289,39 @@ func (s *Server) handleCompletedDownloads(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleDownloadByID(w http.ResponseWriter, r *http.Request) {
-	_, tail, ok := parseIDTail(r.URL.Path, "/api/downloads/")
-	if !ok || tail != "retry" {
-		writeError(w, http.StatusNotFound, "接口不存在")
-		return
-	}
 	if r.Method != http.MethodPost {
 		methodNotAllowed(w)
 		return
 	}
-	if err := s.service.SubmitPendingDownloads(r.Context()); err != nil {
-		writeError(w, http.StatusBadGateway, err.Error())
+	rest := strings.TrimPrefix(r.URL.Path, "/api/downloads/")
+	if rest == "retry" {
+		if err := s.service.SubmitPendingDownloads(r.Context()); err != nil {
+			writeError(w, http.StatusBadGateway, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	id, tail, ok := parseIDTail(r.URL.Path, "/api/downloads/")
+	if !ok {
+		writeError(w, http.StatusNotFound, "接口不存在")
+		return
+	}
+	switch tail {
+	case "rename":
+		if id <= 0 {
+			writeError(w, http.StatusNotFound, "接口不存在")
+			return
+		}
+		result, err := s.service.RetryCompletedDownloadRename(r.Context(), id)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+	default:
+		writeError(w, http.StatusNotFound, "接口不存在")
+	}
 }
 
 func (s *Server) handleProxySetting(w http.ResponseWriter, r *http.Request) {

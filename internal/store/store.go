@@ -400,6 +400,22 @@ func (s *Store) ListItems(ctx context.Context, subscriptionID int64, limit int) 
 	return scanItems(rows)
 }
 
+// GetDownloadTask 按任务 ID 查询下载任务。
+func (s *Store) GetDownloadTask(ctx context.Context, id int64) (DownloadTask, error) {
+	if id <= 0 {
+		return DownloadTask{}, fmt.Errorf("无效的任务 ID")
+	}
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, item_id, subscription_id, url, dir, status, COALESCE(aria2_gid, ''), COALESCE(error, ''), created_at, updated_at
+		FROM download_tasks WHERE id = ?
+	`, id)
+	var task DownloadTask
+	if err := row.Scan(&task.ID, &task.ItemID, &task.SubscriptionID, &task.URL, &task.Dir, &task.Status, &task.Aria2GID, &task.Error, &task.CreatedAt, &task.UpdatedAt); err != nil {
+		return DownloadTask{}, err
+	}
+	return task, nil
+}
+
 func (s *Store) ListDownloads(ctx context.Context, limit int) ([]DownloadTask, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 100

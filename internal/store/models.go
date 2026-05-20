@@ -85,6 +85,7 @@ type CompletedDownload struct {
 	Title            string    `json:"title"`
 	URL              string    `json:"url"`
 	Dir              string    `json:"dir"`
+	AIRenameEnabled  bool      `json:"ai_rename_enabled"`
 	CompletedAt      time.Time `json:"completed_at"`
 }
 

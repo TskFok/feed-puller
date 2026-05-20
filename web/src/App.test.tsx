@@ -1474,6 +1474,7 @@ describe('App', () => {
                 title: '示例番剧',
                 url: 'https://example.test/a.mp4',
                 dir: '/data/anime',
+                ai_rename_enabled: true,
                 completed_at: '2026-05-19T12:00:00Z'
               }
             ]),
@@ -1488,6 +1489,7 @@ describe('App', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: '下载完成' }));
     await waitFor(() => expect(screen.getByRole('heading', { name: '下载完成' })).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: '重命名' })).toBeInTheDocument();
     expect(screen.getByText('动漫')).toBeInTheDocument();
     expect(screen.getByText('示例番剧')).toBeInTheDocument();
     expect(screen.getByText('/data/anime')).toBeInTheDocument();

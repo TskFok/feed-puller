@@ -1405,6 +1405,8 @@ function CompletedDownloadsView() {
   const [rows, setRows] = useState<CompletedDownload[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [renameBusyId, setRenameBusyId] = useState<number | null>(null);
+  const [renameHint, setRenameHint] = useState('');
   const inFlightRef = useRef(false);
   const mountedRef = useRef(true);
 
@@ -1438,10 +1440,29 @@ function CompletedDownloadsView() {
     };
   }, [load]);
 
+  async function retryRename(row: CompletedDownload) {
+    setRenameBusyId(row.id);
+    setRenameHint('');
+    try {
+      const result = await api.retryCompletedDownloadRename(row.id);
+      if (!mountedRef.current) return;
+      setRenameHint(result.message || (result.skipped ? '无需重命名' : '重命名成功'));
+    } catch (err) {
+      if (!mountedRef.current) return;
+      setRenameHint(messageOf(err));
+    } finally {
+      if (mountedRef.current) setRenameBusyId(null);
+    }
+  }
+
   return (
     <section className="view">
-      <Header title="下载完成" description="aria2 任务完成后会自动出现在此列表，每 30 秒刷新一次。" />
+      <Header
+        title="下载完成"
+        description="aria2 任务完成后会自动出现在此列表；可对已启用 AI 重命名的订阅手动重试刮削重命名。"
+      />
       {error && <p className="error">{error}</p>}
+      {renameHint && <p className="muted">{renameHint}</p>}
       {loading && rows.length === 0 ? (
         <p className="muted">正在加载…</p>
       ) : (
@@ -1453,6 +1474,7 @@ function CompletedDownloadsView() {
                 <th>标题</th>
                 <th>保存目录</th>
                 <th>完成时间</th>
+                <th>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -1462,9 +1484,23 @@ function CompletedDownloadsView() {
                   <td className="break">{row.title || row.url || '（无标题）'}</td>
                   <td className="break muted">{row.dir}</td>
                   <td>{formatTime(row.completed_at) || '—'}</td>
+                  <td>
+                    {row.ai_rename_enabled ? (
+                      <button
+                        type="button"
+                        className="ghost"
+                        disabled={renameBusyId === row.id}
+                        onClick={() => void retryRename(row)}
+                      >
+                        {renameBusyId === row.id ? '重命名中…' : '重命名'}
+                      </button>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
-              {rows.length === 0 && !loading && <EmptyRow columns={4} text="暂无已完成的下载" />}
+              {rows.length === 0 && !loading && <EmptyRow columns={5} text="暂无已完成的下载" />}
             </tbody>
           </table>
         </div>

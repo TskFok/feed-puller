@@ -121,7 +121,15 @@ export type CompletedDownload = {
   title: string;
   url: string;
   dir: string;
+  ai_rename_enabled: boolean;
   completed_at: string;
+};
+
+export type RenameDownloadResult = {
+  from_path?: string;
+  to_path?: string;
+  skipped?: boolean;
+  message?: string;
 };
 
 export type AIConfig = {

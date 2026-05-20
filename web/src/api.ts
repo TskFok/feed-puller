@@ -3,6 +3,7 @@ import type {
   AIConfig,
   AIConfigTestResult,
   CompletedDownload,
+  RenameDownloadResult,
   DownloadTask,
   FeedItem,
   PolledFeedItem,
@@ -73,6 +74,8 @@ export const api = {
   activeDownloads: async () => asArray<ActiveDownload>(await request<ActiveDownload[]>('/api/downloads/active')),
   completedDownloads: async () =>
     asArray<CompletedDownload>(await request<CompletedDownload[]>('/api/downloads/completed')),
+  retryCompletedDownloadRename: (taskId: number) =>
+    request<RenameDownloadResult>(`/api/downloads/${taskId}/rename`, { method: 'POST' }),
   proxy: () => request<{ proxy_url: string }>('/api/settings/proxy'),
   saveProxy: (proxy_url: string) =>
     request<{ proxy_url: string }>('/api/settings/proxy', { method: 'PUT', json: { proxy_url } }),

@@ -37,5 +37,5 @@ COPY --from=frontend /src/web/dist /app/web/dist
 
 EXPOSE 8080
 # 运行时 UID/GID 由 docker run -u 或 compose 的 PUID/PGID 覆盖（镜像默认 1000:1000）
-USER 1000:1000
+USER 0:0
 ENTRYPOINT ["/app/feed-puller"]

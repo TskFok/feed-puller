@@ -101,8 +101,8 @@ func TestAria2Hook_AcceptsXHookSecretHeader(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM download_tasks WHERE aria2_gid = ?`)).
 		WithArgs("gid-h-1").
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "created_at", "updated_at",
-		}).AddRow(1, 10, 2, "https://example.test/a.mp4", "/data", "submitted", "gid-h-1", "", now, now))
+			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "final_path", "created_at", "updated_at",
+		}).AddRow(1, 10, 2, "https://example.test/a.mp4", "/data", "submitted", "gid-h-1", "", "", now, now))
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM subscriptions WHERE id = ?`)).
 		WithArgs(int64(2)).
 		WillReturnRows(sqlmock.NewRows([]string{
@@ -117,8 +117,8 @@ func TestAria2Hook_AcceptsXHookSecretHeader(t *testing.T) {
 			"id", "subscription_id", "guid", "title", "link", "download_url", "dedupe_key", "published_at", "download_status", "created_at", "updated_at",
 		}).AddRow(10, 2, "", "第1话", "", "https://example.test/a.mp4", "k", nil, "submitted", now, now))
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`UPDATE download_tasks SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).
-		WithArgs(int64(1)).
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE download_tasks SET status = 'completed', final_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).
+		WithArgs("/data/a.mp4", int64(1)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta(`UPDATE feed_items SET download_status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).
 		WithArgs(int64(10)).

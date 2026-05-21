@@ -295,6 +295,48 @@ button,
   border-radius: 8px;
 }
 
+.pagination-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin-top: 12px;
+  padding: 10px 2px 0;
+  font-size: 14px;
+}
+
+.pagination-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+}
+
+.pagination-page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #526071;
+}
+
+.pagination-page-size .form-select {
+  min-width: 72px;
+}
+
+.pagination-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pagination-page-indicator {
+  min-width: 6.5em;
+  text-align: center;
+  color: #344054;
+  font-size: 14px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

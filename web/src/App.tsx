@@ -17,8 +17,12 @@ import {
   Trash2,
   X
 } from 'lucide-react';
+import { PaginationBar } from './ListPagination';
 import { ToastProvider, useToast } from './Toast';
 import { api } from './api';
+import { pageOffset, type PageSizeOption } from './listPaging';
+import { usePagination } from './usePagination';
+import { useServerPagination } from './useServerPagination';
 import { useFeishuQR } from './feishu-qr';
 import { fetchPreviewAction, isFetchPreviewSelectionLocked, useActionLoading } from './useActionLoading';
 import type {
@@ -29,6 +33,7 @@ import type {
   PolledFeedItem,
   PollSchedulePreviewInput,
   Subscription,
+  PaginatedResult,
   User
 } from './types';
 
@@ -937,6 +942,11 @@ function FetchPreviewModal({
     () => rows.filter((row) => matchesFetchPreviewStatusFilter(row, statusFilter)),
     [rows, statusFilter]
   );
+  const pagination = usePagination(filteredRows.length, [statusFilter]);
+  const pagedFilteredRows = useMemo(
+    () => pagination.slice(filteredRows),
+    [filteredRows, pagination.slice]
+  );
   const selectableRows = useMemo(() => filteredRows.filter((row) => canSelectFeedItem(row)), [filteredRows]);
   const selectableIds = useMemo(() => selectableRows.map((row) => row.id), [selectableRows]);
   const downloadableRows = useMemo(() => filteredRows.filter((row) => canDownloadFeedItem(row)), [filteredRows]);
@@ -1165,7 +1175,7 @@ function FetchPreviewModal({
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((row) => (
+              {pagedFilteredRows.map((row) => (
                 <tr key={row.id}>
                   <td className="fetch-preview-col-check">
                     {canSelectFeedItem(row) ? (
@@ -1227,6 +1237,16 @@ function FetchPreviewModal({
             </tbody>
           </table>
         </div>
+        <PaginationBar
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          totalPages={pagination.totalPages}
+          totalItems={pagination.totalItems}
+          rangeStart={pagination.rangeStart}
+          rangeEnd={pagination.rangeEnd}
+          onPageChange={pagination.setPage}
+          onPageSizeChange={pagination.setPageSize}
+        />
       </div>
     </div>
   );
@@ -1265,46 +1285,30 @@ function aria2StatusLabel(status: string): string {
 
 function ActiveDownloadsView() {
   const { showToast } = useToast();
-  const [rows, setRows] = useState<ActiveDownload[]>([]);
-  const [loading, setLoading] = useState(true);
-  const rowsRef = useRef(rows);
-  const inFlightRef = useRef(false);
-  const mountedRef = useRef(true);
   const loadErrorToastedRef = useRef(false);
-  rowsRef.current = rows;
-
-  const load = useCallback(async () => {
-    if (inFlightRef.current) return;
-    inFlightRef.current = true;
-    try {
-      const data = await api.activeDownloads();
-      if (!mountedRef.current) return;
-      setRows(data);
-      loadErrorToastedRef.current = false;
-    } catch (err) {
-      if (!mountedRef.current) return;
-      if (rowsRef.current.length === 0 && !loadErrorToastedRef.current) {
+  const listEmptyRef = useRef(true);
+  const loadActive = useCallback(
+    (page: number, pageSize: PageSizeOption): Promise<PaginatedResult<ActiveDownload>> =>
+      api.activeDownloads(page, pageSize),
+    []
+  );
+  const pagination = useServerPagination<ActiveDownload>(loadActive, {
+    onError: (err) => {
+      if (listEmptyRef.current && !loadErrorToastedRef.current) {
         showToast(messageOf(err), 'error');
         loadErrorToastedRef.current = true;
       }
-    } finally {
-      inFlightRef.current = false;
-      if (mountedRef.current) setLoading(false);
     }
-  }, [showToast]);
+  });
+  const { items: rows, loading, reload } = pagination;
+  listEmptyRef.current = rows.length === 0;
 
   useEffect(() => {
-    mountedRef.current = true;
-    setLoading(true);
-    void load();
     const timer = window.setInterval(() => {
-      void load();
+      void reload();
     }, 5000);
-    return () => {
-      mountedRef.current = false;
-      window.clearInterval(timer);
-    };
-  }, [load]);
+    return () => window.clearInterval(timer);
+  }, [reload]);
 
   return (
     <section className="view">
@@ -1312,6 +1316,7 @@ function ActiveDownloadsView() {
       {loading && rows.length === 0 ? (
         <p className="muted">正在加载…</p>
       ) : (
+        <>
         <div className="table-wrap">
           <table>
             <thead>
@@ -1341,6 +1346,17 @@ function ActiveDownloadsView() {
             </tbody>
           </table>
         </div>
+        <PaginationBar
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          totalPages={pagination.totalPages}
+          totalItems={pagination.total}
+          rangeStart={pagination.rangeStart}
+          rangeEnd={pagination.rangeEnd}
+          onPageChange={pagination.setPage}
+          onPageSizeChange={pagination.setPageSize}
+        />
+        </>
       )}
     </section>
   );
@@ -1396,61 +1412,44 @@ function DownloadProgressCell({ row }: { row: ActiveDownload }) {
 
 function CompletedDownloadsView() {
   const { showToast } = useToast();
-  const [rows, setRows] = useState<CompletedDownload[]>([]);
-  const [loading, setLoading] = useState(true);
   const [renameBusyId, setRenameBusyId] = useState<number | null>(null);
   const [renameHint, setRenameHint] = useState('');
-  const rowsRef = useRef(rows);
-  const inFlightRef = useRef(false);
-  const mountedRef = useRef(true);
   const loadErrorToastedRef = useRef(false);
-  rowsRef.current = rows;
-
-  const load = useCallback(async () => {
-    if (inFlightRef.current) return;
-    inFlightRef.current = true;
-    try {
-      const data = await api.completedDownloads();
-      if (!mountedRef.current) return;
-      setRows(data);
-      loadErrorToastedRef.current = false;
-    } catch (err) {
-      if (!mountedRef.current) return;
-      if (rowsRef.current.length === 0 && !loadErrorToastedRef.current) {
+  const listEmptyRef = useRef(true);
+  const loadCompleted = useCallback(
+    (page: number, pageSize: PageSizeOption): Promise<PaginatedResult<CompletedDownload>> =>
+      api.completedDownloads(page, pageSize),
+    []
+  );
+  const pagination = useServerPagination<CompletedDownload>(loadCompleted, {
+    onError: (err) => {
+      if (listEmptyRef.current && !loadErrorToastedRef.current) {
         showToast(messageOf(err), 'error');
         loadErrorToastedRef.current = true;
       }
-    } finally {
-      inFlightRef.current = false;
-      if (mountedRef.current) setLoading(false);
     }
-  }, [showToast]);
+  });
+  const { items: rows, loading, reload } = pagination;
+  listEmptyRef.current = rows.length === 0;
 
   useEffect(() => {
-    mountedRef.current = true;
-    setLoading(true);
-    void load();
     const timer = window.setInterval(() => {
-      void load();
+      void reload();
     }, 30000);
-    return () => {
-      mountedRef.current = false;
-      window.clearInterval(timer);
-    };
-  }, [load]);
+    return () => window.clearInterval(timer);
+  }, [reload]);
 
   async function retryRename(row: CompletedDownload) {
     setRenameBusyId(row.id);
     setRenameHint('');
     try {
       const result = await api.retryCompletedDownloadRename(row.id);
-      if (!mountedRef.current) return;
       setRenameHint(result.message || (result.skipped ? '无需重命名' : '重命名成功'));
+      void reload();
     } catch (err) {
-      if (!mountedRef.current) return;
       showToast(messageOf(err), 'error');
     } finally {
-      if (mountedRef.current) setRenameBusyId(null);
+      setRenameBusyId(null);
     }
   }
 
@@ -1464,6 +1463,7 @@ function CompletedDownloadsView() {
       {loading && rows.length === 0 ? (
         <p className="muted">正在加载…</p>
       ) : (
+        <>
         <div className="table-wrap">
           <table>
             <thead>
@@ -1471,6 +1471,7 @@ function CompletedDownloadsView() {
                 <th>订阅</th>
                 <th>标题</th>
                 <th>保存目录</th>
+                <th>文件路径</th>
                 <th>完成时间</th>
                 <th>操作</th>
               </tr>
@@ -1481,6 +1482,7 @@ function CompletedDownloadsView() {
                   <td>{row.subscription_name}</td>
                   <td className="break">{row.title || row.url || '（无标题）'}</td>
                   <td className="break muted">{row.dir}</td>
+                  <td className="break muted">{row.final_path?.trim() || '—'}</td>
                   <td>{formatTime(row.completed_at) || '—'}</td>
                   <td>
                     {row.ai_rename_enabled ? (
@@ -1498,17 +1500,27 @@ function CompletedDownloadsView() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && !loading && <EmptyRow columns={5} text="暂无已完成的下载" />}
+              {rows.length === 0 && !loading && <EmptyRow columns={6} text="暂无已完成的下载" />}
             </tbody>
           </table>
         </div>
+        <PaginationBar
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          totalPages={pagination.totalPages}
+          totalItems={pagination.total}
+          rangeStart={pagination.rangeStart}
+          rangeEnd={pagination.rangeEnd}
+          onPageChange={pagination.setPage}
+          onPageSizeChange={pagination.setPageSize}
+        />
+        </>
       )}
     </section>
   );
 }
 
 function SubscriptionsView() {
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [subscriptionModal, setSubscriptionModal] = useState<SubscriptionModalTarget | null>(null);
   const [fetchPreview, setFetchPreview] = useState<{ name: string; items: PolledFeedItem[] } | null>(null);
   const [fetchLoadingId, setFetchLoadingId] = useState<number | null>(null);
@@ -1516,14 +1528,15 @@ function SubscriptionsView() {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [reorderSaving, setReorderSaving] = useState(false);
   const { showToast } = useToast();
-
-  async function load() {
-    setSubscriptions(await api.subscriptions());
-  }
-
-  useEffect(() => {
-    load().catch((err) => showToast(messageOf(err), 'error'));
-  }, [showToast]);
+  const loadSubscriptions = useCallback(
+    (page: number, pageSize: PageSizeOption): Promise<PaginatedResult<Subscription>> =>
+      api.subscriptions(page, pageSize),
+    []
+  );
+  const pagination = useServerPagination<Subscription>(loadSubscriptions, {
+    onError: (err) => showToast(messageOf(err), 'error')
+  });
+  const { items: subscriptions, loading, reload } = pagination;
 
   function edit(sub: Subscription) {
     setSubscriptionModal({ mode: 'edit', subscriptionId: sub.id });
@@ -1533,25 +1546,13 @@ function SubscriptionsView() {
     setSubscriptionModal({ mode: 'create', copyFromId: sub.id });
   }
 
-  function upsertSubscription(saved: Subscription) {
-    setSubscriptions((prev) => {
-      const idx = prev.findIndex((s) => s.id === saved.id);
-      if (idx < 0) {
-        return [saved, ...prev];
-      }
-      const next = [...prev];
-      next[idx] = saved;
-      return next;
-    });
-  }
-
   async function pullSubscription(sub: Subscription) {
     setFetchLoadingId(sub.id);
     try {
       const { items } = await api.refreshSubscription(sub.id);
       setFetchPreview({ name: sub.name, items });
       showToast('拉取完成');
-      await load();
+      await reload();
     } catch (err) {
       showToast(messageOf(err), 'error');
     } finally {
@@ -1561,15 +1562,14 @@ function SubscriptionsView() {
 
   async function commitReorder(from: number, to: number) {
     if (from === to) return;
-    const previous = subscriptions;
-    const next = moveListItem(subscriptions, from, to);
-    setSubscriptions(next);
     setReorderSaving(true);
     try {
-      await api.reorderSubscriptions(next.map((sub) => sub.id));
+      const { ids } = await api.subscriptionIds();
+      const next = moveListItem(ids, from, to);
+      await api.reorderSubscriptions(next);
       showToast('订阅顺序已保存');
+      await reload();
     } catch (err) {
-      setSubscriptions(previous);
       showToast(messageOf(err), 'error');
     } finally {
       setReorderSaving(false);
@@ -1577,6 +1577,7 @@ function SubscriptionsView() {
   }
 
   const rowBusy = fetchLoadingId !== null || reorderSaving;
+  const subscriptionPageOffset = pageOffset(pagination.page, pagination.pageSize);
 
   return (
     <section className="view">
@@ -1600,8 +1601,8 @@ function SubscriptionsView() {
           target={subscriptionModal}
           subscriptions={subscriptions}
           onClose={() => setSubscriptionModal(null)}
-          onSuccess={async (saved) => {
-            upsertSubscription(saved);
+          onSuccess={async () => {
+            await reload();
             if (subscriptionModal.mode === 'create') {
               showToast('订阅已创建，请使用「拉取」或等待定时调度');
             } else {
@@ -1629,7 +1630,9 @@ function SubscriptionsView() {
             </tr>
           </thead>
           <tbody>
-            {subscriptions.map((sub, index) => (
+            {subscriptions.map((sub, pageIndex) => {
+              const index = subscriptionPageOffset + pageIndex;
+              return (
               <tr
                 key={sub.id}
                 className={dragOverIndex === index && dragIndex !== null && dragIndex !== index ? 'sub-row-drag-over' : undefined}
@@ -1702,7 +1705,7 @@ function SubscriptionsView() {
                     onClick={() =>
                       api
                         .deleteSubscription(sub.id)
-                        .then(load)
+                        .then(() => reload())
                         .catch((err) => showToast(messageOf(err), 'error'))
                     }
                   >
@@ -1711,11 +1714,22 @@ function SubscriptionsView() {
                   </button>
                 </td>
               </tr>
-            ))}
-            {subscriptions.length === 0 && <EmptyRow columns={4} text="暂无订阅" />}
+            );
+            })}
+            {subscriptions.length === 0 && !loading && <EmptyRow columns={4} text="暂无订阅" />}
           </tbody>
         </table>
       </div>
+      <PaginationBar
+        page={pagination.page}
+        pageSize={pagination.pageSize}
+        totalPages={pagination.totalPages}
+        totalItems={pagination.total}
+        rangeStart={pagination.rangeStart}
+        rangeEnd={pagination.rangeEnd}
+        onPageChange={pagination.setPage}
+        onPageSizeChange={pagination.setPageSize}
+      />
     </section>
   );
 }
@@ -1874,31 +1888,18 @@ function AIConfigModal({
 }
 
 function AIConfigView() {
-  const [configs, setConfigs] = useState<AIConfig[]>([]);
   const [modal, setModal] = useState<AIConfigModalTarget | null>(null);
   const { showToast } = useToast();
   const [testingId, setTestingId] = useState<number | null>(null);
-
-  const load = useCallback(() => {
-    return api
-      .aiConfigs()
-      .then(setConfigs)
-      .catch((err) => showToast(messageOf(err), 'error'));
-  }, [showToast]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  function upsert(saved: AIConfig) {
-    setConfigs((prev) => {
-      const idx = prev.findIndex((c) => c.id === saved.id);
-      if (idx < 0) return [saved, ...prev];
-      const next = [...prev];
-      next[idx] = saved;
-      return next;
-    });
-  }
+  const loadAIConfigs = useCallback(
+    (page: number, pageSize: PageSizeOption): Promise<PaginatedResult<AIConfig>> =>
+      api.aiConfigs(page, pageSize),
+    []
+  );
+  const pagination = useServerPagination<AIConfig>(loadAIConfigs, {
+    onError: (err) => showToast(messageOf(err), 'error')
+  });
+  const { items: configs, loading, reload } = pagination;
 
   async function testConfig(cfg: AIConfig) {
     setTestingId(cfg.id);
@@ -1927,8 +1928,8 @@ function AIConfigView() {
           target={modal}
           configs={configs}
           onClose={() => setModal(null)}
-          onSuccess={async (saved) => {
-            upsert(saved);
+          onSuccess={async () => {
+            await reload();
             showToast(modal.mode === 'create' ? 'AI 配置已创建' : 'AI 配置已更新');
           }}
         />
@@ -1972,7 +1973,7 @@ function AIConfigView() {
                       api
                         .deleteAIConfig(cfg.id)
                         .then(() => {
-                          setConfigs((prev) => prev.filter((c) => c.id !== cfg.id));
+                          void reload();
                           showToast('AI 配置已删除');
                         })
                         .catch((err) => showToast(messageOf(err), 'error'))
@@ -1984,10 +1985,20 @@ function AIConfigView() {
                 </td>
               </tr>
             ))}
-            {configs.length === 0 && <EmptyRow columns={2} text="暂无 AI 配置" />}
+            {configs.length === 0 && !loading && <EmptyRow columns={2} text="暂无 AI 配置" />}
           </tbody>
         </table>
       </div>
+      <PaginationBar
+        page={pagination.page}
+        pageSize={pagination.pageSize}
+        totalPages={pagination.totalPages}
+        totalItems={pagination.total}
+        rangeStart={pagination.rangeStart}
+        rangeEnd={pagination.rangeEnd}
+        onPageChange={pagination.setPage}
+        onPageSizeChange={pagination.setPageSize}
+      />
     </section>
   );
 }

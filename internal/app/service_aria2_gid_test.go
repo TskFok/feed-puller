@@ -111,8 +111,8 @@ func TestFindDownloadTaskForAria2Hook_ViaFollowing(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM download_tasks WHERE aria2_gid = ?`)).
 		WithArgs("meta-gid").
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "created_at", "updated_at",
-		}).AddRow(6, 60, 2, "magnet:?xt=urn:btih:abc", "/data", "submitted", "meta-gid", "", now, now))
+			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "final_path", "created_at", "updated_at",
+		}).AddRow(6, 60, 2, "magnet:?xt=urn:btih:abc", "/data", "submitted", "meta-gid", "", "", now, now))
 	mock.ExpectExec(regexp.QuoteMeta(`UPDATE download_tasks SET aria2_gid = ?`)).
 		WithArgs("real-gid", int64(6)).
 		WillReturnResult(sqlmock.NewResult(0, 1))

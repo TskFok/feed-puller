@@ -32,6 +32,7 @@ func New(cfg config.Config, store *store.Store, service *app.Service, log *slog.
 	mux.HandleFunc("/api/auth/feishu/callback", server.handleFeishuCallback)
 	mux.HandleFunc("/api/subscriptions/preview-next-poll", server.requireAuth(server.handleSubscriptionNextPollPreview))
 	mux.HandleFunc("/api/subscriptions/reorder", server.requireAuth(server.handleSubscriptionReorder))
+	mux.HandleFunc("/api/subscriptions/ids", server.requireAuth(server.handleSubscriptionIDs))
 	mux.HandleFunc("/api/subscriptions", server.requireAuth(server.handleSubscriptions))
 	mux.HandleFunc("/api/subscriptions/", server.requireAuth(server.handleSubscriptionByID))
 	mux.HandleFunc("/api/items/batch-download", server.requireAuth(server.handleItemsBatchDownload))

@@ -33,6 +33,22 @@ func (s *Server) handleSubscriptionNextPollPreview(w http.ResponseWriter, r *htt
 	writeJSON(w, http.StatusOK, map[string]string{"next_poll_at": next.UTC().Format(time.RFC3339)})
 }
 
+func (s *Server) handleSubscriptionIDs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return
+	}
+	ids, err := s.store.ListSubscriptionIDs(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if ids == nil {
+		ids = []int64{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ids": ids})
+}
+
 func (s *Server) handleSubscriptionReorder(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut {
 		methodNotAllowed(w)
@@ -55,13 +71,14 @@ func (s *Server) handleSubscriptionReorder(w http.ResponseWriter, r *http.Reques
 func (s *Server) handleSubscriptions(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		subscriptions, err := s.store.ListSubscriptions(r.Context())
+		params := parsePageParams(r)
+		subscriptions, total, err := s.store.ListSubscriptionsPage(r.Context(), params.Page, params.PageSize)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		enrichSubscriptionsNextPoll(subscriptions)
-		writeJSON(w, http.StatusOK, subscriptions)
+		writePaginatedJSON(w, http.StatusOK, subscriptions, total, params.Page, params.PageSize)
 	case http.MethodPost:
 		var input subscriptionInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -159,12 +176,13 @@ func (s *Server) handleItemsList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	subID, _ := strconv.ParseInt(r.URL.Query().Get("subscription_id"), 10, 64)
-	items, err := s.store.ListItems(r.Context(), subID, 100)
+	params := parsePageParams(r)
+	items, total, err := s.store.ListItemsPage(r.Context(), subID, params.Page, params.PageSize)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, items)
+	writePaginatedJSON(w, http.StatusOK, items, total, params.Page, params.PageSize)
 }
 
 func (s *Server) handleItemsBatchStatus(w http.ResponseWriter, r *http.Request) {
@@ -266,12 +284,13 @@ func (s *Server) handleActiveDownloads(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
-	rows, err := s.service.ListActiveDownloadsWithProgress(r.Context())
+	params := parsePageParams(r)
+	rows, total, err := s.service.ListActiveDownloadsWithProgress(r.Context(), params.Page, params.PageSize)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, rows)
+	writePaginatedJSON(w, http.StatusOK, rows, total, params.Page, params.PageSize)
 }
 
 func (s *Server) handleCompletedDownloads(w http.ResponseWriter, r *http.Request) {
@@ -280,12 +299,13 @@ func (s *Server) handleCompletedDownloads(w http.ResponseWriter, r *http.Request
 		return
 	}
 	_ = s.service.SyncAria2DownloadStatus(r.Context())
-	rows, err := s.store.ListCompletedDownloads(r.Context(), 200)
+	params := parsePageParams(r)
+	rows, total, err := s.store.ListCompletedDownloadsPage(r.Context(), params.Page, params.PageSize)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, rows)
+	writePaginatedJSON(w, http.StatusOK, rows, total, params.Page, params.PageSize)
 }
 
 func (s *Server) handleDownloadByID(w http.ResponseWriter, r *http.Request) {

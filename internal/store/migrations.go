@@ -98,4 +98,6 @@ var migrations = []string{
 		ADD COLUMN IF NOT EXISTS ai_rename_enabled BOOLEAN NOT NULL DEFAULT FALSE,
 		ADD COLUMN IF NOT EXISTS ai_rename_season INT NOT NULL DEFAULT 1,
 		ADD COLUMN IF NOT EXISTS ai_rename_episode_offset INT NOT NULL DEFAULT 0`,
+	`ALTER TABLE download_tasks
+		ADD COLUMN IF NOT EXISTS final_path TEXT NULL`,
 }

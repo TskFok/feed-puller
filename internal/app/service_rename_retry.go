@@ -57,6 +57,15 @@ func (s *Service) RetryCompletedDownloadRename(ctx context.Context, taskID int64
 	if err != nil {
 		return RenameDownloadResult{}, err
 	}
+	if path := strings.TrimSpace(to); path != "" {
+		if updateErr := s.store.UpdateDownloadTaskFinalPath(ctx, taskID, path); updateErr != nil {
+			s.log.Warn("更新下载文件路径失败", "task_id", taskID, "path", path, "error", updateErr)
+		}
+	} else if path := strings.TrimSpace(from); path != "" {
+		if updateErr := s.store.UpdateDownloadTaskFinalPath(ctx, taskID, path); updateErr != nil {
+			s.log.Warn("更新下载文件路径失败", "task_id", taskID, "path", path, "error", updateErr)
+		}
+	}
 	out := RenameDownloadResult{FromPath: from, ToPath: to, Skipped: skipped}
 	if skipped {
 		out.Message = "文件名已符合刮削格式，无需重命名"
@@ -67,6 +76,11 @@ func (s *Service) RetryCompletedDownloadRename(ctx context.Context, taskID int64
 }
 
 func (s *Service) resolveCompletedDownloadFilePath(ctx context.Context, task store.DownloadTask) (string, error) {
+	if path := strings.TrimSpace(s.mapDownloadPath(task.FinalPath)); path != "" {
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		}
+	}
 	gid := strings.TrimSpace(task.Aria2GID)
 	if gid != "" {
 		_, status, err := s.aria2.TellStatusEffective(ctx, gid)

@@ -69,7 +69,7 @@ func scanDownloadTasks(rows *sql.Rows) ([]DownloadTask, error) {
 	tasks := make([]DownloadTask, 0)
 	for rows.Next() {
 		var task DownloadTask
-		if err := rows.Scan(&task.ID, &task.ItemID, &task.SubscriptionID, &task.URL, &task.Dir, &task.Status, &task.Aria2GID, &task.Error, &task.CreatedAt, &task.UpdatedAt); err != nil {
+		if err := rows.Scan(&task.ID, &task.ItemID, &task.SubscriptionID, &task.URL, &task.Dir, &task.Status, &task.Aria2GID, &task.Error, &task.FinalPath, &task.CreatedAt, &task.UpdatedAt); err != nil {
 			return nil, err
 		}
 		tasks = append(tasks, task)

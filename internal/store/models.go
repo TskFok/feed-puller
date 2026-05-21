@@ -59,6 +59,7 @@ type DownloadTask struct {
 	Status         string    `json:"status"`
 	Aria2GID       string    `json:"aria2_gid,omitempty"`
 	Error          string    `json:"error,omitempty"`
+	FinalPath      string    `json:"final_path,omitempty"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 }
@@ -85,6 +86,7 @@ type CompletedDownload struct {
 	Title            string    `json:"title"`
 	URL              string    `json:"url"`
 	Dir              string    `json:"dir"`
+	FinalPath        string    `json:"final_path,omitempty"`
 	AIRenameEnabled  bool      `json:"ai_rename_enabled"`
 	CompletedAt      time.Time `json:"completed_at"`
 }

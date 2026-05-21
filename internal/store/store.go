@@ -170,6 +170,55 @@ func (s *Store) ListSubscriptions(ctx context.Context) ([]Subscription, error) {
 	return scanSubscriptions(rows)
 }
 
+func (s *Store) CountSubscriptions(ctx context.Context) (int, error) {
+	var total int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM subscriptions`).Scan(&total); err != nil {
+		return 0, fmt.Errorf("统计订阅数量失败: %w", err)
+	}
+	return total, nil
+}
+
+func (s *Store) ListSubscriptionsPage(ctx context.Context, page, pageSize int) ([]Subscription, int, error) {
+	page, pageSize, offset := NormalizePage(page, pageSize)
+	total, err := s.CountSubscriptions(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT `+subscriptionColumns+`
+		FROM subscriptions ORDER BY sort_order ASC, id DESC
+		LIMIT ? OFFSET ?
+	`, pageSize, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("查询订阅失败: %w", err)
+	}
+	defer rows.Close()
+	items, err := scanSubscriptions(rows)
+	if err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}
+
+func (s *Store) ListSubscriptionIDs(ctx context.Context) ([]int64, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id FROM subscriptions ORDER BY sort_order ASC, id DESC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("查询订阅 ID 失败: %w", err)
+	}
+	defer rows.Close()
+	ids := make([]int64, 0)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 func (s *Store) DueSubscriptions(ctx context.Context, now time.Time) ([]Subscription, error) {
 	nowUTC := now.UTC()
 	rows, err := s.db.QueryContext(ctx, `
@@ -379,25 +428,49 @@ func (s *Store) MarkSubscriptionFetched(ctx context.Context, id int64, errText s
 }
 
 func (s *Store) ListItems(ctx context.Context, subscriptionID int64, limit int) ([]Item, error) {
-	if limit <= 0 || limit > 500 {
-		limit = 100
+	items, _, err := s.ListItemsPage(ctx, subscriptionID, 1, limit)
+	return items, err
+}
+
+func (s *Store) countItems(ctx context.Context, subscriptionID int64) (int, error) {
+	var total int
+	var err error
+	if subscriptionID > 0 {
+		err = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM feed_items WHERE subscription_id = ?`, subscriptionID).Scan(&total)
+	} else {
+		err = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM feed_items`).Scan(&total)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("统计条目数量失败: %w", err)
+	}
+	return total, nil
+}
+
+func (s *Store) ListItemsPage(ctx context.Context, subscriptionID int64, page, pageSize int) ([]Item, int, error) {
+	page, pageSize, offset := NormalizePage(page, pageSize)
+	total, err := s.countItems(ctx, subscriptionID)
+	if err != nil {
+		return nil, 0, err
 	}
 	query := `
 		SELECT id, subscription_id, COALESCE(guid, ''), title, COALESCE(link, ''), COALESCE(download_url, ''), dedupe_key, published_at, download_status, created_at, updated_at
 		FROM feed_items
 	`
 	var rows *sql.Rows
-	var err error
 	if subscriptionID > 0 {
-		rows, err = s.db.QueryContext(ctx, query+` WHERE subscription_id = ? ORDER BY id DESC LIMIT ?`, subscriptionID, limit)
+		rows, err = s.db.QueryContext(ctx, query+` WHERE subscription_id = ? ORDER BY id DESC LIMIT ? OFFSET ?`, subscriptionID, pageSize, offset)
 	} else {
-		rows, err = s.db.QueryContext(ctx, query+` ORDER BY id DESC LIMIT ?`, limit)
+		rows, err = s.db.QueryContext(ctx, query+` ORDER BY id DESC LIMIT ? OFFSET ?`, pageSize, offset)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("查询条目失败: %w", err)
+		return nil, 0, fmt.Errorf("查询条目失败: %w", err)
 	}
 	defer rows.Close()
-	return scanItems(rows)
+	items, err := scanItems(rows)
+	if err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
 }
 
 // GetDownloadTask 按任务 ID 查询下载任务。
@@ -406,11 +479,11 @@ func (s *Store) GetDownloadTask(ctx context.Context, id int64) (DownloadTask, er
 		return DownloadTask{}, fmt.Errorf("无效的任务 ID")
 	}
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, item_id, subscription_id, url, dir, status, COALESCE(aria2_gid, ''), COALESCE(error, ''), created_at, updated_at
+		SELECT `+downloadTaskColumns+`
 		FROM download_tasks WHERE id = ?
 	`, id)
 	var task DownloadTask
-	if err := row.Scan(&task.ID, &task.ItemID, &task.SubscriptionID, &task.URL, &task.Dir, &task.Status, &task.Aria2GID, &task.Error, &task.CreatedAt, &task.UpdatedAt); err != nil {
+	if err := row.Scan(&task.ID, &task.ItemID, &task.SubscriptionID, &task.URL, &task.Dir, &task.Status, &task.Aria2GID, &task.Error, &task.FinalPath, &task.CreatedAt, &task.UpdatedAt); err != nil {
 		return DownloadTask{}, err
 	}
 	return task, nil
@@ -421,7 +494,7 @@ func (s *Store) ListDownloads(ctx context.Context, limit int) ([]DownloadTask, e
 		limit = 100
 	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, item_id, subscription_id, url, dir, status, COALESCE(aria2_gid, ''), COALESCE(error, ''), created_at, updated_at
+		SELECT `+downloadTaskColumns+`
 		FROM download_tasks ORDER BY id DESC LIMIT ?
 	`, limit)
 	if err != nil {

@@ -22,7 +22,7 @@ func (s *Service) SyncAria2DownloadStatus(ctx context.Context) error {
 			if downloader.IsGIDNotFound(err) {
 				// aria2 仅会在任务进入终态后清理记录，因此 GID 已不存在视为已完成；
 				// 跳过重命名（无 files 列表），仅写库以便出现在「下载完成」列表中。
-				if completeErr := s.store.CompleteDownloadTask(ctx, task.ID, task.ItemID); completeErr != nil {
+				if completeErr := s.store.CompleteDownloadTask(ctx, task.ID, task.ItemID, ""); completeErr != nil {
 					s.log.Warn("记录下载完成失败", "task_id", task.ID, "error", completeErr)
 					continue
 				}
@@ -45,12 +45,18 @@ func (s *Service) SyncAria2DownloadStatus(ctx context.Context) error {
 			if item, itemErr := s.store.GetItem(ctx, task.ItemID); itemErr == nil {
 				itemTitle = item.Title
 			}
-			if subErr == nil {
-				s.maybeRenameDownloadFile(ctx, sub, itemTitle, status)
-			} else {
+			finalPath := ""
+			if path, pathErr := downloader.Aria2DownloadPath(status); pathErr == nil {
+				if subErr == nil {
+					finalPath = s.resolveDownloadFinalPath(ctx, sub, itemTitle, path)
+				} else {
+					finalPath = strings.TrimSpace(s.mapDownloadPath(path))
+					s.log.Warn("读取订阅失败，跳过重命名", "subscription_id", task.SubscriptionID, "error", subErr)
+				}
+			} else if subErr != nil {
 				s.log.Warn("读取订阅失败，跳过重命名", "subscription_id", task.SubscriptionID, "error", subErr)
 			}
-			if err := s.store.CompleteDownloadTask(ctx, task.ID, task.ItemID); err != nil {
+			if err := s.store.CompleteDownloadTask(ctx, task.ID, task.ItemID, finalPath); err != nil {
 				s.log.Warn("记录下载完成失败", "task_id", task.ID, "error", err)
 				continue
 			}

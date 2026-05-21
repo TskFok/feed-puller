@@ -28,12 +28,12 @@ type ActiveDownloadWithProgress struct {
 }
 
 // ListActiveDownloadsWithProgress 返回进行中的下载任务及 aria2 进度；查询前会先同步一次 aria2 状态。
-func (s *Service) ListActiveDownloadsWithProgress(ctx context.Context) ([]ActiveDownloadWithProgress, error) {
+func (s *Service) ListActiveDownloadsWithProgress(ctx context.Context, page, pageSize int) ([]ActiveDownloadWithProgress, int, error) {
 	_ = s.SyncAria2DownloadStatus(ctx)
 
-	rows, err := s.store.ListActiveDownloads(ctx, 100)
+	rows, total, err := s.store.ListActiveDownloadsPage(ctx, page, pageSize)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	out := make([]ActiveDownloadWithProgress, 0, len(rows))
 	for _, row := range rows {
@@ -72,5 +72,5 @@ func (s *Service) ListActiveDownloadsWithProgress(ctx context.Context) ([]Active
 		item.ProgressPercent = progress.ProgressPercent
 		out = append(out, item)
 	}
-	return out, nil
+	return out, total, nil
 }

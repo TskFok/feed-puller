@@ -40,8 +40,8 @@ func TestRetryCompletedDownloadRename_PathMap(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM download_tasks WHERE id = ?`)).
 		WithArgs(int64(10)).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "created_at", "updated_at",
-		}).AddRow(10, 91, 2, "magnet:?xt=urn:btih:abc", hostDir, "completed", "", "", now, now))
+			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "final_path", "created_at", "updated_at",
+		}).AddRow(10, 91, 2, "magnet:?xt=urn:btih:abc", hostDir, "completed", "", "", "", now, now))
 
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM subscriptions WHERE id = ?`)).
 		WithArgs(int64(2)).
@@ -64,15 +64,21 @@ func TestRetryCompletedDownloadRename_PathMap(t *testing.T) {
 	}))
 	defer ai.Close()
 
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT COUNT(*) FROM ai_configs`)).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM ai_configs ORDER BY id DESC`)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "base_url", "model", "api_key", "created_at", "updated_at"}).
 			AddRow(1, "test", ai.URL+"/v1", "gpt-test", "sk-test", now, now))
+
+	target := filepath.Join(containerRoot, "番剧 第02话 S01E02.mp4")
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE download_tasks SET final_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).
+		WithArgs(target, int64(10)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	result, err := svc.RetryCompletedDownloadRename(context.Background(), 10)
 	if err != nil {
 		t.Fatalf("RetryCompletedDownloadRename: %v", err)
 	}
-	target := filepath.Join(containerRoot, "番剧 第02话 S01E02.mp4")
 	if result.ToPath != target {
 		t.Fatalf("to = %q, want %q", result.ToPath, target)
 	}

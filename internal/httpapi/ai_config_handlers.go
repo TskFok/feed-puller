@@ -12,12 +12,13 @@ import (
 func (s *Server) handleAIConfigs(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		configs, err := s.store.ListAIConfigs(r.Context())
+		params := parsePageParams(r)
+		configs, total, err := s.store.ListAIConfigsPage(r.Context(), params.Page, params.PageSize)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		writeJSON(w, http.StatusOK, configs)
+		writePaginatedJSON(w, http.StatusOK, configs, total, params.Page, params.PageSize)
 	case http.MethodPost:
 		var input aiConfigInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {

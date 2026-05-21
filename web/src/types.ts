@@ -6,6 +6,13 @@ export type User = {
   feishu_open_id?: string;
 };
 
+export type PaginatedResult<T> = {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
 export type Subscription = {
   id: number;
   name: string;
@@ -121,6 +128,7 @@ export type CompletedDownload = {
   title: string;
   url: string;
   dir: string;
+  final_path?: string;
   ai_rename_enabled: boolean;
   completed_at: string;
 };

@@ -18,6 +18,32 @@ func TestCompleteDownloadTask(t *testing.T) {
 	ctx := context.Background()
 
 	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE download_tasks SET status = 'completed', final_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).
+		WithArgs("/data/final.mp4", int64(10)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE feed_items SET download_status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).
+		WithArgs(int64(20)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	if err := s.CompleteDownloadTask(ctx, 10, 20, "/data/final.mp4"); err != nil {
+		t.Fatalf("CompleteDownloadTask: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCompleteDownloadTask_EmptyFinalPath(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	s := New(db)
+	ctx := context.Background()
+
+	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(`UPDATE download_tasks SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).
 		WithArgs(int64(10)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -26,7 +52,7 @@ func TestCompleteDownloadTask(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
-	if err := s.CompleteDownloadTask(ctx, 10, 20); err != nil {
+	if err := s.CompleteDownloadTask(ctx, 10, 20, ""); err != nil {
 		t.Fatalf("CompleteDownloadTask: %v", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {

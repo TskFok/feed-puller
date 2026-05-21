@@ -49,15 +49,38 @@ func scanAIConfigs(rows *sql.Rows) ([]AIConfig, error) {
 }
 
 func (s *Store) ListAIConfigs(ctx context.Context) ([]AIConfig, error) {
+	configs, _, err := s.ListAIConfigsPage(ctx, 1, MaxPageSize)
+	return configs, err
+}
+
+func (s *Store) countAIConfigs(ctx context.Context) (int, error) {
+	var total int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM ai_configs`).Scan(&total); err != nil {
+		return 0, fmt.Errorf("统计 AI 配置数量失败: %w", err)
+	}
+	return total, nil
+}
+
+func (s *Store) ListAIConfigsPage(ctx context.Context, page, pageSize int) ([]AIConfig, int, error) {
+	page, pageSize, offset := NormalizePage(page, pageSize)
+	total, err := s.countAIConfigs(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+aiConfigColumns+`
 		FROM ai_configs ORDER BY id DESC
-	`)
+		LIMIT ? OFFSET ?
+	`, pageSize, offset)
 	if err != nil {
-		return nil, fmt.Errorf("查询 AI 配置失败: %w", err)
+		return nil, 0, fmt.Errorf("查询 AI 配置失败: %w", err)
 	}
 	defer rows.Close()
-	return scanAIConfigs(rows)
+	configs, err := scanAIConfigs(rows)
+	if err != nil {
+		return nil, 0, err
+	}
+	return configs, total, nil
 }
 
 func (s *Store) GetAIConfig(ctx context.Context, id int64) (AIConfig, error) {

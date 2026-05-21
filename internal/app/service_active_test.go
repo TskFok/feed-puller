@@ -49,20 +49,21 @@ func TestListActiveDownloadsWithProgress(t *testing.T) {
 	// SyncAria2DownloadStatus: list submitted
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM download_tasks`)).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "created_at", "updated_at",
+			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "final_path", "created_at", "updated_at",
 		}))
-	// ListActiveDownloads
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT COUNT(*) FROM download_tasks`)).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 	mock.ExpectQuery(regexp.QuoteMeta(`WHERE dt.status = 'submitted'`)).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "item_id", "subscription_id", "subscription_name", "title", "url", "dir", "aria2_gid", "submitted_at",
 		}).AddRow(5, 10, 2, "动漫", "测试", "https://example.test/a.mp4", "/data", "gid-5", now))
 
-	rows, err := svc.ListActiveDownloadsWithProgress(context.Background())
+	rows, total, err := svc.ListActiveDownloadsWithProgress(context.Background(), 1, 30)
 	if err != nil {
 		t.Fatalf("ListActiveDownloadsWithProgress: %v", err)
 	}
-	if len(rows) != 1 {
-		t.Fatalf("len = %d", len(rows))
+	if total != 1 || len(rows) != 1 {
+		t.Fatalf("total=%d len=%d", total, len(rows))
 	}
 	if rows[0].Aria2Status != "active" || rows[0].CompletedLength != 250 {
 		t.Fatalf("progress = %+v", rows[0])

@@ -87,12 +87,12 @@ func (s *Service) HandleAria2Hook(ctx context.Context, gid string, event Aria2Ho
 			itemTitle = item.Title
 		}
 		if subErr == nil {
-			s.maybeRenameDownloadFileAt(ctx, sub, itemTitle, finalPath)
+			finalPath = s.resolveDownloadFinalPath(ctx, sub, itemTitle, finalPath)
 		} else {
 			s.log.Warn("aria2 hook: 读取订阅失败，跳过重命名",
 				"subscription_id", task.SubscriptionID, "error", subErr)
 		}
-		if err := s.store.CompleteDownloadTask(ctx, task.ID, task.ItemID); err != nil {
+		if err := s.store.CompleteDownloadTask(ctx, task.ID, task.ItemID, finalPath); err != nil {
 			return fmt.Errorf("记录下载完成失败: %w", err)
 		}
 		s.log.Info("aria2 hook: 下载已完成",

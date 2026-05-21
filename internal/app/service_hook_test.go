@@ -99,8 +99,8 @@ func TestHandleAria2Hook_CompleteWritesCompletedState(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM download_tasks WHERE aria2_gid = ?`)).
 		WithArgs("gid-hook-1").
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "created_at", "updated_at",
-		}).AddRow(7, 70, 3, "https://example.test/a.mp4", "/data", "submitted", "gid-hook-1", "", now, now))
+			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "final_path", "created_at", "updated_at",
+		}).AddRow(7, 70, 3, "https://example.test/a.mp4", "/data", "submitted", "gid-hook-1", "", "", now, now))
 
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM subscriptions WHERE id = ?`)).
 		WithArgs(int64(3)).
@@ -118,8 +118,8 @@ func TestHandleAria2Hook_CompleteWritesCompletedState(t *testing.T) {
 		}).AddRow(70, 3, "", "第2话", "", "https://example.test/a.mp4", "k", nil, "submitted", now, now))
 
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`UPDATE download_tasks SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).
-		WithArgs(int64(7)).
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE download_tasks SET status = 'completed', final_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).
+		WithArgs("/data/anime/foo.mp4", int64(7)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta(`UPDATE feed_items SET download_status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).
 		WithArgs(int64(70)).
@@ -142,8 +142,8 @@ func TestHandleAria2Hook_ErrorWritesFailedState(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM download_tasks WHERE aria2_gid = ?`)).
 		WithArgs("gid-hook-2").
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "created_at", "updated_at",
-		}).AddRow(8, 80, 3, "https://example.test/b.mp4", "/data", "submitted", "gid-hook-2", "", now, now))
+			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "final_path", "created_at", "updated_at",
+		}).AddRow(8, 80, 3, "https://example.test/b.mp4", "/data", "submitted", "gid-hook-2", "", "", now, now))
 
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(`UPDATE download_tasks SET status = 'failed', error = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).
@@ -187,8 +187,8 @@ func TestHandleAria2Hook_IdempotentWhenAlreadyTerminal(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM download_tasks WHERE aria2_gid = ?`)).
 		WithArgs("gid-hook-3").
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "created_at", "updated_at",
-		}).AddRow(9, 90, 3, "https://example.test/c.mp4", "/data", "completed", "gid-hook-3", "", now, now))
+			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "final_path", "created_at", "updated_at",
+		}).AddRow(9, 90, 3, "https://example.test/c.mp4", "/data", "completed", "gid-hook-3", "", "", now, now))
 
 	if err := svc.HandleAria2Hook(context.Background(), "gid-hook-3", Aria2HookEventComplete, "/data/c.mp4", ""); err != nil {
 		t.Fatalf("HandleAria2Hook: %v", err)
@@ -206,8 +206,8 @@ func TestHandleAria2Hook_StopDoesNotMutateState(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM download_tasks WHERE aria2_gid = ?`)).
 		WithArgs("gid-hook-4").
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "created_at", "updated_at",
-		}).AddRow(11, 110, 3, "https://example.test/d.mp4", "/data", "submitted", "gid-hook-4", "", now, now))
+			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "final_path", "created_at", "updated_at",
+		}).AddRow(11, 110, 3, "https://example.test/d.mp4", "/data", "submitted", "gid-hook-4", "", "", now, now))
 
 	if err := svc.HandleAria2Hook(context.Background(), "gid-hook-4", Aria2HookEventStop, "", ""); err != nil {
 		t.Fatalf("HandleAria2Hook: %v", err)
@@ -226,8 +226,8 @@ func TestHandleAria2Hook_MetadataFileDoesNotComplete(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM download_tasks WHERE aria2_gid = ?`)).
 		WithArgs("gid-meta").
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "created_at", "updated_at",
-		}).AddRow(12, 120, 3, "magnet:?xt=urn:btih:abc", "/data", "submitted", "gid-meta", "", now, now))
+			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "final_path", "created_at", "updated_at",
+		}).AddRow(12, 120, 3, "magnet:?xt=urn:btih:abc", "/data", "submitted", "gid-meta", "", "", now, now))
 
 	metaPath := "/data/[METADATA][ANi]+大賢者+-+07+.mp4"
 	if err := svc.HandleAria2Hook(context.Background(), "gid-meta", Aria2HookEventBTComplete, metaPath, ""); err != nil {
@@ -265,8 +265,8 @@ func TestHandleAria2Hook_FileCompleteWaitsWhileAria2Active(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM download_tasks WHERE aria2_gid = ?`)).
 		WithArgs("gid-active").
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "created_at", "updated_at",
-		}).AddRow(13, 130, 3, "magnet:?xt=urn:btih:def", "/data", "submitted", "gid-active", "", now, now))
+			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "final_path", "created_at", "updated_at",
+		}).AddRow(13, 130, 3, "magnet:?xt=urn:btih:def", "/data", "submitted", "gid-active", "", "", now, now))
 
 	if err := svc.HandleAria2Hook(context.Background(), "gid-active", Aria2HookEventFileComplete, "/data/[ANi]foo.mp4", ""); err != nil {
 		t.Fatalf("HandleAria2Hook: %v", err)
@@ -314,8 +314,8 @@ func TestHandleAria2Hook_BTCompleteWaitsForRealFile(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM download_tasks WHERE aria2_gid = ?`)).
 		WithArgs("gid-bt").
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "created_at", "updated_at",
-		}).AddRow(14, 140, 3, "magnet:?xt=urn:btih:xyz", "/data", "submitted", "gid-bt", "", now, now))
+			"id", "item_id", "subscription_id", "url", "dir", "status", "aria2_gid", "error", "final_path", "created_at", "updated_at",
+		}).AddRow(14, 140, 3, "magnet:?xt=urn:btih:xyz", "/data", "submitted", "gid-bt", "", "", now, now))
 
 	if err := svc.HandleAria2Hook(context.Background(), "gid-bt", Aria2HookEventBTComplete, "/data/[ANi]foo - 07.mp4", ""); err != nil {
 		t.Fatalf("HandleAria2Hook: %v", err)

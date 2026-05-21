@@ -2,6 +2,22 @@ import { render, screen, fireEvent, waitFor, within, act } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 
+function isSubscriptionsListPath(path: string) {
+  return path === '/api/subscriptions' || path.startsWith('/api/subscriptions?');
+}
+
+function isActiveDownloadsPath(path: string) {
+  return path === '/api/downloads/active' || path.startsWith('/api/downloads/active?');
+}
+
+function isCompletedDownloadsPath(path: string) {
+  return path === '/api/downloads/completed' || path.startsWith('/api/downloads/completed?');
+}
+
+function isAIConfigsListPath(path: string) {
+  return path === '/api/ai-configs' || path.startsWith('/api/ai-configs?');
+}
+
 describe('App', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
@@ -69,7 +85,7 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response('null', { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
         return new Response(JSON.stringify({}), { status: 200 });
@@ -79,7 +95,7 @@ describe('App', () => {
     render(<App />);
 
     await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
-    expect(screen.getByText('暂无订阅')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('暂无订阅')).toBeInTheDocument());
   });
 
   it('登录后可通过新增订阅弹窗填写关键字过滤', async () => {
@@ -93,7 +109,7 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
         return new Response(JSON.stringify({}), { status: 200 });
@@ -123,7 +139,7 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
         return new Response(JSON.stringify({}), { status: 200 });
@@ -156,7 +172,7 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
         return new Response(JSON.stringify({}), { status: 200 });
@@ -185,7 +201,7 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response(
             JSON.stringify([
               {
@@ -201,7 +217,7 @@ describe('App', () => {
                 exclude_keywords: '',
                 use_proxy: false,
                 last_fetched_at: '2026-05-19T10:00:00Z',
-                next_poll_at: '2026-05-19T11:00:00Z'
+                next_poll_at: '2030-05-19T11:00:00Z'
               }
             ]),
             { status: 200, headers: { 'Content-Type': 'application/json' } }
@@ -217,7 +233,7 @@ describe('App', () => {
     expect(screen.getByText('上次')).toBeInTheDocument();
     expect(screen.getByText('下次')).toBeInTheDocument();
     expect(screen.getByText(/2026\/5\/19 18:00:00/)).toBeInTheDocument();
-    expect(screen.getByText(/2026\/5\/19 19:00:00/)).toBeInTheDocument();
+    expect(screen.getByText(/2030\/5\/19 19:00:00/)).toBeInTheDocument();
   });
 
   it('编辑订阅时展示上次与下次拉取时间及调度预览', async () => {
@@ -232,7 +248,7 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response(
             JSON.stringify([
               {
@@ -286,7 +302,7 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response(
             JSON.stringify([
               {
@@ -331,7 +347,7 @@ describe('App', () => {
           headers: { 'Content-Type': 'application/json' }
         });
       }
-      if (path === '/api/subscriptions' && method === 'GET') {
+      if (isSubscriptionsListPath(path) && method === 'GET') {
         return new Response(JSON.stringify([]), {
           status: 200,
           headers: { 'Content-Type': 'application/json' }
@@ -398,7 +414,7 @@ describe('App', () => {
           headers: { 'Content-Type': 'application/json' }
         });
       }
-      if (path === '/api/subscriptions' && method === 'GET') {
+      if (isSubscriptionsListPath(path) && method === 'GET') {
         return new Response(
           JSON.stringify([
             {
@@ -459,7 +475,7 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response(
             JSON.stringify([
               {
@@ -526,7 +542,7 @@ describe('App', () => {
               headers: { 'Content-Type': 'application/json' }
             });
           }
-          if (path === '/api/subscriptions') {
+          if (isSubscriptionsListPath(path)) {
             return new Response(
               JSON.stringify([
                 {
@@ -597,7 +613,7 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response(
             JSON.stringify([
               {
@@ -662,7 +678,7 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response(
             JSON.stringify([
               {
@@ -767,7 +783,7 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response(
             JSON.stringify([
               {
@@ -867,7 +883,7 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response(
             JSON.stringify([
               {
@@ -971,7 +987,7 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response(
             JSON.stringify([
               {
@@ -1062,7 +1078,7 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response(
             JSON.stringify([
               {
@@ -1160,7 +1176,7 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response(
             JSON.stringify([
               {
@@ -1242,6 +1258,7 @@ describe('App', () => {
 
   it('订阅列表可通过拖拽手柄调整顺序', async () => {
     const reorderCalls: number[][] = [];
+    let subscriptionOrder = [1, 2];
     const subscriptionPayload = [
       {
         id: 1,
@@ -1283,8 +1300,16 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
-          return new Response(JSON.stringify(subscriptionPayload), {
+        if (isSubscriptionsListPath(path)) {
+          const byId = new Map(subscriptionPayload.map((sub) => [sub.id, sub]));
+          const items = subscriptionOrder.map((id) => byId.get(id)!);
+          return new Response(
+            JSON.stringify({ items, total: items.length, page: 1, page_size: 30 }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        if (path === '/api/subscriptions/ids') {
+          return new Response(JSON.stringify({ ids: subscriptionOrder }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' }
           });
@@ -1292,6 +1317,7 @@ describe('App', () => {
         if (path === '/api/subscriptions/reorder' && method === 'PUT') {
           const body = JSON.parse(String(init?.body ?? '{}')) as { subscription_ids: number[] };
           reorderCalls.push(body.subscription_ids);
+          subscriptionOrder = body.subscription_ids;
           return new Response(JSON.stringify({ ok: true }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' }
@@ -1336,10 +1362,10 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
-        if (path === '/api/downloads/active') {
+        if (isActiveDownloadsPath(path)) {
           return new Response(
             JSON.stringify([
               {
@@ -1389,10 +1415,10 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
-        if (path === '/api/downloads/active') {
+        if (isActiveDownloadsPath(path)) {
           activeCallCount += 1;
           return new Promise<Response>((resolve) => {
             resolveActive = () => {
@@ -1460,10 +1486,10 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
-        if (path === '/api/downloads/completed') {
+        if (isCompletedDownloadsPath(path)) {
           return new Response(
             JSON.stringify([
               {
@@ -1474,6 +1500,7 @@ describe('App', () => {
                 title: '示例番剧',
                 url: 'https://example.test/a.mp4',
                 dir: '/data/anime',
+                final_path: '/data/anime/番剧 S01E01.mp4',
                 ai_rename_enabled: true,
                 completed_at: '2026-05-19T12:00:00Z'
               }
@@ -1493,6 +1520,7 @@ describe('App', () => {
     expect(screen.getByText('动漫')).toBeInTheDocument();
     expect(screen.getByText('示例番剧')).toBeInTheDocument();
     expect(screen.getByText('/data/anime')).toBeInTheDocument();
+    expect(screen.getByText('/data/anime/番剧 S01E01.mp4')).toBeInTheDocument();
   });
 
   it('下载完成列表在上一次 completed 请求未完成时不会重复请求', async () => {
@@ -1509,10 +1537,10 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
-        if (path === '/api/downloads/completed') {
+        if (isCompletedDownloadsPath(path)) {
           completedCallCount += 1;
           return new Promise<Response>((resolve) => {
             resolveCompleted = () => {
@@ -1571,6 +1599,7 @@ describe('App', () => {
       model: 'deepseek-chat',
       api_key: 'sk-test'
     }));
+    const savedAIConfigs: Awaited<ReturnType<typeof createAIConfig>>[] = [];
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -1581,14 +1610,19 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
-        if (path === '/api/ai-configs' && (!init || init.method === undefined)) {
-          return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+        if (isAIConfigsListPath(path) && (!init || init.method === undefined)) {
+          return new Response(JSON.stringify({ items: savedAIConfigs, total: savedAIConfigs.length, page: 1, page_size: 30 }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
         }
         if (path === '/api/ai-configs' && init?.method === 'POST') {
-          return new Response(JSON.stringify(await createAIConfig()), {
+          const created = await createAIConfig();
+          savedAIConfigs.push(created);
+          return new Response(JSON.stringify(created), {
             status: 201,
             headers: { 'Content-Type': 'application/json' }
           });
@@ -1628,10 +1662,10 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
-        if (path === '/api/downloads/active') {
+        if (isActiveDownloadsPath(path)) {
           return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
         return new Response(JSON.stringify({}), { status: 200 });
@@ -1655,10 +1689,10 @@ describe('App', () => {
             headers: { 'Content-Type': 'application/json' }
           });
         }
-        if (path === '/api/subscriptions') {
+        if (isSubscriptionsListPath(path)) {
           return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
-        if (path === '/api/downloads/completed') {
+        if (isCompletedDownloadsPath(path)) {
           return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
         }
         return new Response(JSON.stringify({}), { status: 200 });

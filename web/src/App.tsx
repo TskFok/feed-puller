@@ -11,6 +11,7 @@ import {
   Rss,
   Bot,
   Settings,
+  Search,
   ShieldCheck,
   Copy,
   SquarePen,
@@ -25,6 +26,7 @@ import { usePagination } from './usePagination';
 import { useServerPagination } from './useServerPagination';
 import { useFeishuQR } from './feishu-qr';
 import { fetchPreviewAction, isFetchPreviewSelectionLocked, useActionLoading } from './useActionLoading';
+import { ProwlarrSearchView } from './ProwlarrSearchView';
 import type {
   ActiveDownload,
   AIConfig,
@@ -37,9 +39,9 @@ import type {
   User
 } from './types';
 
-type Tab = 'subscriptions' | 'active' | 'completed' | 'ai-config' | 'settings';
+type Tab = 'subscriptions' | 'prowlarr' | 'active' | 'completed' | 'ai-config' | 'settings';
 
-const APP_TABS: Tab[] = ['subscriptions', 'active', 'completed', 'ai-config', 'settings'];
+const APP_TABS: Tab[] = ['subscriptions', 'prowlarr', 'active', 'completed', 'ai-config', 'settings'];
 
 function tabFromHash(hash: string): Tab {
   const id = hash.replace(/^#/, '').trim();
@@ -263,6 +265,7 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
         </div>
         <nav className="nav" aria-label="主导航">
           <NavButton tab="subscriptions" active={tab} setTab={selectTab} icon={<Rss size={18} />} label="订阅" />
+          <NavButton tab="prowlarr" active={tab} setTab={selectTab} icon={<Search size={18} />} label="Prowlarr 搜索" />
           <NavButton tab="active" active={tab} setTab={selectTab} icon={<Loader2 size={18} />} label="下载中" />
           <NavButton tab="completed" active={tab} setTab={selectTab} icon={<CheckCircle2 size={18} />} label="下载完成" />
           <NavButton tab="ai-config" active={tab} setTab={selectTab} icon={<Bot size={18} />} label="AI 配置" />
@@ -278,6 +281,9 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
       </aside>
       <main className="workspace">
         {tab === 'subscriptions' && <SubscriptionsView />}
+        {tab === 'prowlarr' && (
+          <ProwlarrSearchView onGoSettings={() => selectTab('settings')} onGoActive={() => selectTab('active')} />
+        )}
         {tab === 'active' && <ActiveDownloadsView />}
         {tab === 'completed' && <CompletedDownloadsView />}
         {tab === 'ai-config' && <AIConfigView />}
@@ -2005,6 +2011,14 @@ function AIConfigView() {
 
 function SettingsView({ user, setUser }: { user: User; setUser: (user: User | null) => void }) {
   const [proxyURL, setProxyURL] = useState('');
+  const [prowlarrURL, setProwlarrURL] = useState('');
+  const [prowlarrAPIKey, setProwlarrAPIKey] = useState('');
+  const [prowlarrDownloadDir, setProwlarrDownloadDir] = useState('');
+  const [prowlarrTVDownloadDir, setProwlarrTVDownloadDir] = useState('');
+  const [prowlarrMovieRename, setProwlarrMovieRename] = useState(false);
+  const [prowlarrTMDBKey, setProwlarrTMDBKey] = useState('');
+  const [prowlarrIndexerIDs, setProwlarrIndexerIDs] = useState<number[]>([]);
+  const [prowlarrTesting, setProwlarrTesting] = useState(false);
   const { showToast } = useToast();
   const [bindFeishuAuthUrl, setBindFeishuAuthUrl] = useState<string | null>(null);
   const [bindModalOpen, setBindModalOpen] = useState(false);
@@ -2012,6 +2026,17 @@ function SettingsView({ user, setUser }: { user: User; setUser: (user: User | nu
 
   useEffect(() => {
     api.proxy().then((data) => setProxyURL(data.proxy_url)).catch((err) => showToast(messageOf(err), 'error'));
+    api.prowlarrConfig()
+      .then((data) => {
+        setProwlarrURL(data.url);
+        setProwlarrAPIKey(data.api_key);
+        setProwlarrDownloadDir(data.download_dir);
+        setProwlarrTVDownloadDir(data.tv_download_dir);
+        setProwlarrMovieRename(data.movie_rename_enabled);
+        setProwlarrTMDBKey(data.tmdb_api_key);
+        setProwlarrIndexerIDs(data.indexer_ids ?? []);
+      })
+      .catch((err) => showToast(messageOf(err), 'error'));
   }, [showToast]);
 
   const closeBindModal = useCallback(() => {
@@ -2059,6 +2084,47 @@ function SettingsView({ user, setUser }: { user: User; setUser: (user: User | nu
       showToast('代理设置已保存');
     } catch (err) {
       showToast(messageOf(err), 'error');
+    }
+  }
+
+  async function saveProwlarr(event: FormEvent) {
+    event.preventDefault();
+    try {
+      const saved = await api.saveProwlarrConfig({
+        url: prowlarrURL,
+        api_key: prowlarrAPIKey,
+        download_dir: prowlarrDownloadDir,
+        tv_download_dir: prowlarrTVDownloadDir,
+        movie_rename_enabled: prowlarrMovieRename,
+        tmdb_api_key: prowlarrTMDBKey,
+        indexer_ids: prowlarrIndexerIDs
+      });
+      setProwlarrURL(saved.url);
+      setProwlarrAPIKey(saved.api_key);
+      setProwlarrDownloadDir(saved.download_dir);
+      setProwlarrTVDownloadDir(saved.tv_download_dir);
+      setProwlarrMovieRename(saved.movie_rename_enabled);
+      setProwlarrTMDBKey(saved.tmdb_api_key);
+      setProwlarrIndexerIDs(saved.indexer_ids ?? []);
+      showToast('Prowlarr 设置已保存');
+    } catch (err) {
+      showToast(messageOf(err), 'error');
+    }
+  }
+
+  async function testProwlarrConnection() {
+    setProwlarrTesting(true);
+    try {
+      const result = await api.testProwlarr({ url: prowlarrURL, api_key: prowlarrAPIKey });
+      if (result.ok) {
+        showToast(result.message || 'Prowlarr 连通正常');
+      } else {
+        showToast(result.error || '连接失败', 'error');
+      }
+    } catch (err) {
+      showToast(messageOf(err), 'error');
+    } finally {
+      setProwlarrTesting(false);
     }
   }
 
@@ -2114,6 +2180,51 @@ function SettingsView({ user, setUser }: { user: User; setUser: (user: User | nu
             <input value={proxyURL} onChange={(event) => setProxyURL(event.target.value)} placeholder="http://user:pass@127.0.0.1:7890" />
           </label>
           <button className="primary">保存代理</button>
+        </form>
+        <form className="settings-panel" onSubmit={saveProwlarr}>
+          <h2>Prowlarr 搜索</h2>
+          <label>
+            Prowlarr 地址
+            <input value={prowlarrURL} onChange={(event) => setProwlarrURL(event.target.value)} placeholder="http://127.0.0.1:9696" />
+          </label>
+          <label>
+            API Key
+            <input value={prowlarrAPIKey} onChange={(event) => setProwlarrAPIKey(event.target.value)} placeholder="在 Prowlarr 设置中获取" />
+          </label>
+          <label>
+            电影保存目录
+            <input
+              value={prowlarrDownloadDir}
+              onChange={(event) => setProwlarrDownloadDir(event.target.value)}
+              placeholder="/data/movies"
+            />
+          </label>
+          <label>
+            剧集保存目录
+            <input
+              value={prowlarrTVDownloadDir}
+              onChange={(event) => setProwlarrTVDownloadDir(event.target.value)}
+              placeholder="留空则与电影目录相同"
+            />
+          </label>
+          <label>
+            TMDB API Key（用于电影/剧集重命名）
+            <input value={prowlarrTMDBKey} onChange={(event) => setProwlarrTMDBKey(event.target.value)} placeholder="可选，建议填写" />
+          </label>
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={prowlarrMovieRename}
+              onChange={(event) => setProwlarrMovieRename(event.target.checked)}
+            />
+            电影下载完成后重命名为「标题 (年份).ext」
+          </label>
+          <div className="horizontal-actions">
+            <button type="button" className="ghost" disabled={prowlarrTesting} onClick={testProwlarrConnection}>
+              {prowlarrTesting ? '测试中…' : '测试连接'}
+            </button>
+            <button className="primary">保存 Prowlarr</button>
+          </div>
         </form>
         <div className="settings-panel">
           <h2>飞书备用登录</h2>

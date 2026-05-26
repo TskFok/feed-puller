@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"feed-puller/internal/downloader"
+	"feed-puller/internal/store"
 )
 
 // SyncAria2DownloadStatus 轮询 aria2 中已提交任务的状态，完成或失败时写回数据库。
@@ -40,15 +41,15 @@ func (s *Service) SyncAria2DownloadStatus(ctx context.Context) error {
 					"task_id", task.ID, "item_id", task.ItemID, "gid", task.Aria2GID)
 				continue
 			}
-			sub, subErr := s.store.GetSubscription(ctx, task.SubscriptionID)
-			itemTitle := ""
-			if item, itemErr := s.store.GetItem(ctx, task.ItemID); itemErr == nil {
-				itemTitle = item.Title
-			}
-			finalPath := ""
-			if path, pathErr := downloader.Aria2DownloadPath(status); pathErr == nil {
-				if subErr == nil {
-					finalPath = s.resolveDownloadFinalPath(ctx, sub, itemTitle, path)
+		sub, subErr := s.store.GetSubscription(ctx, task.SubscriptionID)
+		item := store.Item{Title: ""}
+		if fetched, itemErr := s.store.GetItem(ctx, task.ItemID); itemErr == nil {
+			item = fetched
+		}
+		finalPath := ""
+		if path, pathErr := downloader.Aria2DownloadPath(status); pathErr == nil {
+			if subErr == nil {
+				finalPath = s.resolveDownloadFinalPath(ctx, sub, item, path)
 				} else {
 					finalPath = strings.TrimSpace(s.mapDownloadPath(path))
 					s.log.Warn("读取订阅失败，跳过重命名", "subscription_id", task.SubscriptionID, "error", subErr)

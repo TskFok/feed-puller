@@ -8,6 +8,7 @@ import (
 
 	"feed-puller/internal/downloader"
 	"feed-puller/internal/downloads"
+	"feed-puller/internal/store"
 )
 
 // Aria2HookEvent 表示 aria2 钩子上报的事件类型。
@@ -82,12 +83,12 @@ func (s *Service) HandleAria2Hook(ctx context.Context, gid string, event Aria2Ho
 		}
 		finalPath := s.resolveAria2HookFilePath(ctx, gid, filePath)
 		sub, subErr := s.store.GetSubscription(ctx, task.SubscriptionID)
-		itemTitle := ""
-		if item, itemErr := s.store.GetItem(ctx, task.ItemID); itemErr == nil {
-			itemTitle = item.Title
+		item := store.Item{Title: ""}
+		if fetched, itemErr := s.store.GetItem(ctx, task.ItemID); itemErr == nil {
+			item = fetched
 		}
 		if subErr == nil {
-			finalPath = s.resolveDownloadFinalPath(ctx, sub, itemTitle, finalPath)
+			finalPath = s.resolveDownloadFinalPath(ctx, sub, item, finalPath)
 		} else {
 			s.log.Warn("aria2 hook: 读取订阅失败，跳过重命名",
 				"subscription_id", task.SubscriptionID, "error", subErr)

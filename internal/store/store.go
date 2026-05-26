@@ -170,9 +170,11 @@ func (s *Store) ListSubscriptions(ctx context.Context) ([]Subscription, error) {
 	return scanSubscriptions(rows)
 }
 
+const subscriptionExcludeProwlarrSQL = ` AND feed_url NOT LIKE 'prowlarr://%'`
+
 func (s *Store) CountSubscriptions(ctx context.Context) (int, error) {
 	var total int
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM subscriptions`).Scan(&total); err != nil {
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM subscriptions WHERE 1=1`+subscriptionExcludeProwlarrSQL).Scan(&total); err != nil {
 		return 0, fmt.Errorf("统计订阅数量失败: %w", err)
 	}
 	return total, nil
@@ -186,7 +188,9 @@ func (s *Store) ListSubscriptionsPage(ctx context.Context, page, pageSize int) (
 	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+subscriptionColumns+`
-		FROM subscriptions ORDER BY sort_order ASC, id DESC
+		FROM subscriptions
+		WHERE feed_url NOT LIKE 'prowlarr://%'
+		ORDER BY sort_order ASC, id DESC
 		LIMIT ? OFFSET ?
 	`, pageSize, offset)
 	if err != nil {
@@ -202,7 +206,9 @@ func (s *Store) ListSubscriptionsPage(ctx context.Context, page, pageSize int) (
 
 func (s *Store) ListSubscriptionIDs(ctx context.Context) ([]int64, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id FROM subscriptions ORDER BY sort_order ASC, id DESC
+		SELECT id FROM subscriptions
+		WHERE feed_url NOT LIKE 'prowlarr://%'
+		ORDER BY sort_order ASC, id DESC
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("查询订阅 ID 失败: %w", err)
@@ -328,6 +334,14 @@ func (s *Store) ReorderSubscriptions(ctx context.Context, ids []int64) error {
 }
 
 func (s *Store) DeleteSubscription(ctx context.Context, id int64) error {
+	sub, err := s.GetSubscription(ctx, id)
+	if err != nil {
+		return fmt.Errorf("订阅不存在")
+	}
+	if IsProwlarrInternalSubscription(sub) {
+		return fmt.Errorf("不能删除系统 Prowlarr 订阅")
+	}
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("删除订阅失败: %w", err)

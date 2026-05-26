@@ -13,6 +13,16 @@ import type {
   BatchStatusResult,
   PollSchedulePreviewInput,
   PollSchedulePreviewResult,
+  ProwlarrConfig,
+  ProwlarrDownloadInput,
+  ProwlarrRelease,
+  ProwlarrBatchDownloadResult,
+  ProwlarrSearchHistory,
+  ProwlarrSearchResult,
+  ProwlarrIndexerList,
+  ProwlarrSearchType,
+  ProwlarrSortBy,
+  ProwlarrTestResult,
   Subscription,
   User
 } from './types';
@@ -136,6 +146,42 @@ export const api = {
   updateAIConfig: (id: number, payload: Omit<AIConfig, 'id' | 'created_at' | 'updated_at'>) =>
     request<AIConfig>(`/api/ai-configs/${id}`, { method: 'PUT', json: payload }),
   deleteAIConfig: (id: number) => request<{ ok: boolean }>(`/api/ai-configs/${id}`, { method: 'DELETE' }),
-  testAIConfig: (id: number) => request<AIConfigTestResult>(`/api/ai-configs/${id}/test`, { method: 'POST' })
+  testAIConfig: (id: number) => request<AIConfigTestResult>(`/api/ai-configs/${id}/test`, { method: 'POST' }),
+  prowlarrConfig: () => request<ProwlarrConfig>('/api/settings/prowlarr'),
+  saveProwlarrConfig: (payload: Pick<ProwlarrConfig, 'url' | 'api_key' | 'download_dir' | 'tv_download_dir' | 'movie_rename_enabled' | 'tmdb_api_key' | 'indexer_ids'>) =>
+    request<ProwlarrConfig>('/api/settings/prowlarr', { method: 'PUT', json: payload }),
+  testProwlarr: (payload?: Pick<ProwlarrConfig, 'url' | 'api_key'>) =>
+    request<ProwlarrTestResult>('/api/settings/prowlarr/test', { method: 'POST', json: payload ?? {} }),
+  prowlarrIndexers: () => request<ProwlarrIndexerList>('/api/prowlarr/indexers'),
+  searchProwlarr: (
+    query: string,
+    options: {
+      type?: ProwlarrSearchType;
+      sort?: ProwlarrSortBy;
+      indexerIds?: number[];
+      limit?: number;
+      offset?: number;
+    } = {}
+  ) => {
+    const params = new URLSearchParams({ query });
+    if (options.type) params.set('type', options.type);
+    if (options.sort) params.set('sort', options.sort);
+    if (options.limit != null) params.set('limit', String(options.limit));
+    if (options.offset != null) params.set('offset', String(options.offset));
+    for (const id of options.indexerIds ?? []) {
+      params.append('indexer_ids', String(id));
+    }
+    return request<ProwlarrSearchResult>(`/api/prowlarr/search?${params.toString()}`);
+  },
+  downloadProwlarrRelease: (payload: ProwlarrDownloadInput) =>
+    request<FeedItem>('/api/prowlarr/download', { method: 'POST', json: payload }),
+  batchDownloadProwlarrReleases: (releases: ProwlarrDownloadInput[]) =>
+    request<ProwlarrBatchDownloadResult>('/api/prowlarr/download/batch', { method: 'POST', json: { releases } }),
+  prowlarrSearchHistory: (limit = 20) =>
+    request<{ items: ProwlarrSearchHistory[] }>(`/api/prowlarr/search-history?limit=${limit}`),
+  deleteProwlarrSearchHistory: (id: number) =>
+    request<{ ok: boolean }>(`/api/prowlarr/search-history/${id}`, { method: 'DELETE' }),
+  clearProwlarrSearchHistory: () =>
+    request<{ ok: boolean }>('/api/prowlarr/search-history', { method: 'DELETE' })
 };
 

@@ -159,3 +159,95 @@ export type AIConfigTestResult = {
   error?: string;
 };
 
+export type ProwlarrConfig = {
+  url: string;
+  api_key: string;
+  download_dir: string;
+  tv_download_dir: string;
+  movie_rename_enabled: boolean;
+  tmdb_api_key: string;
+  indexer_ids: number[];
+  subscription_id?: number;
+  tv_subscription_id?: number;
+  configured: boolean;
+};
+
+export type ProwlarrIndexer = {
+  id: number;
+  name: string;
+  enable: boolean;
+  protocol: string;
+};
+
+export type ProwlarrSearchType = 'movie' | 'tv';
+export type ProwlarrSortBy = 'seeders' | 'size' | 'date';
+
+export type ProwlarrTestResult = {
+  ok: boolean;
+  message?: string;
+  error?: string;
+};
+
+export type ProwlarrRelease = {
+  guid: string;
+  title: string;
+  indexer: string;
+  indexerId: number;
+  size: number;
+  seeders: number;
+  leechers: number;
+  publishDate?: string;
+  downloadUrl?: string;
+  infoUrl?: string;
+  infoHash?: string;
+  protocol: string;
+  imdbId?: number;
+  tmdbId?: number;
+  tvdbId?: number;
+  season?: number;
+  episode?: number;
+};
+
+export type ProwlarrSearchResult = {
+  items: ProwlarrRelease[];
+};
+
+export type ProwlarrDownloadInput = {
+  guid: string;
+  title: string;
+  media_type?: ProwlarrSearchType;
+  download_url?: string;
+  info_hash?: string;
+  indexer_id?: number;
+  imdb_id?: number;
+  tmdb_id?: number;
+  tvdb_id?: number;
+  season?: number;
+  episode?: number;
+};
+
+export type ProwlarrIndexerList = {
+  items: ProwlarrIndexer[];
+};
+
+export type ProwlarrSearchHistory = {
+  id: number;
+  display_query: string;
+  query: string;
+  media_type: ProwlarrSearchType;
+  sort_by: ProwlarrSortBy;
+  indexer_ids: number[];
+  result_count: number;
+  searched_at: string;
+};
+
+export type ProwlarrBatchDownloadFailure = {
+  guid: string;
+  error: string;
+};
+
+export type ProwlarrBatchDownloadResult = {
+  items: FeedItem[];
+  failures?: ProwlarrBatchDownloadFailure[];
+};
+

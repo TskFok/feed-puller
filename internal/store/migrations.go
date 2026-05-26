@@ -100,4 +100,17 @@ var migrations = []string{
 		ADD COLUMN IF NOT EXISTS ai_rename_episode_offset INT NOT NULL DEFAULT 0`,
 	`ALTER TABLE download_tasks
 		ADD COLUMN IF NOT EXISTS final_path TEXT NULL`,
+	`CREATE TABLE IF NOT EXISTS prowlarr_search_history (
+		id BIGINT PRIMARY KEY AUTO_INCREMENT,
+		display_query VARCHAR(512) NOT NULL,
+		query VARCHAR(512) NOT NULL,
+		media_type VARCHAR(16) NOT NULL DEFAULT 'movie',
+		sort_by VARCHAR(16) NOT NULL DEFAULT 'seeders',
+		indexer_ids TEXT NOT NULL,
+		result_count INT NOT NULL DEFAULT 0,
+		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		UNIQUE KEY uniq_prowlarr_search_history_query_type (query(191), media_type),
+		INDEX idx_prowlarr_search_history_updated_at (updated_at)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 }

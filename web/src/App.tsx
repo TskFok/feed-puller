@@ -1,5 +1,4 @@
 import { FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import {
   CheckCircle2,
   Download,
@@ -13,6 +12,7 @@ import {
   Settings,
   Search,
   ShieldCheck,
+  Sparkles,
   Copy,
   SquarePen,
   Trash2,
@@ -27,7 +27,9 @@ import { useServerPagination } from './useServerPagination';
 import { useFeishuQR } from './feishu-qr';
 import { fetchPreviewAction, isFetchPreviewSelectionLocked, useActionLoading } from './useActionLoading';
 import { ProwlarrSearchView } from './ProwlarrSearchView';
+import { AnimatedModal } from './AnimatedModal';
 import { FeishuLoginSetupGuide, FeishuSetupBanner, feishuSetupIncomplete } from './FeishuLoginSetupGuide';
+import { ThemePicker } from './ThemePicker';
 import type {
   ActiveDownload,
   AIConfig,
@@ -271,6 +273,7 @@ function LoginView({ onLogin }: { onLogin: (user: User) => void }) {
             )}
           </>
         )}
+        <ThemePicker variant="compact" />
       </section>
     </main>
   );
@@ -329,16 +332,18 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
       </aside>
       <main className="workspace">
         {feishuSetupIncomplete(authOptions, user) && <FeishuSetupBanner onGoSettings={() => selectTab('settings')} />}
-        {tab === 'subscriptions' && <SubscriptionsView />}
-        {tab === 'prowlarr' && (
-          <ProwlarrSearchView onGoSettings={() => selectTab('settings')} onGoActive={() => selectTab('active')} />
-        )}
-        {tab === 'active' && <ActiveDownloadsView />}
-        {tab === 'completed' && <CompletedDownloadsView />}
-        {tab === 'ai-config' && <AIConfigView />}
-        {tab === 'settings' && (
-          <SettingsView user={user} setUser={setUser} authOptions={authOptions} onCopyEnv={() => showToast('已复制环境变量配置')} />
-        )}
+        <div key={tab} className="view-transition">
+          {tab === 'subscriptions' && <SubscriptionsView />}
+          {tab === 'prowlarr' && (
+            <ProwlarrSearchView onGoSettings={() => selectTab('settings')} onGoActive={() => selectTab('active')} />
+          )}
+          {tab === 'active' && <ActiveDownloadsView />}
+          {tab === 'completed' && <CompletedDownloadsView />}
+          {tab === 'ai-config' && <AIConfigView />}
+          {tab === 'settings' && (
+            <SettingsView user={user} setUser={setUser} authOptions={authOptions} onCopyEnv={() => showToast('已复制环境变量配置')} />
+          )}
+        </div>
       </main>
     </div>
   );
@@ -562,26 +567,6 @@ function SubscriptionModal({
   );
   const { nextPollAt, previewError, previewLoading } = useSchedulePreview(draft, scheduleKind, previewAnchors);
 
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, []);
-
-  useEffect(() => {
-    firstFieldRef.current?.focus({ preventScroll: true });
-  }, []);
-
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
@@ -615,14 +600,7 @@ function SubscriptionModal({
   }
 
   return (
-    <div className="modal-overlay" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className="modal-panel"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
+    <AnimatedModal onClose={onClose} ariaLabelledBy={titleId} initialFocusRef={firstFieldRef}>
         <div className="modal-header-row">
           <div>
             <h2 id={titleId} className="modal-title">
@@ -908,8 +886,7 @@ function SubscriptionModal({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </AnimatedModal>
   );
 }
 
@@ -1047,22 +1024,6 @@ function FetchPreviewModal({
     });
   }
 
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, []);
-
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   async function downloadRow(row: PolledFeedItem) {
     try {
       await action.run(fetchPreviewAction.downloadRow(row.id), async () => {
@@ -1124,14 +1085,7 @@ function FetchPreviewModal({
   }
 
   return (
-    <div className="modal-overlay" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className="modal-panel fetch-preview-modal"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
+    <AnimatedModal onClose={onClose} ariaLabelledBy={titleId} panelClassName="fetch-preview-modal">
         <div className="modal-header-row">
           <div>
             <h2 id={titleId} className="modal-title">
@@ -1304,8 +1258,7 @@ function FetchPreviewModal({
           onPageChange={pagination.setPage}
           onPageSizeChange={pagination.setPageSize}
         />
-      </div>
-    </div>
+    </AnimatedModal>
   );
 }
 
@@ -1828,26 +1781,6 @@ function AIConfigModal({
   const [saving, setSaving] = useState(false);
   const { showToast } = useToast();
 
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, []);
-
-  useEffect(() => {
-    firstFieldRef.current?.focus({ preventScroll: true });
-  }, []);
-
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
@@ -1870,14 +1803,7 @@ function AIConfigModal({
   }
 
   return (
-    <div className="modal-overlay" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className="modal-panel"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
+    <AnimatedModal onClose={onClose} ariaLabelledBy={titleId} initialFocusRef={firstFieldRef}>
         <div className="modal-header-row">
           <div>
             <h2 id={titleId} className="modal-title">
@@ -1939,8 +1865,7 @@ function AIConfigModal({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </AnimatedModal>
   );
 }
 
@@ -2060,6 +1985,14 @@ function AIConfigView() {
   );
 }
 
+function AppearancePanel() {
+  return (
+    <div className="settings-panel">
+      <ThemePicker variant="panel" />
+    </div>
+  );
+}
+
 function SettingsView({
   user,
   setUser,
@@ -2127,15 +2060,6 @@ function SettingsView({
       showToast(message, 'error');
     }
   });
-
-  useEffect(() => {
-    if (!bindModalOpen) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [bindModalOpen]);
 
   async function saveProxy(event: FormEvent) {
     event.preventDefault();
@@ -2212,22 +2136,20 @@ function SettingsView({
 
   const bindFeishuModal =
     bindModalOpen && bindFeishuAuthUrl ? (
-      <div className="bind-feishu-overlay" onClick={closeBindModal} role="presentation">
-        <div className="bind-feishu-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-labelledby="bind-feishu-title">
-          <h3 id="bind-feishu-title" className="bind-feishu-title">
-            <span className="bind-feishu-icon" aria-hidden>
-              品
-            </span>
-            绑定飞书
-          </h3>
-          <p className="bind-feishu-desc">使用飞书 App 扫码，可将飞书账号绑定到当前用户</p>
-          <div id="feishuBindIframeContainer" className="feishu-iframe-host" aria-hidden />
-          <div id="feishuBindQRContainer" className="feishu-qr-inline bind-feishu-qr-sdk" />
-          <button type="button" className="bind-feishu-close" onClick={closeBindModal}>
-            关闭
-          </button>
-        </div>
-      </div>
+      <AnimatedModal onClose={closeBindModal} ariaLabelledBy="bind-feishu-title" panelClassName="bind-feishu-modal">
+        <h3 id="bind-feishu-title" className="bind-feishu-title">
+          <span className="bind-feishu-icon" aria-hidden>
+            <Sparkles size={16} />
+          </span>
+          绑定飞书
+        </h3>
+        <p className="bind-feishu-desc">使用飞书 App 扫码，可将飞书账号绑定到当前用户</p>
+        <div id="feishuBindIframeContainer" className="feishu-iframe-host" aria-hidden />
+        <div id="feishuBindQRContainer" className="feishu-qr-inline bind-feishu-qr-sdk" />
+        <button type="button" className="bind-feishu-close" onClick={closeBindModal}>
+          关闭
+        </button>
+      </AnimatedModal>
     ) : null;
 
   return (
@@ -2237,6 +2159,7 @@ function SettingsView({
         {authOptions != null && (
           <FeishuLoginSetupGuide user={user} authOptions={authOptions} onBind={startBind} onCopyEnv={() => onCopyEnv()} />
         )}
+        <AppearancePanel />
         <form className="settings-panel" onSubmit={saveProxy}>
           <h2>全局代理</h2>
           <label>
@@ -2306,7 +2229,7 @@ function SettingsView({
           </div>
         </div>
       </div>
-      {bindFeishuModal != null ? createPortal(bindFeishuModal, document.body) : null}
+      {bindFeishuModal}
     </section>
   );
 }

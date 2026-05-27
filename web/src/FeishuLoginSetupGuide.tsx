@@ -1,7 +1,20 @@
 import { CheckCircle2, Circle, Copy } from 'lucide-react';
+import { useState } from 'react';
 import type { AuthOptions, User } from './types';
 
 const PASSWORD_LOGIN_DISABLE_ENV = 'PASSWORD_LOGIN_ENABLED=false';
+export const FEISHU_BANNER_DISMISS_KEY = 'feed-puller-feishu-banner-dismissed';
+
+export function isFeishuBannerDismissed(): boolean {
+  if (typeof localStorage === 'undefined') {
+    return false;
+  }
+  return localStorage.getItem(FEISHU_BANNER_DISMISS_KEY) === '1';
+}
+
+export function dismissFeishuBanner(): void {
+  localStorage.setItem(FEISHU_BANNER_DISMISS_KEY, '1');
+}
 
 type FeishuLoginSetupGuideProps = {
   user: User;
@@ -120,15 +133,31 @@ type FeishuSetupBannerProps = {
 };
 
 export function FeishuSetupBanner({ onGoSettings }: FeishuSetupBannerProps) {
+  const [dismissed, setDismissed] = useState(() => isFeishuBannerDismissed());
+
+  if (dismissed) {
+    return null;
+  }
+
+  function handleDismiss() {
+    dismissFeishuBanner();
+    setDismissed(true);
+  }
+
   return (
     <div className="feishu-setup-banner" role="status">
       <p>
         <strong>建议完成飞书登录迁移：</strong>
         绑定飞书后可关闭账号密码登录，降低账号泄露风险。
       </p>
-      <button type="button" className="primary-link" onClick={onGoSettings}>
-        前往设置
-      </button>
+      <div className="feishu-setup-banner-actions">
+        <button type="button" className="primary-link" onClick={onGoSettings}>
+          前往设置
+        </button>
+        <button type="button" className="ghost feishu-setup-banner-dismiss" onClick={handleDismiss}>
+          不再提示
+        </button>
+      </div>
     </div>
   );
 }

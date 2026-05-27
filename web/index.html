@@ -3,7 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0a0018" />
+    <meta name="color-scheme" content="dark" />
     <title>feed-puller</title>
+    <script>
+      (function () {
+        try {
+          var p = localStorage.getItem('feed-puller-theme');
+          var t = 'dark';
+          if (p === 'light') t = 'light';
+          else if (p === 'dark') t = 'dark';
+          else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) t = 'light';
+          document.documentElement.dataset.theme = t;
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark';
+        }
+      })();
+    </script>
     <script src="https://sf3-cn.feishucdn.com/obj/feishu-static/lark/passport/qrcode/LarkSSOSDKWebQRCode-1.0.2.js"></script>
   </head>
   <body>

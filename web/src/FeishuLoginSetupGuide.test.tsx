@@ -1,6 +1,13 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { FeishuLoginSetupGuide, feishuSetupIncomplete } from './FeishuLoginSetupGuide';
+import {
+  dismissFeishuBanner,
+  FeishuLoginSetupGuide,
+  FeishuSetupBanner,
+  FEISHU_BANNER_DISMISS_KEY,
+  feishuSetupIncomplete,
+  isFeishuBannerDismissed
+} from './FeishuLoginSetupGuide';
 import type { AuthOptions, User } from './types';
 
 const baseUser: User = {
@@ -71,5 +78,24 @@ describe('FeishuLoginSetupGuide', () => {
     );
 
     expect(screen.getByText('已完成迁移，当前仅支持飞书扫码登录。')).toBeInTheDocument();
+  });
+});
+
+describe('FeishuSetupBanner', () => {
+  it('点击不再提示后隐藏并写入 localStorage', () => {
+    localStorage.clear();
+    render(<FeishuSetupBanner onGoSettings={vi.fn()} />);
+
+    expect(screen.getByText(/建议完成飞书登录迁移/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '不再提示' }));
+    expect(screen.queryByText(/建议完成飞书登录迁移/)).not.toBeInTheDocument();
+    expect(localStorage.getItem(FEISHU_BANNER_DISMISS_KEY)).toBe('1');
+    expect(isFeishuBannerDismissed()).toBe(true);
+  });
+
+  it('已 dismiss 时不渲染横幅', () => {
+    dismissFeishuBanner();
+    render(<FeishuSetupBanner onGoSettings={vi.fn()} />);
+    expect(screen.queryByText(/建议完成飞书登录迁移/)).not.toBeInTheDocument();
   });
 });

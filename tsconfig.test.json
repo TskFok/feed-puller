@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "web/src/**/*.test.ts",
+    "web/src/**/*.test.tsx",
+    "web/src/test/**/*.ts"
+  ],
+  "exclude": []
+}

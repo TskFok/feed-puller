@@ -56,6 +56,24 @@ type ProwlarrSearchViewProps = {
   onGoActive?: () => void;
 };
 
+function ProwlarrResultsSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 6 }, (_, index) => (
+        <article key={index} className="prowlarr-release-card prowlarr-release-card--skeleton" aria-hidden="true">
+          <div className="prowlarr-skeleton-line prowlarr-skeleton-line--title" />
+          <div className="prowlarr-skeleton-meta">
+            {Array.from({ length: 4 }, (_, metaIndex) => (
+              <div key={metaIndex} className="prowlarr-skeleton-line prowlarr-skeleton-line--short" />
+            ))}
+          </div>
+          <div className="prowlarr-skeleton-line prowlarr-skeleton-line--btn" />
+        </article>
+      ))}
+    </>
+  );
+}
+
 export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchViewProps) {
   const { showToast } = useToast();
   const [config, setConfig] = useState<ProwlarrConfig | null>(null);
@@ -348,66 +366,69 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
         </div>
       )}
 
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>
-                <span className="sr-only">选择</span>
-              </th>
-              <th>标题</th>
-              <th>索引器</th>
-              <th>大小</th>
-              <th>做种</th>
-              <th>下载</th>
-              <th>发布时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {results.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="empty">
-                  {searching ? '搜索中…' : '输入关键词后搜索'}
-                </td>
-              </tr>
-            ) : (
-              results.map((release) => (
-                <tr key={release.guid}>
-                  <td>
-                    <input
-                      type="checkbox"
-                      checked={selectedGuids.has(release.guid)}
-                      onChange={() => toggleResult(release.guid)}
-                      aria-label={`选择 ${release.title}`}
-                    />
-                  </td>
-                  <td>{release.title}</td>
-                  <td>{release.indexer || '—'}</td>
-                  <td>{formatBytes(release.size)}</td>
-                  <td>{release.seeders}</td>
-                  <td>{release.leechers}</td>
-                  <td>{formatTime(release.publishDate)}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="primary-link"
-                      disabled={downloadingGuid === release.guid || batchDownloading}
-                      onClick={() => downloadRelease(release)}
-                    >
-                      {downloadingGuid === release.guid ? (
-                        <Loader2 size={14} className="icon-spinning" aria-hidden />
-                      ) : (
-                        <Download size={14} aria-hidden />
-                      )}
-                      下载
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div className="prowlarr-results-grid" aria-live="polite" aria-busy={searching}>
+        {searching && results.length === 0 ? (
+          <ProwlarrResultsSkeleton />
+        ) : results.length === 0 ? (
+          <p className="prowlarr-results-empty">输入关键词后搜索</p>
+        ) : (
+          results.map((release) => {
+            const selected = selectedGuids.has(release.guid);
+            return (
+              <article
+                key={release.guid}
+                className={selected ? 'prowlarr-release-card prowlarr-release-card--selected' : 'prowlarr-release-card'}
+              >
+                <div className="prowlarr-release-card-head">
+                  <input
+                    type="checkbox"
+                    checked={selected}
+                    onChange={() => toggleResult(release.guid)}
+                    aria-label={`选择 ${release.title}`}
+                  />
+                  <h3 className="prowlarr-release-title">{release.title}</h3>
+                </div>
+                <dl className="prowlarr-release-meta">
+                  <div>
+                    <dt>索引器</dt>
+                    <dd>{release.indexer || '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>大小</dt>
+                    <dd>{formatBytes(release.size)}</dd>
+                  </div>
+                  <div>
+                    <dt>做种</dt>
+                    <dd>{release.seeders}</dd>
+                  </div>
+                  <div>
+                    <dt>下载</dt>
+                    <dd>{release.leechers}</dd>
+                  </div>
+                  <div>
+                    <dt>发布时间</dt>
+                    <dd>{formatTime(release.publishDate)}</dd>
+                  </div>
+                </dl>
+                <div className="prowlarr-release-actions">
+                  <button
+                    type="button"
+                    className="primary-link"
+                    disabled={downloadingGuid === release.guid || batchDownloading}
+                    onClick={() => downloadRelease(release)}
+                  >
+                    {downloadingGuid === release.guid ? (
+                      <Loader2 size={14} className="icon-spinning" aria-hidden />
+                    ) : (
+                      <Download size={14} aria-hidden />
+                    )}
+                    下载
+                  </button>
+                </div>
+              </article>
+            );
+          })
+        )}
       </div>
     </section>
   );

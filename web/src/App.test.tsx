@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
+import type { User } from './types';
 
 function isSubscriptionsListPath(path: string) {
   return path === '/api/subscriptions' || path.startsWith('/api/subscriptions?');
@@ -96,6 +97,16 @@ describe('App', () => {
     );
   });
 
+  it('未登录时可在登录页切换主题', async () => {
+    localStorage.clear();
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'feed-puller' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Bubblegum 浅色' }));
+    expect(document.documentElement.dataset.theme).toBe('light');
+    expect(localStorage.getItem('feed-puller-theme')).toBe('light');
+  });
+
   it('登录后未绑定飞书时显示迁移横幅并可前往设置', async () => {
     vi.stubGlobal(
       'fetch',
@@ -152,6 +163,112 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: '立即绑定飞书' })).toBeInTheDocument();
   });
 
+  it('点击不再提示后隐藏飞书迁移横幅', async () => {
+    localStorage.clear();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/auth/options') {
+          return new Response(JSON.stringify({ password_login_enabled: true, feishu_login_enabled: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/subscriptions' || path.startsWith('/api/subscriptions?')) {
+          return new Response(JSON.stringify({ items: [], total: 0, page: 1, page_size: 20 }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/settings/proxy') {
+          return new Response(JSON.stringify({ proxy_url: '' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/settings/prowlarr') {
+          return new Response(
+            JSON.stringify({
+              url: '',
+              api_key: '',
+              download_dir: '',
+              tv_download_dir: '',
+              movie_rename_enabled: false,
+              tmdb_api_key: '',
+              indexer_ids: [],
+              configured: false
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByText(/建议完成飞书登录迁移/)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '不再提示' }));
+    expect(screen.queryByText(/建议完成飞书登录迁移/)).not.toBeInTheDocument();
+    expect(localStorage.getItem('feed-puller-feishu-banner-dismissed')).toBe('1');
+  });
+
+  it('设置页可切换 Bubblegum 浅色主题', async () => {
+    localStorage.clear();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/auth/options') {
+          return new Response(JSON.stringify({ password_login_enabled: true, feishu_login_enabled: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/settings/proxy') {
+          return new Response(JSON.stringify({ proxy_url: '' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (path === '/api/settings/prowlarr') {
+          return new Response(
+            JSON.stringify({
+              url: '',
+              api_key: '',
+              download_dir: '',
+              tv_download_dir: '',
+              movie_rename_enabled: false,
+              tmdb_api_key: '',
+              indexer_ids: [],
+              configured: false
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    window.location.hash = '#settings';
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: '设置' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Bubblegum 浅色' }));
+    expect(document.documentElement.dataset.theme).toBe('light');
+    expect(localStorage.getItem('feed-puller-theme')).toBe('light');
+  });
+
   it('切换到飞书登录时会请求 login-url', async () => {
     const getFeishuLoginUrl = vi.fn(async () => ({
       url: '/api/auth/feishu/login?state=login',
@@ -186,6 +303,330 @@ describe('App', () => {
 
     await waitFor(() => expect(getFeishuLoginUrl).toHaveBeenCalled());
     expect(await screen.findByText('使用飞书 App 扫码即可登录')).toBeInTheDocument();
+  });
+
+  it('飞书登录加载完成后渲染扫码容器并初始化 QRLogin', async () => {
+    const QRLogin = vi.fn(function QRLoginMock(
+      this: { matchOrigin: (origin: string) => boolean },
+      opt: { id: string; goto: string }
+    ) {
+      const el = document.getElementById(opt.id);
+      if (el) el.setAttribute('data-qr-init', '1');
+      this.matchOrigin = () => true;
+    });
+    window.QRLogin = QRLogin as unknown as typeof window.QRLogin;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ error: '未登录' }), { status: 401 });
+        }
+        if (path === '/api/auth/options') {
+          return new Response(JSON.stringify({ password_login_enabled: true, feishu_login_enabled: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/auth/feishu/login-url') {
+          return new Response(
+            JSON.stringify({
+              url: '/api/auth/feishu/login?state=login',
+              goto: 'https://passport.feishu.cn/suite/passport/oauth/authorize?state=login'
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('button', { name: '飞书登录' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '飞书登录' }));
+
+    expect(await screen.findByText('使用飞书 App 扫码即可登录')).toBeInTheDocument();
+    await waitFor(() => expect(QRLogin).toHaveBeenCalled());
+    expect(document.getElementById('feishuLoginQRContainer')).toBeInTheDocument();
+    expect(document.getElementById('feishuLoginIframeContainer')).toBeInTheDocument();
+    expect(document.getElementById('feishuLoginQRContainer')).toHaveAttribute('data-qr-init', '1');
+    delete window.QRLogin;
+  });
+
+  it('切换到飞书登录时先显示加载提示', async () => {
+    let resolveLoginUrl: ((value: Response) => void) | undefined;
+    const loginUrlPromise = new Promise<Response>((resolve) => {
+      resolveLoginUrl = resolve;
+    });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ error: '未登录' }), { status: 401 });
+        }
+        if (path === '/api/auth/options') {
+          return new Response(JSON.stringify({ password_login_enabled: true, feishu_login_enabled: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/auth/feishu/login-url') {
+          return loginUrlPromise;
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('button', { name: '飞书登录' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '飞书登录' }));
+
+    expect(screen.getByText('正在加载飞书扫码...')).toBeInTheDocument();
+    expect(document.getElementById('feishuLoginQRContainer')).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveLoginUrl!(
+        new Response(
+          JSON.stringify({
+            url: '/api/auth/feishu/login?state=login',
+            goto: 'https://passport.feishu.cn/suite/passport/oauth/authorize?state=login'
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
+    });
+
+    expect(await screen.findByText('使用飞书 App 扫码即可登录')).toBeInTheDocument();
+    expect(document.getElementById('feishuLoginQRContainer')).toBeInTheDocument();
+  });
+
+  it('飞书扫码登录成功后会进入主界面', async () => {
+    window.QRLogin = vi.fn(function QRLoginMock(this: { matchOrigin: () => boolean }) {
+      this.matchOrigin = () => true;
+    }) as unknown as typeof window.QRLogin;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ error: '未登录' }), { status: 401 });
+        }
+        if (path === '/api/auth/options') {
+          return new Response(JSON.stringify({ password_login_enabled: false, feishu_login_enabled: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/auth/feishu/login-url') {
+          return new Response(
+            JSON.stringify({
+              url: '/api/auth/feishu/login?state=login',
+              goto: 'https://passport.feishu.cn/suite/passport/oauth/authorize?state=login'
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        if (isSubscriptionsListPath(path)) {
+          return new Response(JSON.stringify({ items: [], total: 0, page: 1, page_size: 20 }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+    await waitFor(() => expect(document.getElementById('feishuLoginQRContainer')).toBeInTheDocument());
+
+    const loggedInUser = { id: 1, email: 'u@test.dev', feishu_bound: true, feishu_name: 'Alice' };
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { type: 'feishu_login_success', user: loggedInUser }
+      })
+    );
+
+    expect(await screen.findByRole('heading', { name: '订阅' })).toBeInTheDocument();
+    delete window.QRLogin;
+  });
+
+  it('已绑定飞书时设置页显示解绑按钮并可解绑', async () => {
+    let currentUser: User = { id: 1, email: 'u@test.dev', feishu_bound: true, feishu_name: 'Alice' };
+    const unbindFeishu = vi.fn(async () => ({ ok: true }));
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input);
+        const method = (init?.method ?? 'GET').toUpperCase();
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify(currentUser), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/auth/options') {
+          return new Response(JSON.stringify({ password_login_enabled: true, feishu_login_enabled: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/settings/proxy') {
+          return new Response(JSON.stringify({ proxy_url: '' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (path === '/api/settings/prowlarr') {
+          return new Response(
+            JSON.stringify({
+              url: '',
+              api_key: '',
+              download_dir: '',
+              tv_download_dir: '',
+              movie_rename_enabled: false,
+              tmdb_api_key: '',
+              indexer_ids: [],
+              configured: false
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        if (path === '/api/settings/feishu-binding' && method === 'DELETE') {
+          await unbindFeishu();
+          currentUser = { id: 1, email: 'u@test.dev', feishu_bound: false };
+          return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    window.location.hash = '#settings';
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: '设置' })).toBeInTheDocument());
+    expect(screen.getByText('当前状态：Alice')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '解绑' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '解绑' }));
+
+    await waitFor(() => expect(unbindFeishu).toHaveBeenCalled());
+    expect(await screen.findByText('飞书账号已解绑')).toBeInTheDocument();
+    expect(screen.getByText('当前状态：未绑定')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '解绑' })).not.toBeInTheDocument();
+  });
+
+  it('未绑定飞书时设置页不显示解绑按钮', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/auth/options') {
+          return new Response(JSON.stringify({ password_login_enabled: true, feishu_login_enabled: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/settings/proxy') {
+          return new Response(JSON.stringify({ proxy_url: '' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (path === '/api/settings/prowlarr') {
+          return new Response(
+            JSON.stringify({
+              url: '',
+              api_key: '',
+              download_dir: '',
+              tv_download_dir: '',
+              movie_rename_enabled: false,
+              tmdb_api_key: '',
+              indexer_ids: [],
+              configured: false
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    window.location.hash = '#settings';
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: '设置' })).toBeInTheDocument());
+    expect(screen.getByText('当前状态：未绑定')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '解绑' })).not.toBeInTheDocument();
+  });
+
+  it('打开绑定弹窗时渲染扫码容器', async () => {
+    window.QRLogin = vi.fn(function QRLoginMock(this: { matchOrigin: () => boolean }) {
+      this.matchOrigin = () => true;
+    }) as unknown as typeof window.QRLogin;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/auth/options') {
+          return new Response(JSON.stringify({ password_login_enabled: true, feishu_login_enabled: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/settings/proxy') {
+          return new Response(JSON.stringify({ proxy_url: '' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (path === '/api/settings/prowlarr') {
+          return new Response(
+            JSON.stringify({
+              url: '',
+              api_key: '',
+              download_dir: '',
+              tv_download_dir: '',
+              movie_rename_enabled: false,
+              tmdb_api_key: '',
+              indexer_ids: [],
+              configured: false
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        if (path === '/api/settings/feishu-bind-url') {
+          return new Response(
+            JSON.stringify({
+              url: '/api/settings/feishu-bind?state=bind',
+              goto: 'https://passport.feishu.cn/suite/passport/oauth/authorize?state=bind'
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    window.location.hash = '#settings';
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: '设置' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /^绑定飞书$/ }));
+
+    const dialog = await screen.findByRole('dialog', { name: '绑定飞书' });
+    expect(within(dialog).getByText('使用飞书 App 扫码，可将飞书账号绑定到当前用户')).toBeInTheDocument();
+    expect(document.getElementById('feishuBindQRContainer')).toBeInTheDocument();
+    expect(document.getElementById('feishuBindIframeContainer')).toBeInTheDocument();
+    delete window.QRLogin;
   });
 
   it('登录后订阅列表为 JSON null 时不崩溃并显示空状态', async () => {

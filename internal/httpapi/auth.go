@@ -96,9 +96,24 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func (s *Server) handleAuthOptions(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{
+		"password_login_enabled": s.cfg.PasswordLoginEnabled,
+		"feishu_login_enabled":   s.cfg.FeishuAppID != "" && s.cfg.FeishuAppSecret != "",
+	})
+}
+
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		methodNotAllowed(w)
+		return
+	}
+	if !s.cfg.PasswordLoginEnabled {
+		writeError(w, http.StatusForbidden, "账号密码登录已禁用")
 		return
 	}
 	var input struct {

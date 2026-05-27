@@ -27,6 +27,7 @@ import { useServerPagination } from './useServerPagination';
 import { useFeishuQR } from './feishu-qr';
 import { fetchPreviewAction, isFetchPreviewSelectionLocked, useActionLoading } from './useActionLoading';
 import { ProwlarrSearchView } from './ProwlarrSearchView';
+import { FeishuLoginSetupGuide, FeishuSetupBanner, feishuSetupIncomplete } from './FeishuLoginSetupGuide';
 import type {
   ActiveDownload,
   AIConfig,
@@ -36,7 +37,8 @@ import type {
   PollSchedulePreviewInput,
   Subscription,
   PaginatedResult,
-  User
+  User,
+  AuthOptions
 } from './types';
 
 type Tab = 'subscriptions' | 'prowlarr' | 'active' | 'completed' | 'ai-config' | 'settings';
@@ -148,8 +150,21 @@ function LoginView({ onLogin }: { onLogin: (user: User) => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [authOptions, setAuthOptions] = useState<AuthOptions | null>(null);
   const [mode, setMode] = useState<'password' | 'feishu'>('password');
   const [feishuGoto, setFeishuGoto] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .authOptions()
+      .then((options) => {
+        setAuthOptions(options);
+        if (!options.password_login_enabled && options.feishu_login_enabled) {
+          setMode('feishu');
+        }
+      })
+      .catch(() => showToast('加载登录选项失败', 'error'));
+  }, [showToast]);
 
   useEffect(() => {
     if (mode === 'feishu') {
@@ -190,6 +205,11 @@ function LoginView({ onLogin }: { onLogin: (user: User) => void }) {
     }
   }
 
+  const passwordLoginEnabled = authOptions?.password_login_enabled ?? true;
+  const feishuLoginEnabled = authOptions?.feishu_login_enabled ?? true;
+  const showLoginTabs = passwordLoginEnabled && feishuLoginEnabled;
+  const showLoginMigrationHint = authOptions != null && passwordLoginEnabled && feishuLoginEnabled;
+
   return (
     <main className="login-screen">
       <section className="login-panel" aria-labelledby="login-title">
@@ -197,40 +217,59 @@ function LoginView({ onLogin }: { onLogin: (user: User) => void }) {
           <p className="eyebrow">RSS 自动下载</p>
           <h1 id="login-title">feed-puller</h1>
           <p className="muted">登录后管理订阅、代理和 aria2 下载任务。</p>
+          {showLoginMigrationHint && (
+            <p className="login-migration-hint">
+              首次使用？请先用账号密码登录，在「设置 → 飞书登录迁移向导」中绑定飞书后再关闭密码登录。
+            </p>
+          )}
         </div>
-        <div className="login-tabs">
-          <button type="button" className={mode === 'password' ? 'active' : ''} onClick={() => setMode('password')}>
-            账号密码登录
-          </button>
-          <button type="button" className={mode === 'feishu' ? 'active' : ''} onClick={() => setMode('feishu')}>
-            飞书登录
-          </button>
-        </div>
-        {mode === 'password' ? (
-          <form onSubmit={submit} className="form">
-            <label>
-              邮箱
-              <input value={email} type="email" autoComplete="email" onChange={(event) => setEmail(event.target.value)} required />
-            </label>
-            <label>
-              密码
-              <input value={password} type="password" autoComplete="current-password" onChange={(event) => setPassword(event.target.value)} required />
-            </label>
-            <button className="primary" disabled={submitting}>
-              {submitting ? '登录中' : '登录'}
-            </button>
-          </form>
+        {authOptions == null ? (
+          <p className="muted">正在加载登录选项...</p>
         ) : (
-          <div className="form auth-form-feishu">
-            {feishuGoto == null && <p className="feishu-qr-hint">正在加载飞书扫码...</p>}
-            {feishuGoto != null && (
-              <>
-                <div id="feishuLoginIframeContainer" className="feishu-iframe-host" aria-hidden />
-                <div id="feishuLoginQRContainer" className="feishu-qr-inline" />
-                <p className="feishu-qr-hint">使用飞书 App 扫码即可登录</p>
-              </>
+          <>
+            {showLoginTabs && (
+              <div className="login-tabs">
+                {passwordLoginEnabled && (
+                  <button type="button" className={mode === 'password' ? 'active' : ''} onClick={() => setMode('password')}>
+                    账号密码登录
+                  </button>
+                )}
+                {feishuLoginEnabled && (
+                  <button type="button" className={mode === 'feishu' ? 'active' : ''} onClick={() => setMode('feishu')}>
+                    飞书登录
+                  </button>
+                )}
+              </div>
             )}
-          </div>
+            {mode === 'password' && passwordLoginEnabled ? (
+              <form onSubmit={submit} className="form">
+                <label>
+                  邮箱
+                  <input value={email} type="email" autoComplete="email" onChange={(event) => setEmail(event.target.value)} required />
+                </label>
+                <label>
+                  密码
+                  <input value={password} type="password" autoComplete="current-password" onChange={(event) => setPassword(event.target.value)} required />
+                </label>
+                <button className="primary" disabled={submitting}>
+                  {submitting ? '登录中' : '登录'}
+                </button>
+              </form>
+            ) : feishuLoginEnabled ? (
+              <div className="form auth-form-feishu">
+                {feishuGoto == null && <p className="feishu-qr-hint">正在加载飞书扫码...</p>}
+                {feishuGoto != null && (
+                  <>
+                    <div id="feishuLoginIframeContainer" className="feishu-iframe-host" aria-hidden />
+                    <div id="feishuLoginQRContainer" className="feishu-qr-inline" />
+                    <p className="feishu-qr-hint">使用飞书 App 扫码即可登录</p>
+                  </>
+                )}
+              </div>
+            ) : (
+              <p className="muted">当前未启用任何登录方式，请联系管理员。</p>
+            )}
+          </>
         )}
       </section>
     </main>
@@ -239,10 +278,19 @@ function LoginView({ onLogin }: { onLogin: (user: User) => void }) {
 
 function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => void }) {
   const [tab, setTab] = useState<Tab>(() => readTabFromLocation());
+  const [authOptions, setAuthOptions] = useState<AuthOptions | null>(null);
+  const { showToast } = useToast();
 
   const selectTab = useCallback((next: Tab) => {
     setTab(next);
     writeTabToLocation(next);
+  }, []);
+
+  useEffect(() => {
+    api
+      .authOptions()
+      .then(setAuthOptions)
+      .catch(() => setAuthOptions(null));
   }, []);
 
   useEffect(() => {
@@ -280,6 +328,7 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
         </div>
       </aside>
       <main className="workspace">
+        {feishuSetupIncomplete(authOptions, user) && <FeishuSetupBanner onGoSettings={() => selectTab('settings')} />}
         {tab === 'subscriptions' && <SubscriptionsView />}
         {tab === 'prowlarr' && (
           <ProwlarrSearchView onGoSettings={() => selectTab('settings')} onGoActive={() => selectTab('active')} />
@@ -287,7 +336,9 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
         {tab === 'active' && <ActiveDownloadsView />}
         {tab === 'completed' && <CompletedDownloadsView />}
         {tab === 'ai-config' && <AIConfigView />}
-        {tab === 'settings' && <SettingsView user={user} setUser={setUser} />}
+        {tab === 'settings' && (
+          <SettingsView user={user} setUser={setUser} authOptions={authOptions} onCopyEnv={() => showToast('已复制环境变量配置')} />
+        )}
       </main>
     </div>
   );
@@ -2009,7 +2060,17 @@ function AIConfigView() {
   );
 }
 
-function SettingsView({ user, setUser }: { user: User; setUser: (user: User | null) => void }) {
+function SettingsView({
+  user,
+  setUser,
+  authOptions,
+  onCopyEnv
+}: {
+  user: User;
+  setUser: (user: User | null) => void;
+  authOptions: AuthOptions | null;
+  onCopyEnv: () => void;
+}) {
   const [proxyURL, setProxyURL] = useState('');
   const [prowlarrURL, setProwlarrURL] = useState('');
   const [prowlarrAPIKey, setProwlarrAPIKey] = useState('');
@@ -2173,6 +2234,9 @@ function SettingsView({ user, setUser }: { user: User; setUser: (user: User | nu
     <section className="view">
       <Header title="设置" description="代理只用于拉取 RSS 内容，不参与 aria2 RPC 或实际下载。" />
       <div className="settings-grid">
+        {authOptions != null && (
+          <FeishuLoginSetupGuide user={user} authOptions={authOptions} onBind={startBind} onCopyEnv={() => onCopyEnv()} />
+        )}
         <form className="settings-panel" onSubmit={saveProxy}>
           <h2>全局代理</h2>
           <label>

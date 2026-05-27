@@ -17,6 +17,7 @@ services:
       ARIA2_RPC_SECRET: ${ARIA2_RPC_SECRET:-}
       FEISHU_APP_ID: ${FEISHU_APP_ID:-}
       FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
+      PASSWORD_LOGIN_ENABLED: ${PASSWORD_LOGIN_ENABLED:-true}
       STATIC_DIR: /app/web/dist
       ARIA2_HOOK_SECRET:
       # 仅当 aria2 返回宿主机路径、与容器挂载路径不一致时配置（例如 /Users/... → /data）

@@ -9,17 +9,18 @@ import (
 )
 
 type Config struct {
-	Port            string
-	MySQLDSN        string
-	AdminEmail      string
-	AdminPassword   string
-	SessionSecret   string
-	BaseURL         string
-	Aria2RPCURL     string
-	Aria2RPCSecret  string
-	Aria2HookSecret string
-	FeishuAppID     string
-	FeishuAppSecret string
+	Port                 string
+	MySQLDSN             string
+	AdminEmail           string
+	AdminPassword        string
+	SessionSecret        string
+	BaseURL              string
+	Aria2RPCURL          string
+	Aria2RPCSecret       string
+	Aria2HookSecret      string
+	FeishuAppID          string
+	FeishuAppSecret      string
+	PasswordLoginEnabled bool
 	HTTPTimeout                  time.Duration
 	StaticDir                    string
 	DownloadPathHostPrefix       string
@@ -37,9 +38,10 @@ func Load() (Config, error) {
 		Aria2RPCURL:     strings.TrimSpace(os.Getenv("ARIA2_RPC_URL")),
 		Aria2RPCSecret:  os.Getenv("ARIA2_RPC_SECRET"),
 		Aria2HookSecret: strings.TrimSpace(os.Getenv("ARIA2_HOOK_SECRET")),
-		FeishuAppID:     strings.TrimSpace(os.Getenv("FEISHU_APP_ID")),
-		FeishuAppSecret: os.Getenv("FEISHU_APP_SECRET"),
-		HTTPTimeout:     20 * time.Second,
+		FeishuAppID:          strings.TrimSpace(os.Getenv("FEISHU_APP_ID")),
+		FeishuAppSecret:      os.Getenv("FEISHU_APP_SECRET"),
+		PasswordLoginEnabled: envBool("PASSWORD_LOGIN_ENABLED", true),
+		HTTPTimeout:          20 * time.Second,
 		StaticDir:                   env("STATIC_DIR", "web/dist"),
 		DownloadPathHostPrefix:      env("DOWNLOAD_PATH_HOST_PREFIX", ""),
 		DownloadPathContainerPrefix: env("DOWNLOAD_PATH_CONTAINER_PREFIX", ""),
@@ -69,6 +71,18 @@ func Load() (Config, error) {
 func env(key, fallback string) string {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func envBool(key string, fallback bool) bool {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
 		return fallback
 	}
 	return value

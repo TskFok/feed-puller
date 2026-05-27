@@ -25,6 +25,12 @@ describe('App', () => {
       if (path === '/api/auth/me') {
         return new Response(JSON.stringify({ error: '未登录' }), { status: 401 });
       }
+      if (path === '/api/auth/options') {
+        return new Response(JSON.stringify({ password_login_enabled: true, feishu_login_enabled: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
       return new Response(JSON.stringify({}), { status: 200 });
     }));
   });
@@ -39,9 +45,111 @@ describe('App', () => {
     render(<App />);
 
     await waitFor(() => expect(screen.getByRole('heading', { name: 'feed-puller' })).toBeInTheDocument());
-    expect(screen.getByLabelText('邮箱')).toBeInTheDocument();
+    expect(await screen.findByLabelText('邮箱')).toBeInTheDocument();
     expect(screen.getByLabelText('密码')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '飞书登录' })).toBeInTheDocument();
+  });
+
+  it('禁用账号密码登录时仅显示飞书登录', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ error: '未登录' }), { status: 401 });
+        }
+        if (path === '/api/auth/options') {
+          return new Response(JSON.stringify({ password_login_enabled: false, feishu_login_enabled: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/auth/feishu/login-url') {
+          return new Response(
+            JSON.stringify({
+              url: '/api/auth/feishu/login?state=login',
+              goto: 'https://www.feishu.cn/suite/passport/oauth/authorize?state=login'
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'feed-puller' })).toBeInTheDocument());
+    expect(screen.queryByLabelText('邮箱')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('密码')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '账号密码登录' })).not.toBeInTheDocument();
+    expect(await screen.findByText('使用飞书 App 扫码即可登录')).toBeInTheDocument();
+  });
+
+  it('未登录且两种登录均可用时显示迁移提示', async () => {
+    render(<App />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/首次使用？请先用账号密码登录，在「设置 → 飞书登录迁移向导」中绑定飞书后再关闭密码登录。/)
+      ).toBeInTheDocument()
+    );
+  });
+
+  it('登录后未绑定飞书时显示迁移横幅并可前往设置', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/auth/options') {
+          return new Response(JSON.stringify({ password_login_enabled: true, feishu_login_enabled: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/subscriptions' || path.startsWith('/api/subscriptions?')) {
+          return new Response(JSON.stringify({ items: [], total: 0, page: 1, page_size: 20 }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/settings/proxy') {
+          return new Response(JSON.stringify({ proxy_url: '' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/settings/prowlarr') {
+          return new Response(
+            JSON.stringify({
+              url: '',
+              api_key: '',
+              download_dir: '',
+              tv_download_dir: '',
+              movie_rename_enabled: false,
+              tmdb_api_key: '',
+              indexer_ids: [],
+              configured: false
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByText(/建议完成飞书登录迁移/)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '前往设置' }));
+    expect(await screen.findByRole('heading', { name: '飞书登录迁移向导' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '立即绑定飞书' })).toBeInTheDocument();
   });
 
   it('切换到飞书登录时会请求 login-url', async () => {
@@ -55,6 +163,12 @@ describe('App', () => {
         const path = String(input);
         if (path === '/api/auth/me') {
           return new Response(JSON.stringify({ error: '未登录' }), { status: 401 });
+        }
+        if (path === '/api/auth/options') {
+          return new Response(JSON.stringify({ password_login_enabled: true, feishu_login_enabled: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
         }
         if (path === '/api/auth/feishu/login-url') {
           return new Response(JSON.stringify(await getFeishuLoginUrl()), {

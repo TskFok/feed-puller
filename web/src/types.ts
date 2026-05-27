@@ -6,6 +6,11 @@ export type User = {
   feishu_open_id?: string;
 };
 
+export type AuthOptions = {
+  password_login_enabled: boolean;
+  feishu_login_enabled: boolean;
+};
+
 export type PaginatedResult<T> = {
   items: T[];
   total: number;

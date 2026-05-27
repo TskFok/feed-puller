@@ -24,7 +24,8 @@ import type {
   ProwlarrSortBy,
   ProwlarrTestResult,
   Subscription,
-  User
+  User,
+  AuthOptions
 } from './types';
 import type { PageSizeOption } from './listPaging';
 
@@ -75,6 +76,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 }
 
 export const api = {
+  authOptions: () => request<AuthOptions>('/api/auth/options'),
   me: () => request<User>('/api/auth/me'),
   login: (email: string, password: string) =>
     request<User>('/api/auth/login', { method: 'POST', json: { email, password } }),

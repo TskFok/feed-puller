@@ -23,6 +23,7 @@ type Server struct {
 func New(cfg config.Config, store *store.Store, service *app.Service, log *slog.Logger) *Server {
 	server := &Server{cfg: cfg, store: store, service: service, log: log}
 	mux := http.NewServeMux()
+	mux.HandleFunc("/api/auth/options", server.handleAuthOptions)
 	mux.HandleFunc("/api/auth/login", server.handleLogin)
 	mux.HandleFunc("/api/auth/logout", server.handleLogout)
 	mux.HandleFunc("/api/auth/me", server.handleMe)

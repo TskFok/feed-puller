@@ -77,6 +77,12 @@ describe('api prowlarr', () => {
     expect(res.items[0].guid).toBe('g1');
   });
 
+  it('searchProwlarr 保留空索引器选择', async () => {
+    await api.searchProwlarr('inception', { type: 'movie', sort: 'seeders', indexerIds: [] });
+    const path = String(vi.mocked(fetch).mock.calls[0][0]);
+    expect(path).toContain('indexer_ids=');
+  });
+
   it('prowlarrSearchHistory 请求搜索历史', async () => {
     const res = await api.prowlarrSearchHistory();
     expect(res.items[0].display_query).toBe('Inception');

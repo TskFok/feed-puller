@@ -168,8 +168,13 @@ export const api = {
     if (options.sort) params.set('sort', options.sort);
     if (options.limit != null) params.set('limit', String(options.limit));
     if (options.offset != null) params.set('offset', String(options.offset));
-    for (const id of options.indexerIds ?? []) {
-      params.append('indexer_ids', String(id));
+    if (options.indexerIds !== undefined) {
+      if (options.indexerIds.length === 0) {
+        params.append('indexer_ids', '');
+      }
+      for (const id of options.indexerIds) {
+        params.append('indexer_ids', String(id));
+      }
     }
     return request<ProwlarrSearchResult>(`/api/prowlarr/search?${params.toString()}`);
   },
@@ -184,4 +189,3 @@ export const api = {
   clearProwlarrSearchHistory: () =>
     request<{ ok: boolean }>('/api/prowlarr/search-history', { method: 'DELETE' })
 };
-

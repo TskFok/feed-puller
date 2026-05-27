@@ -51,6 +51,14 @@ func expectEmptyProwlarrSettings(mock sqlmock.Sqlmock) {
 	}
 }
 
+func expectProwlarrSettings(mock sqlmock.Sqlmock, values map[string]string) {
+	for _, key := range prowlarrSettingKeys {
+		value := values[key]
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT value FROM settings WHERE name = ?`)).
+			WithArgs(key).WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow(value))
+	}
+}
+
 func TestProwlarrSearch_RequiresAuth(t *testing.T) {
 	srv, _, cleanup := newProwlarrServer(t)
 	defer cleanup()
@@ -71,6 +79,46 @@ func TestProwlarrSearch_NotConfigured(t *testing.T) {
 	srv.handleProwlarrSearch(rec, req)
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("code = %d, want 503", rec.Code)
+	}
+}
+
+func TestProwlarrSearch_EmptyIndexerParamSearchesAllTorrentIndexers(t *testing.T) {
+	prowlarrSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/search" {
+			t.Fatalf("unexpected path %q", r.URL.Path)
+		}
+		if got := r.URL.Query()["indexerIds"]; len(got) != 1 || got[0] != "-2" {
+			t.Fatalf("indexerIds = %+v, want [-2]", got)
+		}
+		_, _ = w.Write([]byte(`[{"guid":"g1","title":"Inception","protocol":"torrent","infoHash":"abc"}]`))
+	}))
+	defer prowlarrSrv.Close()
+
+	srv, mock, cleanup := newProwlarrServer(t)
+	defer cleanup()
+	expectProwlarrSettings(mock, map[string]string{
+		"prowlarr_url":                prowlarrSrv.URL,
+		"prowlarr_api_key":            "secret",
+		"prowlarr_download_dir":       "/movies",
+		"prowlarr_indexer_ids":        "[7,9]",
+		"prowlarr_subscription_id":    "9",
+		"prowlarr_tv_subscription_id": "10",
+	})
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO prowlarr_search_history`)).
+		WithArgs("inception", "inception", "movie", "seeders", "[]", 1).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM prowlarr_search_history`)).
+		WithArgs(50).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	req := authRequest(httptest.NewRequest(http.MethodGet, "/api/prowlarr/search?query=inception&indexer_ids=", nil))
+	rec := httptest.NewRecorder()
+	srv.handleProwlarrSearch(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
 	}
 }
 

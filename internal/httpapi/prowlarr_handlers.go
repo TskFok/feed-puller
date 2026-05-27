@@ -109,15 +109,18 @@ func (s *Server) handleProwlarrSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
-	indexerIDs := parseIndexerIDs(r.URL.Query()["indexer_ids"])
+	queryValues := r.URL.Query()
+	indexerValues, indexerIDsSpecified := queryValues["indexer_ids"]
+	indexerIDs := parseIndexerIDs(indexerValues)
 
 	releases, err := s.service.SearchProwlarr(r.Context(), app.ProwlarrSearchRequest{
-		Query:      query,
-		Type:       prowlarr.NormalizeSearchType(r.URL.Query().Get("type")),
-		Sort:       prowlarr.NormalizeSortBy(r.URL.Query().Get("sort")),
-		IndexerIDs: indexerIDs,
-		Limit:      limit,
-		Offset:     offset,
+		Query:               query,
+		Type:                prowlarr.NormalizeSearchType(queryValues.Get("type")),
+		Sort:                prowlarr.NormalizeSortBy(queryValues.Get("sort")),
+		IndexerIDs:          indexerIDs,
+		IndexerIDsSpecified: indexerIDsSpecified,
+		Limit:               limit,
+		Offset:              offset,
 	})
 	if err != nil {
 		if errors.Is(err, app.ErrProwlarrNotConfigured) {

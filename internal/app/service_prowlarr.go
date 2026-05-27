@@ -16,19 +16,20 @@ import (
 )
 
 var (
-	ErrProwlarrNotConfigured        = errors.New("Prowlarr 未配置")
-	ErrProwlarrReleaseInProgress    = errors.New("该资源正在下载中")
-	ErrProwlarrReleaseCompleted     = errors.New("该资源已下载完成")
+	ErrProwlarrNotConfigured     = errors.New("Prowlarr 未配置")
+	ErrProwlarrReleaseInProgress = errors.New("该资源正在下载中")
+	ErrProwlarrReleaseCompleted  = errors.New("该资源已下载完成")
 )
 
 // ProwlarrSearchRequest 表示 Prowlarr 搜索请求。
 type ProwlarrSearchRequest struct {
-	Query      string
-	Type       prowlarr.SearchType
-	Sort       prowlarr.SortBy
-	IndexerIDs []int64
-	Limit      int
-	Offset     int
+	Query               string
+	Type                prowlarr.SearchType
+	Sort                prowlarr.SortBy
+	IndexerIDs          []int64
+	IndexerIDsSpecified bool
+	Limit               int
+	Offset              int
 }
 
 // ProwlarrReleaseInput 表示从前端提交的 Prowlarr release 下载请求。
@@ -109,7 +110,7 @@ func (s *Service) SearchProwlarr(ctx context.Context, req ProwlarrSearchRequest)
 		return nil, fmt.Errorf("搜索关键词不能为空")
 	}
 	indexerIDs := req.IndexerIDs
-	if len(indexerIDs) == 0 {
+	if len(indexerIDs) == 0 && !req.IndexerIDsSpecified {
 		indexerIDs = cfg.IndexerIDs
 	}
 	sortBy := req.Sort

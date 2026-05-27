@@ -58,18 +58,6 @@ func (s *Service) SaveProwlarrConfig(ctx context.Context, cfg store.ProwlarrConf
 func (s *Service) TestProwlarrConnection(ctx context.Context, cfg store.ProwlarrConfig) error {
 	urlVal := strings.TrimSpace(cfg.URL)
 	apiKey := strings.TrimSpace(cfg.APIKey)
-	if urlVal == "" || apiKey == "" {
-		current, err := s.store.GetProwlarrConfig(ctx)
-		if err != nil {
-			return err
-		}
-		if urlVal == "" {
-			urlVal = current.URL
-		}
-		if apiKey == "" {
-			apiKey = current.APIKey
-		}
-	}
 	client := prowlarr.NewClient(urlVal, apiKey)
 	return client.TestConnection(ctx)
 }

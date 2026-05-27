@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -55,6 +56,50 @@ func TestSearchProwlarrMovies_NotConfigured(t *testing.T) {
 	}
 }
 
+func TestTestProwlarrConnection_UsesProvidedEmptyFields(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		cfg     store.ProwlarrConfig
+		wantErr string
+	}{
+		{
+			name: "empty api key",
+			cfg: store.ProwlarrConfig{
+				URL: "http://127.0.0.1:9696",
+			},
+			wantErr: "Prowlarr API Key 不能为空",
+		},
+		{
+			name: "empty url",
+			cfg: store.ProwlarrConfig{
+				APIKey: "secret",
+			},
+			wantErr: "Prowlarr 地址不能为空",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			db, mock, err := sqlmock.New()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer db.Close()
+			svc := NewService(store.New(db), downloader.NewAria2Client("", ""), slog.New(slog.NewTextHandler(os.Stderr, nil)))
+
+			err = svc.TestProwlarrConnection(t.Context(), tt.cfg)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("expected %q error, got %v", tt.wantErr, err)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestSubmitProwlarrRelease_InProgress(t *testing.T) {
 	t.Parallel()
 	db, mock, err := sqlmock.New()
@@ -66,11 +111,11 @@ func TestSubmitProwlarrRelease_InProgress(t *testing.T) {
 	now := time.Now().UTC()
 
 	expectProwlarrSettings(mock, map[string]string{
-		"prowlarr_url":              "http://127.0.0.1:9696",
-		"prowlarr_api_key":          "secret",
-		"prowlarr_download_dir":     "/movies",
-		"prowlarr_indexer_ids":      "[]",
-		"prowlarr_subscription_id":  "9",
+		"prowlarr_url":                "http://127.0.0.1:9696",
+		"prowlarr_api_key":            "secret",
+		"prowlarr_download_dir":       "/movies",
+		"prowlarr_indexer_ids":        "[]",
+		"prowlarr_subscription_id":    "9",
 		"prowlarr_tv_subscription_id": "10",
 	})
 

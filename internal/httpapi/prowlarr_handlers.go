@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -60,17 +61,31 @@ func (s *Server) handleProwlarrSettingTest(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	var input struct {
-		URL    string `json:"url"`
-		APIKey string `json:"api_key"`
+		URL    *string `json:"url"`
+		APIKey *string `json:"api_key"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil && r.ContentLength > 0 {
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil && !errors.Is(err, io.EOF) {
 		writeError(w, http.StatusBadRequest, "请求体无效")
 		return
 	}
-	if err := s.service.TestProwlarrConnection(r.Context(), store.ProwlarrConfig{
-		URL:    strings.TrimSpace(input.URL),
-		APIKey: strings.TrimSpace(input.APIKey),
-	}); err != nil {
+	cfg := store.ProwlarrConfig{}
+	if input.URL == nil && input.APIKey == nil {
+		current, err := s.service.GetProwlarrConfig(r.Context())
+		if err != nil {
+			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		cfg.URL = current.URL
+		cfg.APIKey = current.APIKey
+	} else {
+		if input.URL != nil {
+			cfg.URL = strings.TrimSpace(*input.URL)
+		}
+		if input.APIKey != nil {
+			cfg.APIKey = strings.TrimSpace(*input.APIKey)
+		}
+	}
+	if err := s.service.TestProwlarrConnection(r.Context(), cfg); err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}

@@ -189,6 +189,31 @@ func TestProwlarrSettingTest_OK(t *testing.T) {
 	}
 }
 
+func TestProwlarrSettingTest_ExplicitEmptyAPIKeyDoesNotUseSavedKey(t *testing.T) {
+	srv, mock, cleanup := newProwlarrServer(t)
+	defer cleanup()
+	body := strings.NewReader(`{"url":"http://127.0.0.1:9696","api_key":""}`)
+	req := authRequest(httptest.NewRequest(http.MethodPost, "/api/settings/prowlarr/test", body))
+	rec := httptest.NewRecorder()
+	srv.handleProwlarrSettingTest(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["ok"] != false {
+		t.Fatalf("expected ok=false, got %+v", payload)
+	}
+	if errorMessage, _ := payload["error"].(string); !strings.Contains(errorMessage, "Prowlarr API Key 不能为空") {
+		t.Fatalf("expected API Key error, got %+v", payload)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestParseIndexerIDs(t *testing.T) {
 	t.Parallel()
 	ids := parseIndexerIDs([]string{"1,2", "5"})

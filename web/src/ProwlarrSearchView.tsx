@@ -65,6 +65,7 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
   const [sortBy, setSortBy] = useState<ProwlarrSortBy>('seeders');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ProwlarrRelease[]>([]);
+  const [resultsSearchType, setResultsSearchType] = useState<ProwlarrSearchType>('movie');
   const [history, setHistory] = useState<ProwlarrSearchHistory[]>([]);
   const [selectedGuids, setSelectedGuids] = useState<Set<string>>(new Set());
   const [searching, setSearching] = useState(false);
@@ -118,6 +119,7 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
     try {
       const data = await api.searchProwlarr(trimmed, { type, sort, indexerIds });
       setResults(data.items ?? []);
+      setResultsSearchType(type);
       await loadHistory();
       if ((data.items ?? []).length === 0) {
         showToast('未找到匹配的 Torrent 结果');
@@ -194,7 +196,7 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
   async function downloadRelease(release: ProwlarrRelease) {
     setDownloadingGuid(release.guid);
     try {
-      await api.downloadProwlarrRelease(releaseToDownloadInput(release, searchType));
+      await api.downloadProwlarrRelease(releaseToDownloadInput(release, resultsSearchType));
       showToast('已提交下载');
       onGoActive?.();
     } catch (err) {
@@ -213,7 +215,7 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
     setBatchDownloading(true);
     try {
       const result = await api.batchDownloadProwlarrReleases(
-        selected.map((release) => releaseToDownloadInput(release, searchType))
+        selected.map((release) => releaseToDownloadInput(release, resultsSearchType))
       );
       const successCount = result.items?.length ?? 0;
       const failureCount = result.failures?.length ?? 0;

@@ -21,7 +21,7 @@ func TestClient_SearchMovies(t *testing.T) {
 		if q.Get("query") != "inception" {
 			t.Fatalf("unexpected query %q", q.Get("query"))
 		}
-		if q.Get("type") != "moviesearch" {
+		if q.Get("type") != "search" {
 			t.Fatalf("unexpected type %q", q.Get("type"))
 		}
 		if q.Get("indexerIds") != "-2" {
@@ -51,6 +51,32 @@ func TestClient_SearchMovies(t *testing.T) {
 	}
 	if len(releases) != 1 || releases[0].GUID != "g1" {
 		t.Fatalf("unexpected releases: %+v", releases)
+	}
+}
+
+func TestClient_Search_ParameterizedTVUsesTVSearch(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if q.Get("query") != "{TvdbId:80348}" {
+			t.Fatalf("unexpected query %q", q.Get("query"))
+		}
+		if q.Get("type") != "tvsearch" {
+			t.Fatalf("unexpected type %q", q.Get("type"))
+		}
+		if q.Get("categories") != "5000" {
+			t.Fatalf("unexpected categories %q", q.Get("categories"))
+		}
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "secret")
+	if _, err := client.Search(context.Background(), SearchInput{
+		Query: "{TvdbId:80348}",
+		Type:  SearchTypeTV,
+	}); err != nil {
+		t.Fatal(err)
 	}
 }
 

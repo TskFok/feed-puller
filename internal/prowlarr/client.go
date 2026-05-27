@@ -16,11 +16,11 @@ const searchTimeout = 60 * time.Second
 
 // SearchInput 表示 Prowlarr 搜索参数。
 type SearchInput struct {
-	Query       string
-	Type        SearchType
-	IndexerIDs  []int64
-	Limit       int
-	Offset      int
+	Query      string
+	Type       SearchType
+	IndexerIDs []int64
+	Limit      int
+	Offset     int
 }
 
 // Client 调用 Prowlarr REST API。
@@ -75,7 +75,7 @@ func (c *Client) Search(ctx context.Context, input SearchInput) ([]Release, erro
 	}
 	q := endpoint.Query()
 	q.Set("query", query)
-	q.Set("type", searchType.APIType())
+	q.Set("type", searchType.APIType(query))
 	q.Set("categories", searchType.Category())
 	q.Set("limit", strconv.Itoa(limit))
 	q.Set("offset", strconv.Itoa(offset))

@@ -18,7 +18,10 @@ func NormalizeSearchType(raw string) SearchType {
 	}
 }
 
-func (t SearchType) APIType() string {
+func (t SearchType) APIType(query string) string {
+	if !isParameterizedQuery(query) {
+		return "search"
+	}
 	if t == SearchTypeTV {
 		return "tvsearch"
 	}
@@ -30,4 +33,8 @@ func (t SearchType) Category() string {
 		return "5000"
 	}
 	return "2000"
+}
+
+func isParameterizedQuery(query string) bool {
+	return strings.HasPrefix(strings.TrimSpace(query), "{")
 }

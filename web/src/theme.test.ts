@@ -67,6 +67,20 @@ describe('theme', () => {
     expect(onChange).toHaveBeenCalledWith(getSystemTheme());
   });
 
+  it('applyTheme 在 prefers-reduced-motion 时不添加 theme-switching', () => {
+    document.documentElement.classList.remove('theme-switching');
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({
+        matches: query.includes('prefers-reduced-motion'),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn()
+      }))
+    );
+    applyTheme('dark');
+    expect(document.documentElement.classList.contains('theme-switching')).toBe(false);
+  });
+
   it('applyTheme 在动效可用时添加 theme-switching 类', () => {
     vi.useFakeTimers();
     vi.stubGlobal(

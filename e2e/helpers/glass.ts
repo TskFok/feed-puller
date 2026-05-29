@@ -1,0 +1,68 @@
+import type { Page } from '@playwright/test';
+
+export function makeProwlarrRelease(index: number) {
+  return {
+    guid: `guid-${index}`,
+    title: `Release ${index}`,
+    indexer: 'Tracker',
+    indexerId: 1,
+    size: 1024 * (index + 1),
+    seeders: index % 20,
+    leechers: 0,
+    protocol: 'torrent',
+    downloadUrl: `https://example.test/d/${index}`,
+    infoHash: `hash${index}`,
+    publishDate: '2026-01-01T00:00:00Z'
+  };
+}
+
+export async function mockProwlarrConfigured(page: Page) {
+  await page.route('**/api/settings/prowlarr', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        url: 'http://127.0.0.1:9696',
+        api_key: 'k',
+        download_dir: '/movies',
+        tv_download_dir: '/tv',
+        movie_rename_enabled: true,
+        tmdb_api_key: '',
+        indexer_ids: [],
+        configured: true
+      })
+    })
+  );
+  await page.route('**/api/prowlarr/indexers', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ items: [] })
+    })
+  );
+  await page.route('**/api/prowlarr/search-history**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ items: [] })
+    })
+  );
+  await page.route('**/api/prowlarr/submitted-guids', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ guids: [] })
+    })
+  );
+}
+
+export async function mockProwlarrSearchResults(page: Page, count: number) {
+  const items = Array.from({ length: count }, (_, i) => makeProwlarrRelease(i));
+  await page.route('**/api/prowlarr/search?**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ items })
+    })
+  );
+}

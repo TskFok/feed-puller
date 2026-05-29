@@ -102,7 +102,7 @@ describe('App', () => {
     render(<App />);
 
     await waitFor(() => expect(screen.getByRole('heading', { name: 'feed-puller' })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: 'Bubblegum 浅色' }));
+    fireEvent.click(screen.getByRole('button', { name: '玻璃浅色' }));
     expect(document.documentElement.dataset.theme).toBe('light');
     expect(localStorage.getItem('feed-puller-theme')).toBe('light');
   });
@@ -220,7 +220,7 @@ describe('App', () => {
     expect(localStorage.getItem('feed-puller-feishu-banner-dismissed')).toBe('1');
   });
 
-  it('设置页可切换 Bubblegum 浅色主题', async () => {
+  it('设置页可切换玻璃浅色主题', async () => {
     localStorage.clear();
     vi.stubGlobal(
       'fetch',
@@ -264,7 +264,7 @@ describe('App', () => {
     render(<App />);
 
     await waitFor(() => expect(screen.getByRole('heading', { name: '设置' })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: 'Bubblegum 浅色' }));
+    fireEvent.click(screen.getByRole('button', { name: '玻璃浅色' }));
     expect(document.documentElement.dataset.theme).toBe('light');
     expect(localStorage.getItem('feed-puller-theme')).toBe('light');
   });

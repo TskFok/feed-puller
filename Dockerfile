@@ -2,11 +2,15 @@
 # 构建 amd64 镜像: docker build --platform linux/amd64 -t feed-puller:amd64 .
 # BuildKit 会根据 --platform 自动注入 TARGETOS / TARGETARCH
 
-FROM --platform=$BUILDPLATFORM node:22-bookworm-slim AS frontend
+FROM --platform=$BUILDPLATFORM node:20-bookworm-slim AS frontend
 WORKDIR /src
 
+# esbuild postinstall 在 overlayfs / 部分 libuv 版本上会触发 ETXTBSY（Text file busy）。
+ENV npm_config_foreground_scripts=true
+
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts \
+  && (npm rebuild esbuild || (sleep 2 && npm rebuild esbuild))
 
 COPY tsconfig.json tsconfig.app.json tsconfig.node.json vite.config.ts ./
 COPY web ./web

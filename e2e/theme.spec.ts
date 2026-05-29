@@ -7,14 +7,14 @@ test.describe('登录页主题切换', () => {
     await mockLoggedOut(page);
   });
 
-  test('未登录时可切换 Bubblegum 浅色主题', async ({ page }) => {
+  test('未登录时可切换玻璃浅色主题', async ({ page }) => {
     await page.goto('/');
 
     await expect(page.getByRole('heading', { name: 'feed-puller' })).toBeVisible();
-    await page.getByRole('button', { name: 'Bubblegum 浅色' }).click();
+    await page.getByRole('button', { name: '玻璃浅色' }).click();
 
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-    await expect(page.getByRole('button', { name: 'Y2K 暗色' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '玻璃暗色' })).toBeVisible();
   });
 
   test('主题偏好写入 localStorage', async ({ page }) => {
@@ -37,7 +37,7 @@ test.describe('主题 crossfade 动效', () => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto('/');
 
-    await page.getByRole('button', { name: 'Bubblegum 浅色' }).click();
+    await page.getByRole('button', { name: '玻璃浅色' }).click();
 
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     await expect(page.locator('html')).toHaveClass(/theme-switching/);
@@ -50,7 +50,7 @@ test.describe('主题 crossfade 动效', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/');
 
-    await page.getByRole('button', { name: 'Bubblegum 浅色' }).click();
+    await page.getByRole('button', { name: '玻璃浅色' }).click();
 
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     await page.waitForTimeout(100);
@@ -107,7 +107,7 @@ test.describe('主题 crossfade 动效', () => {
     await page.goto('/#settings');
     await expect(page.getByRole('heading', { name: '设置' })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Bubblegum 浅色' }).click();
+    await page.getByRole('button', { name: '玻璃浅色' }).click();
 
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     await page.waitForTimeout(100);

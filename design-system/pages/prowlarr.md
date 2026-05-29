@@ -15,6 +15,9 @@
 - Hover：轻微上浮 + 青色光晕增强（`transform: translateY(-2px)`）
 - 选中态：`.prowlarr-release-card--selected` 粉色光晕
 - 元数据行：`.prowlarr-release-meta` 使用 tabular-nums
+- **性能（≤50 条）**：`useOffscreenGlassGrid` 为视口外卡片加 `.glass-surface--offscreen`
+- **性能（>50 条）**：`ProwlarrVirtualResultsGrid`（`@tanstack/react-virtual` 窗口虚拟化），仅渲染可见行
+- 阈值常量：`glassConstants.ts` 中 `GLASS_OFFSCREEN_MIN_ITEMS`、`PROWLARR_VIRTUALIZE_THRESHOLD`
 
 ## 历史 Chip
 

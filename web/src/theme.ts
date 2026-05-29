@@ -6,8 +6,8 @@ export type ThemePreference = Theme | 'system';
 export const THEME_STORAGE_KEY = 'feed-puller-theme';
 
 const THEME_COLORS: Record<Theme, string> = {
-  dark: '#0a0018',
-  light: '#fff0f8'
+  dark: '#0c1222',
+  light: '#f0fdfa'
 };
 
 const THEME_TRANSITION_MS = 220;

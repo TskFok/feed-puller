@@ -30,6 +30,8 @@ import { ProwlarrSearchView } from './ProwlarrSearchView';
 import { AnimatedModal } from './AnimatedModal';
 import { FeishuLoginSetupGuide, FeishuSetupBanner, feishuSetupIncomplete } from './FeishuLoginSetupGuide';
 import { ThemePicker } from './ThemePicker';
+import { GLASS_OFFSCREEN_MIN_ITEMS } from './glassConstants';
+import { useOffscreenGlassSurface } from './useOffscreenGlassSurface';
 import type {
   ActiveDownload,
   AIConfig,
@@ -1319,6 +1321,8 @@ function ActiveDownloadsView() {
   });
   const { items: rows, loading, reload } = pagination;
   listEmptyRef.current = rows.length === 0;
+  const activeTableRef = useRef<HTMLDivElement>(null);
+  useOffscreenGlassSurface(activeTableRef, rows.length >= GLASS_OFFSCREEN_MIN_ITEMS, [rows.length]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -1334,7 +1338,7 @@ function ActiveDownloadsView() {
         <p className="muted">正在加载…</p>
       ) : (
         <>
-        <div className="table-wrap">
+        <div ref={activeTableRef} className="table-wrap">
           <table>
             <thead>
               <tr>
@@ -1448,6 +1452,8 @@ function CompletedDownloadsView() {
   });
   const { items: rows, loading, reload } = pagination;
   listEmptyRef.current = rows.length === 0;
+  const completedTableRef = useRef<HTMLDivElement>(null);
+  useOffscreenGlassSurface(completedTableRef, rows.length >= GLASS_OFFSCREEN_MIN_ITEMS, [rows.length]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -1481,7 +1487,7 @@ function CompletedDownloadsView() {
         <p className="muted">正在加载…</p>
       ) : (
         <>
-        <div className="table-wrap">
+        <div ref={completedTableRef} className="table-wrap">
           <table>
             <thead>
               <tr>
@@ -1554,6 +1560,12 @@ function SubscriptionsView({ onGoActive }: { onGoActive?: () => void }) {
     onError: (err) => showToast(messageOf(err), 'error')
   });
   const { items: subscriptions, loading, reload } = pagination;
+  const subscriptionsTableRef = useRef<HTMLDivElement>(null);
+  useOffscreenGlassSurface(
+    subscriptionsTableRef,
+    subscriptions.length >= GLASS_OFFSCREEN_MIN_ITEMS,
+    [subscriptions.length]
+  );
 
   function edit(sub: Subscription) {
     setSubscriptionModal({ mode: 'edit', subscriptionId: sub.id });
@@ -1638,7 +1650,7 @@ function SubscriptionsView({ onGoActive }: { onGoActive?: () => void }) {
           新增订阅
         </button>
       </div>
-      <div className="table-wrap">
+      <div ref={subscriptionsTableRef} className="table-wrap">
         <table>
           <thead>
             <tr>

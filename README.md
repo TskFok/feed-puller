@@ -32,7 +32,7 @@ cp .env.example .env
 - `ARIA2_HOOK_SECRET`：启用 aria2 钩子推送通道（详见下文「aria2 钩子接入」），未设置时 `/api/downloads/aria2-hook` 一律 401。
 - `PASSWORD_LOGIN_ENABLED`：是否允许账号密码登录，默认 `true`；设为 `false` 时 `POST /api/auth/login` 返回 403，前端隐藏密码登录表单（需配置飞书登录并完成绑定）。
 
-前端 UI 采用 Y2K Aesthetic 设计系统，详见 `design-system/MASTER.md`。可在「设置 → 外观」切换 **Y2K 暗色** / **Bubblegum 浅色** / **跟随系统**（偏好保存在浏览器 `localStorage`，键名 `feed-puller-theme`）。
+前端 UI 采用 Glassmorphism 设计系统，详见 `design-system/MASTER.md`。可在「设置 → 外观」切换 **玻璃暗色** / **玻璃浅色** / **跟随系统**（偏好保存在浏览器 `localStorage`，键名 `feed-puller-theme`）。
 
 飞书登录需要在飞书开放平台配置回调地址：
 
@@ -123,6 +123,8 @@ docker compose down
 ```bash
 GOOS=darwin GOARCH=arm64 GOCACHE=/private/tmp/feed-puller-gocache-darwin go test ./...
 npm test
+npm run check:contrast   # 浅色玻璃主题 WCAG 对比度 + styles.css 令牌同步
+npm run test:e2e -- e2e/glass-a11y.spec.ts
 npm run build
 docker build -t feed-puller:local .
 ```

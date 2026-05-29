@@ -11,7 +11,7 @@
 ## 外观
 
 - 主题切换：`.theme-toggle-group` / `.theme-toggle-btn`
-- 选项：Y2K 暗色、Bubblegum 浅色、跟随系统
+- 选项：玻璃暗色、玻璃浅色、跟随系统
 
 ## 飞书
 

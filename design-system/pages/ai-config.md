@@ -8,6 +8,12 @@
 - 列表：`.table-wrap` 表格（模型名称 + 操作列）
 - 分页：`.pagination-bar`
 
+## 玻璃与动效
+
+- 表格玻璃容器：`.table-wrap`（行数 ≥12 时可复用 `useOffscreenGlassSurface`）
+- 模态：`AnimatedModal`；`prefers-reduced-motion` 下无入场动画
+- 页面切换：`.view-transition`
+
 ## 弹窗
 
 - 新建/编辑：`AnimatedModal` + `.subscription-edit-form` 布局

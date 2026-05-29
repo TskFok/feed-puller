@@ -18,7 +18,7 @@ describe('ThemePicker', () => {
     render(<ThemePicker variant="panel" />);
 
     expect(screen.getByRole('heading', { name: '外观' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Bubblegum 浅色' }));
+    fireEvent.click(screen.getByRole('button', { name: '玻璃浅色' }));
     expect(document.documentElement.dataset.theme).toBe('light');
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('light');
   });
@@ -27,7 +27,7 @@ describe('ThemePicker', () => {
     render(<ThemePicker variant="compact" />);
 
     expect(screen.getByText('外观')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Y2K 暗色' }));
+    fireEvent.click(screen.getByRole('button', { name: '玻璃暗色' }));
     expect(document.documentElement.dataset.theme).toBe('dark');
   });
 });

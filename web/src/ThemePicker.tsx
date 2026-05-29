@@ -6,8 +6,8 @@ type ThemePickerProps = {
 };
 
 const THEME_OPTIONS: { value: ThemePreference; label: string; icon: typeof Moon }[] = [
-  { value: 'dark', label: 'Y2K 暗色', icon: Moon },
-  { value: 'light', label: 'Bubblegum 浅色', icon: Sun },
+  { value: 'dark', label: '玻璃暗色', icon: Moon },
+  { value: 'light', label: '玻璃浅色', icon: Sun },
   { value: 'system', label: '跟随系统', icon: Monitor }
 ];
 
@@ -21,7 +21,7 @@ export function ThemePicker({ variant = 'panel' }: ThemePickerProps) {
       {!compact && (
         <>
           <h2>外观</h2>
-          <p className="muted">Y2K 暗色、Bubblegum 浅色，或跟随系统偏好。选择后会记住你的设置。</p>
+          <p className="muted">玻璃暗色、玻璃浅色，或跟随系统偏好。选择后会记住你的设置。</p>
         </>
       )}
       <div

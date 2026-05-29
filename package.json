@@ -7,12 +7,14 @@
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
     "test": "tsc -p tsconfig.test.json && vitest run",
+    "check:contrast": "node scripts/check-glass-contrast.mjs && npm test -- --run glassContrast",
     "test:types": "tsc -p tsconfig.test.json",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "^3.13.26",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
@@ -30,4 +32,3 @@
     "vitest": "^2.1.5"
   }
 }
-

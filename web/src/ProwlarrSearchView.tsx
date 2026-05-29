@@ -1,5 +1,5 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Download, Loader2, Search, Trash2, X } from 'lucide-react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Download, Loader2, Search, Trash2, X } from 'lucide-react';
 import { api } from './api';
 import {
   addSessionSubmittedGuids,
@@ -7,6 +7,10 @@ import {
   readSessionSubmittedGuids
 } from './prowlarrSubmittedGuids';
 import { useToast } from './Toast';
+import { GLASS_OFFSCREEN_MIN_ITEMS, PROWLARR_VIRTUALIZE_THRESHOLD } from './glassConstants';
+import { ProwlarrReleaseCard } from './ProwlarrReleaseCard';
+import { ProwlarrVirtualResultsGrid } from './ProwlarrVirtualResultsGrid';
+import { useOffscreenGlassGrid } from './useOffscreenGlassGrid';
 import type {
   ProwlarrConfig,
   ProwlarrDownloadInput,
@@ -109,6 +113,14 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
   const [searching, setSearching] = useState(false);
   const [downloadingGuid, setDownloadingGuid] = useState<string | null>(null);
   const [batchDownloading, setBatchDownloading] = useState(false);
+  const resultsGridRef = useRef<HTMLDivElement>(null);
+
+  const useVirtualGrid = results.length > PROWLARR_VIRTUALIZE_THRESHOLD;
+  useOffscreenGlassGrid(
+    resultsGridRef,
+    !useVirtualGrid && results.length > GLASS_OFFSCREEN_MIN_ITEMS,
+    [results.length, searching, useVirtualGrid]
+  );
 
   const showDownloadSubmittedToast = useCallback(
     (message: string) => {
@@ -476,78 +488,42 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
         </div>
       )}
 
-      <div className="prowlarr-results-grid" aria-live="polite" aria-busy={searching}>
+      <div ref={resultsGridRef} className="prowlarr-results-host" aria-live="polite" aria-busy={searching}>
         {searching && results.length === 0 ? (
-          <ProwlarrResultsSkeleton />
+          <div className="prowlarr-results-grid">
+            <ProwlarrResultsSkeleton />
+          </div>
         ) : results.length === 0 ? (
           <p className="prowlarr-results-empty">输入关键词后搜索</p>
+        ) : useVirtualGrid ? (
+          <ProwlarrVirtualResultsGrid
+            results={results}
+            selectedGuids={selectedGuids}
+            submittedGuids={submittedGuids}
+            downloadingGuid={downloadingGuid}
+            batchDownloading={batchDownloading}
+            formatBytes={formatBytes}
+            formatTime={formatTime}
+            onToggle={toggleResult}
+            onDownload={downloadRelease}
+          />
         ) : (
-          results.map((release) => {
-            const selected = selectedGuids.has(release.guid);
-            const submitted = submittedGuids.has(release.guid);
-            const cardClass = [
-              'prowlarr-release-card',
-              selected ? 'prowlarr-release-card--selected' : '',
-              submitted ? 'prowlarr-release-card--submitted' : ''
-            ]
-              .filter(Boolean)
-              .join(' ');
-            return (
-              <article key={release.guid} className={cardClass}>
-                <div className="prowlarr-release-card-head">
-                  <input
-                    type="checkbox"
-                    checked={selected}
-                    onChange={() => toggleResult(release.guid)}
-                    aria-label={`选择 ${release.title}`}
-                  />
-                  <h3 className="prowlarr-release-title">{release.title}</h3>
-                  {submitted && (
-                    <span className="status status-submitted prowlarr-release-status">已提交</span>
-                  )}
-                </div>
-                <dl className="prowlarr-release-meta">
-                  <div>
-                    <dt>索引器</dt>
-                    <dd>{release.indexer || '—'}</dd>
-                  </div>
-                  <div>
-                    <dt>大小</dt>
-                    <dd>{formatBytes(release.size)}</dd>
-                  </div>
-                  <div>
-                    <dt>做种</dt>
-                    <dd>{release.seeders}</dd>
-                  </div>
-                  <div>
-                    <dt>下载</dt>
-                    <dd>{release.leechers}</dd>
-                  </div>
-                  <div>
-                    <dt>发布时间</dt>
-                    <dd>{formatTime(release.publishDate)}</dd>
-                  </div>
-                </dl>
-                <div className="prowlarr-release-actions">
-                  <button
-                    type="button"
-                    className="primary-link"
-                    disabled={submitted || downloadingGuid === release.guid || batchDownloading}
-                    onClick={() => downloadRelease(release)}
-                  >
-                    {submitted ? (
-                      <CheckCircle2 size={14} aria-hidden />
-                    ) : downloadingGuid === release.guid ? (
-                      <Loader2 size={14} className="icon-spinning" aria-hidden />
-                    ) : (
-                      <Download size={14} aria-hidden />
-                    )}
-                    {submitted ? '已提交' : '下载'}
-                  </button>
-                </div>
-              </article>
-            );
-          })
+          <div className="prowlarr-results-grid">
+            {results.map((release) => (
+              <ProwlarrReleaseCard
+                key={release.guid}
+                release={release}
+                selected={selectedGuids.has(release.guid)}
+                submitted={submittedGuids.has(release.guid)}
+                downloading={downloadingGuid === release.guid}
+                batchDownloading={batchDownloading}
+                formatBytes={formatBytes}
+                formatTime={formatTime}
+                onToggle={() => toggleResult(release.guid)}
+                onDownload={() => downloadRelease(release)}
+              />
+            ))}
+          </div>
         )}
       </div>
     </section>

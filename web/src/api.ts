@@ -22,6 +22,7 @@ import type {
   ProwlarrIndexerList,
   ProwlarrSearchType,
   ProwlarrSortBy,
+  ProwlarrSubmittedGuidsResult,
   ProwlarrTestResult,
   Subscription,
   User,
@@ -184,6 +185,8 @@ export const api = {
     request<FeedItem>('/api/prowlarr/download', { method: 'POST', json: payload }),
   batchDownloadProwlarrReleases: (releases: ProwlarrDownloadInput[]) =>
     request<ProwlarrBatchDownloadResult>('/api/prowlarr/download/batch', { method: 'POST', json: { releases } }),
+  prowlarrSubmittedGuids: (guids: string[]) =>
+    request<ProwlarrSubmittedGuidsResult>('/api/prowlarr/submitted-guids', { method: 'POST', json: { guids } }),
   prowlarrSearchHistory: (limit = 20) =>
     request<{ items: ProwlarrSearchHistory[] }>(`/api/prowlarr/search-history?limit=${limit}`),
   deleteProwlarrSearchHistory: (id: number) =>

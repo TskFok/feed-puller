@@ -743,6 +743,33 @@ th {
   word-break: break-word;
 }
 
+.toast-action {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 8px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--y2k-cyan);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.toast-action:hover {
+  color: var(--y2k-lime);
+}
+
+.toast-error .toast-action {
+  color: var(--y2k-pink);
+}
+
+.toast-error .toast-action:hover {
+  color: #ffb8dc;
+}
+
 .toast-dismiss {
   flex-shrink: 0;
   display: inline-flex;
@@ -1778,6 +1805,77 @@ html[data-theme='light'] .feishu-setup-step {
   box-shadow: var(--y2k-glow-pink);
 }
 
+.prowlarr-release-card--submitted {
+  border-color: rgba(173, 255, 47, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(173, 255, 47, 0.12),
+    var(--y2k-glow-cyan);
+}
+
+.prowlarr-release-card--submitted:hover {
+  transform: none;
+  border-color: rgba(173, 255, 47, 0.55);
+}
+
+.prowlarr-results-toolbar {
+  display: grid;
+  gap: 10px;
+}
+
+.prowlarr-batch-summary-wrap {
+  display: grid;
+  gap: 8px;
+}
+
+.prowlarr-batch-summary {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--y2k-radius);
+  background: rgba(0, 255, 255, 0.08);
+  border: 1px solid rgba(0, 255, 255, 0.25);
+  color: var(--y2k-cyan);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.prowlarr-batch-failures-toggle {
+  justify-self: start;
+  padding-left: 0;
+}
+
+.prowlarr-batch-failures-list {
+  margin: 0;
+  padding: 10px 12px;
+  list-style: none;
+  border-radius: var(--y2k-radius);
+  background: rgba(255, 105, 180, 0.08);
+  border: 1px solid rgba(255, 105, 180, 0.25);
+}
+
+.prowlarr-batch-failures-list li {
+  display: grid;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 105, 180, 0.15);
+  font-size: 13px;
+  color: var(--y2k-text);
+}
+
+.prowlarr-batch-failures-list li:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.prowlarr-batch-failures-list strong {
+  color: var(--y2k-text);
+  font-weight: 600;
+}
+
+.prowlarr-batch-failures-list span {
+  color: #ffb8dc;
+  overflow-wrap: anywhere;
+}
+
 .prowlarr-release-card-head {
   display: flex;
   align-items: flex-start;
@@ -1799,6 +1897,13 @@ html[data-theme='light'] .feishu-setup-step {
   line-height: 1.4;
   color: var(--y2k-text);
   overflow-wrap: anywhere;
+  flex: 1;
+  min-width: 0;
+}
+
+.prowlarr-release-status {
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .prowlarr-release-meta {

@@ -12,6 +12,16 @@ function ToastProbe() {
       <button type="button" onClick={() => showToast('保存失败', 'error')}>
         显示错误
       </button>
+      <button
+        type="button"
+        onClick={() =>
+          showToast('已提交下载', 'success', {
+            action: { label: '查看进度', onClick: () => undefined }
+          })
+        }
+      >
+        显示带操作
+      </button>
     </div>
   );
 }
@@ -79,5 +89,47 @@ describe('Toast', () => {
     });
 
     expect(screen.queryByText('订阅已更新')).not.toBeInTheDocument();
+  });
+
+  it('带操作按钮的 Toast 点击后会执行回调并关闭', () => {
+    const onAction = vi.fn();
+    function ActionToastProbe() {
+      const { showToast } = useToast();
+      return (
+        <button
+          type="button"
+          onClick={() =>
+            showToast('已提交下载', 'success', {
+              action: { label: '查看进度', onClick: onAction }
+            })
+          }
+        >
+          显示下载成功
+        </button>
+      );
+    }
+
+    render(
+      <ToastProvider>
+        <ActionToastProbe />
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '显示下载成功' }));
+    fireEvent.click(screen.getByRole('button', { name: '查看进度' }));
+
+    expect(onAction).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('已提交下载')).not.toBeInTheDocument();
+  });
+
+  it('带操作按钮的 Toast 会渲染操作链接', () => {
+    render(
+      <ToastProvider>
+        <ToastProbe />
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '显示带操作' }));
+    expect(screen.getByRole('button', { name: '查看进度' })).toBeInTheDocument();
   });
 });

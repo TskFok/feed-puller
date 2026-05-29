@@ -101,4 +101,21 @@ describe('api prowlarr', () => {
     const res = await api.clearProwlarrSearchHistory();
     expect(res.ok).toBe(true);
   });
+
+  it('prowlarrSubmittedGuids 查询已提交 guid', async () => {
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path === '/api/prowlarr/submitted-guids' && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body));
+        expect(body.guids).toEqual(['g1', 'g2']);
+        return new Response(JSON.stringify({ guids: ['g1'] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
+    });
+    const res = await api.prowlarrSubmittedGuids(['g1', 'g2']);
+    expect(res.guids).toEqual(['g1']);
+  });
 });

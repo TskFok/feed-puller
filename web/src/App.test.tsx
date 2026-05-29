@@ -1809,6 +1809,9 @@ describe('App', () => {
     await waitFor(() => expect(batchCalls.length).toBe(1));
     expect(batchCalls[0]).toEqual(expect.arrayContaining([101, 102]));
     expect(await screen.findByText(/已提交 2 条下载任务/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '查看进度' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(await screen.findByRole('heading', { name: '下载中' })).toBeInTheDocument();
   });
 
   it('订阅列表可通过拖拽手柄调整顺序', async () => {

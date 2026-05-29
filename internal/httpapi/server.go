@@ -55,6 +55,7 @@ func New(cfg config.Config, store *store.Store, service *app.Service, log *slog.
 	mux.HandleFunc("/api/prowlarr/search-history", server.requireAuth(server.handleProwlarrSearchHistory))
 	mux.HandleFunc("/api/prowlarr/search-history/", server.requireAuth(server.handleProwlarrSearchHistoryByID))
 	mux.HandleFunc("/api/prowlarr/download/batch", server.requireAuth(server.handleProwlarrDownloadBatch))
+	mux.HandleFunc("/api/prowlarr/submitted-guids", server.requireAuth(server.handleProwlarrSubmittedGuids))
 	mux.HandleFunc("/api/prowlarr/download", server.requireAuth(server.handleProwlarrDownload))
 	mux.HandleFunc("/api/settings/feishu-binding", server.requireAuth(server.handleFeishuBinding))
 	mux.HandleFunc("/api/settings/feishu-bind-url", server.requireAuth(server.handleFeishuBindURL))

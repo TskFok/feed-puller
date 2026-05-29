@@ -256,3 +256,7 @@ export type ProwlarrBatchDownloadResult = {
   failures?: ProwlarrBatchDownloadFailure[];
 };
 
+export type ProwlarrSubmittedGuidsResult = {
+  guids: string[];
+};
+

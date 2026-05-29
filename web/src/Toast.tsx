@@ -14,14 +14,24 @@ export const TOAST_DISMISS_MS = 4000;
 
 export type ToastVariant = 'success' | 'error';
 
+export type ToastAction = {
+  label: string;
+  onClick: () => void;
+};
+
+export type ToastOptions = {
+  action?: ToastAction;
+};
+
 type ToastItem = {
   id: string;
   message: string;
   variant: ToastVariant;
+  action?: ToastAction;
 };
 
 type ToastContextValue = {
-  showToast: (message: string, variant?: ToastVariant) => void;
+  showToast: (message: string, variant?: ToastVariant, options?: ToastOptions) => void;
   dismissToast: (id: string) => void;
 };
 
@@ -45,10 +55,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const showToast = useCallback(
-    (message: string, variant: ToastVariant = 'success') => {
+    (message: string, variant: ToastVariant = 'success', options?: ToastOptions) => {
       if (!message) return;
       const id = nextToastId();
-      setToasts((prev) => [...prev, { id, message, variant }]);
+      setToasts((prev) => [...prev, { id, message, variant, action: options?.action }]);
       const timer = setTimeout(() => dismissToast(id), TOAST_DISMISS_MS);
       timersRef.current.set(id, timer);
     },
@@ -103,12 +113,22 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
   const Icon = toast.variant === 'success' ? CheckCircle2 : AlertCircle;
   const label = toast.variant === 'success' ? '操作成功' : '操作失败';
 
+  function handleActionClick() {
+    toast.action?.onClick();
+    onDismiss();
+  }
+
   return (
     <div role="status" className={`toast toast-${toast.variant}`}>
       <Icon className="toast-icon" size={18} aria-hidden="true" />
       <div className="toast-body">
         <span className="toast-label">{label}</span>
         <p className="toast-message">{toast.message}</p>
+        {toast.action && (
+          <button type="button" className="toast-action" onClick={handleActionClick}>
+            {toast.action.label}
+          </button>
+        )}
       </div>
       <button type="button" className="toast-dismiss" aria-label="关闭提示" onClick={onDismiss}>
         <X size={16} aria-hidden="true" />

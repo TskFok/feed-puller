@@ -221,3 +221,40 @@ func TestParseIndexerIDs(t *testing.T) {
 		t.Fatalf("unexpected ids: %+v", ids)
 	}
 }
+
+func TestProwlarrSubmittedGuids_ReturnsMatches(t *testing.T) {
+	srv, mock, cleanup := newProwlarrServer(t)
+	defer cleanup()
+	expectProwlarrSettings(mock, map[string]string{
+		"prowlarr_url":      "http://127.0.0.1:9696",
+		"prowlarr_api_key":  "secret",
+		"prowlarr_download_dir": "/movies",
+	})
+	mock.ExpectQuery(regexp.QuoteMeta(`
+		SELECT COALESCE(guid, ''), dedupe_key
+		FROM feed_items
+		WHERE dedupe_key IN (?)
+		  AND download_status IN (?, ?, ?)
+	`)).WithArgs("prowlarr:g1", "submitting", "submitted", "completed").
+		WillReturnRows(sqlmock.NewRows([]string{"guid", "dedupe_key"}).AddRow("g1", "prowlarr:g1"))
+
+	req := authRequest(httptest.NewRequest(http.MethodPost, "/api/prowlarr/submitted-guids", strings.NewReader(`{"guids":["g1"]}`)))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	srv.handleProwlarrSubmittedGuids(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var payload struct {
+		GUIDs []string `json:"guids"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.GUIDs) != 1 || payload.GUIDs[0] != "g1" {
+		t.Fatalf("guids = %#v", payload.GUIDs)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -240,6 +240,13 @@ func (s *Service) ClearProwlarrSearchHistory(ctx context.Context) error {
 	return s.store.ClearProwlarrSearchHistory(ctx)
 }
 
+func (s *Service) ListProwlarrSubmittedGuids(ctx context.Context, guids []string) ([]string, error) {
+	if _, err := s.requireProwlarrConfig(ctx); err != nil {
+		return nil, err
+	}
+	return s.store.ListProwlarrSubmittedGuids(ctx, guids)
+}
+
 func (s *Service) SubmitProwlarrReleases(ctx context.Context, inputs []ProwlarrReleaseInput) ([]store.Item, []ProwlarrReleaseFailure) {
 	if len(inputs) == 0 {
 		return nil, nil

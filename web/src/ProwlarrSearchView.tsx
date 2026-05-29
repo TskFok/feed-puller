@@ -1,6 +1,11 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, Loader2, Search, Trash2, X } from 'lucide-react';
+import { CheckCircle2, Download, Loader2, Search, Trash2, X } from 'lucide-react';
 import { api } from './api';
+import {
+  addSessionSubmittedGuids,
+  mergeSubmittedGuids,
+  readSessionSubmittedGuids
+} from './prowlarrSubmittedGuids';
 import { useToast } from './Toast';
 import type {
   ProwlarrConfig,
@@ -56,6 +61,18 @@ type ProwlarrSearchViewProps = {
   onGoActive?: () => void;
 };
 
+type BatchFailure = {
+  guid: string;
+  title: string;
+  error: string;
+};
+
+type BatchSummary = {
+  successCount: number;
+  failureCount: number;
+  failures: BatchFailure[];
+};
+
 function ProwlarrResultsSkeleton() {
   return (
     <>
@@ -86,9 +103,45 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
   const [resultsSearchType, setResultsSearchType] = useState<ProwlarrSearchType>('movie');
   const [history, setHistory] = useState<ProwlarrSearchHistory[]>([]);
   const [selectedGuids, setSelectedGuids] = useState<Set<string>>(new Set());
+  const [submittedGuids, setSubmittedGuids] = useState<Set<string>>(new Set());
+  const [batchSummary, setBatchSummary] = useState<BatchSummary | null>(null);
+  const [batchFailuresExpanded, setBatchFailuresExpanded] = useState(false);
   const [searching, setSearching] = useState(false);
   const [downloadingGuid, setDownloadingGuid] = useState<string | null>(null);
   const [batchDownloading, setBatchDownloading] = useState(false);
+
+  const showDownloadSubmittedToast = useCallback(
+    (message: string) => {
+      showToast(message, 'success', onGoActive ? { action: { label: '查看进度', onClick: onGoActive } } : undefined);
+    },
+    [onGoActive, showToast]
+  );
+
+  const hydrateSubmittedGuids = useCallback(async (items: ProwlarrRelease[]) => {
+    const guids = items.map((release) => release.guid).filter(Boolean);
+    if (guids.length === 0) {
+      setSubmittedGuids(new Set());
+      return;
+    }
+    const sessionGuids = readSessionSubmittedGuids();
+    try {
+      const data = await api.prowlarrSubmittedGuids(guids);
+      setSubmittedGuids(mergeSubmittedGuids(data.guids ?? [], sessionGuids, guids));
+    } catch {
+      setSubmittedGuids(mergeSubmittedGuids([], sessionGuids, guids));
+    }
+  }, []);
+
+  const rememberSubmittedGuids = useCallback((guids: Iterable<string>) => {
+    addSessionSubmittedGuids(guids);
+    setSubmittedGuids((current) => {
+      const next = new Set(current);
+      for (const guid of guids) {
+        if (guid) next.add(guid);
+      }
+      return next;
+    });
+  }, []);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -134,12 +187,16 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
     const indexerIds = opts?.indexerIds ?? selectedIndexerIds;
     setSearching(true);
     setSelectedGuids(new Set());
+    setBatchSummary(null);
+    setBatchFailuresExpanded(false);
     try {
       const data = await api.searchProwlarr(trimmed, { type, sort, indexerIds });
-      setResults(data.items ?? []);
+      const items = data.items ?? [];
+      setResults(items);
       setResultsSearchType(type);
+      await hydrateSubmittedGuids(items);
       await loadHistory();
-      if ((data.items ?? []).length === 0) {
+      if (items.length === 0) {
         showToast('未找到匹配的 Torrent 结果');
       }
     } catch (err) {
@@ -147,7 +204,7 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
     } finally {
       setSearching(false);
     }
-  }, [loadHistory, searchType, sortBy, selectedIndexerIds, showToast]);
+  }, [hydrateSubmittedGuids, loadHistory, searchType, sortBy, selectedIndexerIds, showToast]);
 
   async function handleSearch(event: FormEvent) {
     event.preventDefault();
@@ -212,16 +269,31 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
   }
 
   async function downloadRelease(release: ProwlarrRelease) {
+    if (submittedGuids.has(release.guid)) return;
     setDownloadingGuid(release.guid);
     try {
       await api.downloadProwlarrRelease(releaseToDownloadInput(release, resultsSearchType));
-      showToast('已提交下载');
-      onGoActive?.();
+      rememberSubmittedGuids([release.guid]);
+      showDownloadSubmittedToast('已提交下载');
     } catch (err) {
       showToast(messageOf(err), 'error');
     } finally {
       setDownloadingGuid(null);
     }
+  }
+
+  function markBatchSubmitted(selected: ProwlarrRelease[], failureGuids: Set<string>) {
+    const successGuids = selected.filter((release) => !failureGuids.has(release.guid)).map((release) => release.guid);
+    rememberSubmittedGuids(successGuids);
+  }
+
+  function buildBatchFailures(selected: ProwlarrRelease[], failures: { guid: string; error: string }[]): BatchFailure[] {
+    const titles = new Map(selected.map((release) => [release.guid, release.title]));
+    return failures.map((failure) => ({
+      guid: failure.guid,
+      title: titles.get(failure.guid) ?? failure.guid,
+      error: failure.error
+    }));
   }
 
   async function batchDownload() {
@@ -237,10 +309,16 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
       );
       const successCount = result.items?.length ?? 0;
       const failureCount = result.failures?.length ?? 0;
+      const failureGuids = new Set(result.failures?.map((failure) => failure.guid) ?? []);
+      const failures = buildBatchFailures(selected, result.failures ?? []);
       if (successCount > 0) {
-        showToast(`已提交 ${successCount} 条下载${failureCount > 0 ? `，${failureCount} 条失败` : ''}`);
-        onGoActive?.();
+        markBatchSubmitted(selected, failureGuids);
+        setBatchSummary({ successCount, failureCount, failures });
+        setBatchFailuresExpanded(failureCount > 0);
+        showDownloadSubmittedToast(`已提交 ${successCount} 条下载${failureCount > 0 ? `，${failureCount} 条失败` : ''}`);
       } else if (failureCount > 0) {
+        setBatchSummary({ successCount: 0, failureCount, failures });
+        setBatchFailuresExpanded(true);
         showToast(result.failures?.[0]?.error ?? '批量下载失败', 'error');
       }
       setSelectedGuids(new Set());
@@ -354,15 +432,47 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
       </form>
 
       {results.length > 0 && (
-        <div className="panel horizontal-actions">
-          <label className="checkbox-row">
-            <input type="checkbox" checked={allSelected} onChange={(event) => toggleSelectAll(event.target.checked)} />
-            全选（{selectedGuids.size}/{results.length}）
-          </label>
-          <button type="button" className="primary" disabled={batchDownloading || selectedGuids.size === 0} onClick={batchDownload}>
-            {batchDownloading ? <Loader2 size={16} className="icon-spinning" aria-hidden /> : <Download size={16} aria-hidden />}
-            批量下载
-          </button>
+        <div className="panel prowlarr-results-toolbar">
+          <div className="horizontal-actions">
+            <label className="checkbox-row">
+              <input type="checkbox" checked={allSelected} onChange={(event) => toggleSelectAll(event.target.checked)} />
+              全选（{selectedGuids.size}/{results.length}）
+            </label>
+            <button type="button" className="primary" disabled={batchDownloading || selectedGuids.size === 0} onClick={batchDownload}>
+              {batchDownloading ? <Loader2 size={16} className="icon-spinning" aria-hidden /> : <Download size={16} aria-hidden />}
+              批量下载
+            </button>
+          </div>
+          {batchSummary && (
+            <div className="prowlarr-batch-summary-wrap">
+              <p className="prowlarr-batch-summary" role="status">
+                本次提交：成功 {batchSummary.successCount} 条
+                {batchSummary.failureCount > 0 ? `，失败 ${batchSummary.failureCount} 条` : ''}
+              </p>
+              {batchSummary.failures.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    className="ghost prowlarr-batch-failures-toggle"
+                    aria-expanded={batchFailuresExpanded}
+                    onClick={() => setBatchFailuresExpanded((current) => !current)}
+                  >
+                    {batchFailuresExpanded ? '收起失败原因' : '查看失败原因'}
+                  </button>
+                  {batchFailuresExpanded && (
+                    <ul className="prowlarr-batch-failures-list">
+                      {batchSummary.failures.map((failure) => (
+                        <li key={failure.guid}>
+                          <strong>{failure.title}</strong>
+                          <span>{failure.error}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -374,11 +484,16 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
         ) : (
           results.map((release) => {
             const selected = selectedGuids.has(release.guid);
+            const submitted = submittedGuids.has(release.guid);
+            const cardClass = [
+              'prowlarr-release-card',
+              selected ? 'prowlarr-release-card--selected' : '',
+              submitted ? 'prowlarr-release-card--submitted' : ''
+            ]
+              .filter(Boolean)
+              .join(' ');
             return (
-              <article
-                key={release.guid}
-                className={selected ? 'prowlarr-release-card prowlarr-release-card--selected' : 'prowlarr-release-card'}
-              >
+              <article key={release.guid} className={cardClass}>
                 <div className="prowlarr-release-card-head">
                   <input
                     type="checkbox"
@@ -387,6 +502,9 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
                     aria-label={`选择 ${release.title}`}
                   />
                   <h3 className="prowlarr-release-title">{release.title}</h3>
+                  {submitted && (
+                    <span className="status status-submitted prowlarr-release-status">已提交</span>
+                  )}
                 </div>
                 <dl className="prowlarr-release-meta">
                   <div>
@@ -414,15 +532,17 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
                   <button
                     type="button"
                     className="primary-link"
-                    disabled={downloadingGuid === release.guid || batchDownloading}
+                    disabled={submitted || downloadingGuid === release.guid || batchDownloading}
                     onClick={() => downloadRelease(release)}
                   >
-                    {downloadingGuid === release.guid ? (
+                    {submitted ? (
+                      <CheckCircle2 size={14} aria-hidden />
+                    ) : downloadingGuid === release.guid ? (
                       <Loader2 size={14} className="icon-spinning" aria-hidden />
                     ) : (
                       <Download size={14} aria-hidden />
                     )}
-                    下载
+                    {submitted ? '已提交' : '下载'}
                   </button>
                 </div>
               </article>

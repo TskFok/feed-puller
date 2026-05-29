@@ -70,3 +70,78 @@ func (s *Store) ResetProwlarrItemForRetry(ctx context.Context, itemID int64) err
 	}
 	return nil
 }
+
+const maxProwlarrSubmittedGuidsLookup = 200
+
+// ListProwlarrSubmittedGuids 返回已提交、下载中或已完成的 Prowlarr release guid。
+func (s *Store) ListProwlarrSubmittedGuids(ctx context.Context, guids []string) ([]string, error) {
+	if len(guids) == 0 {
+		return nil, nil
+	}
+	if len(guids) > maxProwlarrSubmittedGuidsLookup {
+		return nil, fmt.Errorf("单次最多查询 %d 个 guid", maxProwlarrSubmittedGuidsLookup)
+	}
+	seen := make(map[string]struct{}, len(guids))
+	dedupeKeys := make([]string, 0, len(guids))
+	for _, raw := range guids {
+		guid := strings.TrimSpace(raw)
+		if guid == "" {
+			continue
+		}
+		if _, ok := seen[guid]; ok {
+			continue
+		}
+		seen[guid] = struct{}{}
+		dedupeKeys = append(dedupeKeys, "prowlarr:"+guid)
+	}
+	if len(dedupeKeys) == 0 {
+		return nil, nil
+	}
+	placeholders := strings.Repeat("?,", len(dedupeKeys))
+	placeholders = placeholders[:len(placeholders)-1]
+	args := make([]any, len(dedupeKeys)+3)
+	for i, key := range dedupeKeys {
+		args[i] = key
+	}
+	args[len(dedupeKeys)] = "submitting"
+	args[len(dedupeKeys)+1] = "submitted"
+	args[len(dedupeKeys)+2] = "completed"
+
+	query := fmt.Sprintf(`
+		SELECT COALESCE(guid, ''), dedupe_key
+		FROM feed_items
+		WHERE dedupe_key IN (%s)
+		  AND download_status IN (?, ?, ?)
+	`, placeholders)
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("查询 Prowlarr 已提交 guid 失败: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]string, 0, len(dedupeKeys))
+	outSeen := make(map[string]struct{}, len(dedupeKeys))
+	for rows.Next() {
+		var guid, dedupeKey string
+		if err := rows.Scan(&guid, &dedupeKey); err != nil {
+			return nil, fmt.Errorf("读取 Prowlarr guid 失败: %w", err)
+		}
+		guid = strings.TrimSpace(guid)
+		if guid == "" {
+			guid = strings.TrimPrefix(strings.TrimSpace(dedupeKey), "prowlarr:")
+		}
+		if guid == "" {
+			continue
+		}
+		if _, ok := outSeen[guid]; ok {
+			continue
+		}
+		outSeen[guid] = struct{}{}
+		out = append(out, guid)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("查询 Prowlarr 已提交 guid 失败: %w", err)
+	}
+	return out, nil
+}

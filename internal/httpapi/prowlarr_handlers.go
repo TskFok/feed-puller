@@ -208,6 +208,33 @@ func (s *Server) handleProwlarrSearchHistoryByID(w http.ResponseWriter, r *http.
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+func (s *Server) handleProwlarrSubmittedGuids(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w)
+		return
+	}
+	var input struct {
+		GUIDs []string `json:"guids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "请求体无效")
+		return
+	}
+	guids, err := s.service.ListProwlarrSubmittedGuids(r.Context(), input.GUIDs)
+	if err != nil {
+		if errors.Is(err, app.ErrProwlarrNotConfigured) {
+			writeError(w, http.StatusServiceUnavailable, err.Error())
+			return
+		}
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if guids == nil {
+		guids = []string{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"guids": guids})
+}
+
 func (s *Server) handleProwlarrDownloadBatch(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		methodNotAllowed(w)

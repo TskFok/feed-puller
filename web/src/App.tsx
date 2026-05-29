@@ -333,7 +333,7 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
       <main className="workspace">
         {feishuSetupIncomplete(authOptions, user) && <FeishuSetupBanner onGoSettings={() => selectTab('settings')} />}
         <div key={tab} className="view-transition">
-          {tab === 'subscriptions' && <SubscriptionsView />}
+          {tab === 'subscriptions' && <SubscriptionsView onGoActive={() => selectTab('active')} />}
           {tab === 'prowlarr' && (
             <ProwlarrSearchView onGoSettings={() => selectTab('settings')} onGoActive={() => selectTab('active')} />
           )}
@@ -956,11 +956,13 @@ function matchesFetchPreviewStatusFilter(row: PolledFeedItem, filter: FetchPrevi
 function FetchPreviewModal({
   subscriptionName,
   initialItems,
-  onClose
+  onClose,
+  onGoActive
 }: {
   subscriptionName: string;
   initialItems: PolledFeedItem[];
   onClose: () => void;
+  onGoActive?: () => void;
 }) {
   const titleId = useId();
   const selectAllId = useId();
@@ -971,6 +973,10 @@ function FetchPreviewModal({
   const action = useActionLoading();
   const { showToast } = useToast();
   const selectionLocked = isFetchPreviewSelectionLocked(action.active);
+
+  function showDownloadSubmittedToast(message: string) {
+    showToast(message, 'success', onGoActive ? { action: { label: '查看进度', onClick: onGoActive } } : undefined);
+  }
 
   const filteredRows = useMemo(
     () => rows.filter((row) => matchesFetchPreviewStatusFilter(row, statusFilter)),
@@ -1034,6 +1040,7 @@ function FetchPreviewModal({
           next.delete(row.id);
           return next;
         });
+        showDownloadSubmittedToast('已提交下载');
       });
     } catch (err) {
       showToast(messageOf(err), 'error');
@@ -1055,7 +1062,7 @@ function FetchPreviewModal({
         const ok = result.items.length;
         const failed = result.failures?.length ?? 0;
         if (ok > 0) {
-          showToast(`已提交 ${ok} 条下载任务`);
+          showDownloadSubmittedToast(`已提交 ${ok} 条下载任务`);
         }
         if (failed > 0) {
           const detail = result.failures!.map((f) => `#${f.item_id}: ${f.error}`).join('；');
@@ -1530,7 +1537,7 @@ function CompletedDownloadsView() {
   );
 }
 
-function SubscriptionsView() {
+function SubscriptionsView({ onGoActive }: { onGoActive?: () => void }) {
   const [subscriptionModal, setSubscriptionModal] = useState<SubscriptionModalTarget | null>(null);
   const [fetchPreview, setFetchPreview] = useState<{ name: string; items: PolledFeedItem[] } | null>(null);
   const [fetchLoadingId, setFetchLoadingId] = useState<number | null>(null);
@@ -1597,6 +1604,10 @@ function SubscriptionsView() {
           subscriptionName={fetchPreview.name}
           initialItems={fetchPreview.items}
           onClose={() => setFetchPreview(null)}
+          onGoActive={() => {
+            setFetchPreview(null);
+            onGoActive?.();
+          }}
         />
       )}
       {subscriptionModal && (

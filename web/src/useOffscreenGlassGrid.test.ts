@@ -75,4 +75,31 @@ describe('useOffscreenGlassGrid', () => {
 
     expect(observe).not.toHaveBeenCalled();
   });
+
+  it('在 workspace 内使用 workspace 作为 IntersectionObserver root', () => {
+    document.body.innerHTML = `
+      <main class="workspace" style="overflow-y: auto; height: 400px;">
+        <div class="results-host"></div>
+      </main>
+    `;
+    const workspace = document.querySelector('.workspace') as HTMLElement;
+    const host = document.querySelector('.results-host') as HTMLDivElement;
+    const card = document.createElement('article');
+    card.className = 'prowlarr-release-card';
+    host.appendChild(card);
+
+    let observerRoot: Element | null = null;
+    vi.stubGlobal(
+      'IntersectionObserver',
+      vi.fn((_cb: IntersectionObserverCallback, init?: IntersectionObserverInit) => {
+        observerRoot = (init?.root as Element | null | undefined) ?? null;
+        return { observe: vi.fn(), disconnect: vi.fn(), unobserve: vi.fn() };
+      })
+    );
+
+    renderHook(() => useOffscreenGlassGrid({ current: host }, true, [1]));
+
+    expect(observerRoot).toBe(workspace);
+    document.body.innerHTML = '';
+  });
 });

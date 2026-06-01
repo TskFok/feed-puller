@@ -21,6 +21,7 @@ type ProwlarrSearchHistory struct {
 	IndexerIDs   []int64   `json:"indexer_ids"`
 	ResultCount  int       `json:"result_count"`
 	SearchedAt   time.Time `json:"searched_at"`
+	ResultsJSON  string    `json:"-"`
 }
 
 func (s *Store) RecordProwlarrSearchHistory(ctx context.Context, entry ProwlarrSearchHistory) error {
@@ -38,17 +39,22 @@ func (s *Store) RecordProwlarrSearchHistory(ctx context.Context, entry ProwlarrS
 		return fmt.Errorf("搜索关键词不能为空")
 	}
 	indexerJSON := EncodeProwlarrIndexerIDs(entry.IndexerIDs)
+	resultsJSON := strings.TrimSpace(entry.ResultsJSON)
+	if resultsJSON == "" {
+		resultsJSON = "[]"
+	}
 
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO prowlarr_search_history (display_query, query, media_type, sort_by, indexer_ids, result_count)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO prowlarr_search_history (display_query, query, media_type, sort_by, indexer_ids, result_count, results)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE
 			display_query = VALUES(display_query),
 			sort_by = VALUES(sort_by),
 			indexer_ids = VALUES(indexer_ids),
 			result_count = VALUES(result_count),
+			results = VALUES(results),
 			updated_at = CURRENT_TIMESTAMP
-	`, displayQuery, query, mediaType, sortBy, indexerJSON, entry.ResultCount)
+	`, displayQuery, query, mediaType, sortBy, indexerJSON, entry.ResultCount, resultsJSON)
 	if err != nil {
 		return fmt.Errorf("保存搜索历史失败: %w", err)
 	}
@@ -87,6 +93,31 @@ func (s *Store) ListProwlarrSearchHistory(ctx context.Context, limit int) ([]Pro
 		out = append(out, row)
 	}
 	return out, rows.Err()
+}
+
+func (s *Store) GetProwlarrSearchHistoryByID(ctx context.Context, id int64) (ProwlarrSearchHistory, error) {
+	if id <= 0 {
+		return ProwlarrSearchHistory{}, fmt.Errorf("历史记录 ID 无效")
+	}
+	var row ProwlarrSearchHistory
+	var indexerRaw string
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, display_query, query, media_type, sort_by, COALESCE(indexer_ids, '[]'), result_count, updated_at, COALESCE(results, '[]')
+		FROM prowlarr_search_history
+		WHERE id = ?
+	`, id).Scan(&row.ID, &row.DisplayQuery, &row.Query, &row.MediaType, &row.SortBy, &indexerRaw, &row.ResultCount, &row.SearchedAt, &row.ResultsJSON)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ProwlarrSearchHistory{}, sql.ErrNoRows
+		}
+		return ProwlarrSearchHistory{}, fmt.Errorf("查询搜索历史失败: %w", err)
+	}
+	ids, err := ParseProwlarrIndexerIDs(indexerRaw)
+	if err != nil {
+		return ProwlarrSearchHistory{}, err
+	}
+	row.IndexerIDs = ids
+	return row, nil
 }
 
 func (s *Store) DeleteProwlarrSearchHistory(ctx context.Context, id int64) error {

@@ -246,6 +246,10 @@ export type ProwlarrSearchHistory = {
   searched_at: string;
 };
 
+export type ProwlarrSearchHistoryDetail = ProwlarrSearchHistory & {
+  results: ProwlarrRelease[];
+};
+
 export type ProwlarrBatchDownloadFailure = {
   guid: string;
   error: string;

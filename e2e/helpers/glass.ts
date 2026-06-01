@@ -89,6 +89,18 @@ export async function mockProwlarrSearchResults(page: Page, count: number) {
   );
 }
 
+export async function scrollAppWorkspace(page: Page, position: 'bottom' | number) {
+  const workspace = page.locator('.workspace');
+  await workspace.evaluate((el, target) => {
+    if (target === 'bottom') {
+      el.scrollTop = el.scrollHeight;
+      return;
+    }
+    el.scrollTop = target;
+  }, position === 'bottom' ? 'bottom' : position);
+  await workspace.dispatchEvent('scroll');
+}
+
 export async function mockProwlarrBatchDownload(
   page: Page,
   options: { successCount?: number; failures?: { guid: string; error: string }[] } = {}

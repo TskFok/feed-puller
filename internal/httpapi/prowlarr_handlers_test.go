@@ -105,7 +105,7 @@ func TestProwlarrSearch_EmptyIndexerParamSearchesAllTorrentIndexers(t *testing.T
 		"prowlarr_tv_subscription_id": "10",
 	})
 	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO prowlarr_search_history`)).
-		WithArgs("inception", "inception", "movie", "seeders", "[]", 1).
+		WithArgs("inception", "inception", "movie", "seeders", "[]", 1, `[{"guid":"g1","title":"Inception","protocol":"torrent","infoHash":"abc"}]`).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM prowlarr_search_history`)).
 		WithArgs(50).
@@ -116,6 +116,47 @@ func TestProwlarrSearch_EmptyIndexerParamSearchesAllTorrentIndexers(t *testing.T
 	srv.handleProwlarrSearch(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("code = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestProwlarrSearchHistoryByID_ReturnsStoredResults(t *testing.T) {
+	srv, mock, cleanup := newProwlarrServer(t)
+	defer cleanup()
+	now := time.Now().UTC()
+	expectProwlarrSettings(mock, map[string]string{
+		"prowlarr_url":                "http://127.0.0.1:9696",
+		"prowlarr_api_key":            "secret",
+		"prowlarr_download_dir":       "/movies",
+		"prowlarr_indexer_ids":        "[]",
+		"prowlarr_subscription_id":    "9",
+		"prowlarr_tv_subscription_id": "10",
+	})
+	mock.ExpectQuery(regexp.QuoteMeta(`FROM prowlarr_search_history`)).
+		WithArgs(int64(1)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "display_query", "query", "media_type", "sort_by", "indexer_ids", "result_count", "updated_at", "results",
+		}).AddRow(int64(1), "Inception", "inception", "movie", "seeders", "[]", 1, now, `[{"guid":"g1","title":"Inception","protocol":"torrent","infoHash":"abc"}]`))
+
+	req := authRequest(httptest.NewRequest(http.MethodGet, "/api/prowlarr/search-history/1", nil))
+	rec := httptest.NewRecorder()
+	srv.handleProwlarrSearchHistoryByID(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	var payload struct {
+		DisplayQuery string `json:"display_query"`
+		Results      []struct {
+			GUID string `json:"guid"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.DisplayQuery != "Inception" || len(payload.Results) != 1 || payload.Results[0].GUID != "g1" {
+		t.Fatalf("unexpected payload: %+v", payload)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

@@ -4,6 +4,7 @@ import {
   mockProwlarrBatchDownload,
   mockProwlarrConfigured,
   mockProwlarrSearchResults,
+  scrollAppWorkspace,
   virtualProwlarrRowsOverlap
 } from './helpers/glass';
 
@@ -131,12 +132,12 @@ test.describe('玻璃态无障碍与性能（已登录）', () => {
     await expect(page.getByText(/本次提交：成功 1 条，失败 1 条/)).toBeVisible();
     await expect(page.locator('.prowlarr-batch-failures-list')).toBeVisible();
 
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await scrollAppWorkspace(page, 'bottom');
     await page.waitForTimeout(200);
     expect(await virtualProwlarrRowsOverlap(page)).toBe(false);
   });
 
-  test('Prowlarr 超过 30 条结果启用虚拟网格', async ({ page }) => {
+  test('Prowlarr 超过动态阈值时启用虚拟网格', async ({ page }) => {
     await mockProwlarrConfigured(page);
     await mockProwlarrSearchResults(page, 35);
     await page.goto('/#prowlarr');
@@ -147,18 +148,19 @@ test.describe('玻璃态无障碍与性能（已登录）', () => {
 
   test('Prowlarr 中等结果离屏卡片可标记 glass-surface--offscreen', async ({ page }) => {
     await mockProwlarrConfigured(page);
-    await mockProwlarrSearchResults(page, 18);
-    await page.setViewportSize({ width: 1280, height: 500 });
+    await mockProwlarrSearchResults(page, 10);
+    await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto('/#prowlarr');
     await page.getByLabel('关键词').fill('test');
     await page.getByRole('button', { name: '搜索', exact: true }).click();
+    await expect(page.locator('.prowlarr-results-grid--scrollable')).toBeVisible();
     await expect(page.locator('.prowlarr-release-card').first()).toBeVisible();
 
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await page.waitForFunction(
-      () => document.querySelectorAll('.prowlarr-release-card.glass-surface--offscreen').length > 0,
-      { timeout: 3000 }
-    );
+    await scrollAppWorkspace(page, 'bottom');
+    await expect(async () => {
+      const count = await page.locator('.prowlarr-release-card.glass-surface--offscreen').count();
+      expect(count).toBeGreaterThan(0);
+    }).toPass({ timeout: 10_000 });
 
     const offscreenCount = await page.locator('.prowlarr-release-card.glass-surface--offscreen').count();
     expect(offscreenCount).toBeGreaterThan(0);

@@ -113,4 +113,6 @@ var migrations = []string{
 		UNIQUE KEY uniq_prowlarr_search_history_query_type (query(191), media_type),
 		INDEX idx_prowlarr_search_history_updated_at (updated_at)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+	`ALTER TABLE prowlarr_search_history
+		ADD COLUMN IF NOT EXISTS results MEDIUMTEXT NOT NULL DEFAULT '[]'`,
 }

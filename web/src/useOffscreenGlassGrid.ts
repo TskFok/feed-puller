@@ -1,4 +1,5 @@
 import { useEffect, type RefObject } from 'react';
+import { resolveAppScrollElement } from './appScrollElement';
 import { GLASS_OFFSCREEN_CLASS } from './glassConstants';
 
 const DEFAULT_SELECTOR = '.prowlarr-release-card:not(.prowlarr-release-card--skeleton)';
@@ -7,6 +8,14 @@ type OffscreenGlassOptions = {
   selector?: string;
   rootMargin?: string;
 };
+
+function intersectionRoot(container: HTMLElement): Element | null {
+  const scrollElement = resolveAppScrollElement(container);
+  if (!scrollElement || scrollElement === document.documentElement) {
+    return null;
+  }
+  return scrollElement;
+}
 
 /**
  * 在长列表网格上为离屏玻璃卡片关闭 backdrop-filter，减轻滚动合成开销。
@@ -36,7 +45,7 @@ export function useOffscreenGlassGrid(
           entry.target.classList.toggle(GLASS_OFFSCREEN_CLASS, !entry.isIntersecting);
         }
       },
-      { root: null, rootMargin, threshold: 0 }
+      { root: intersectionRoot(container), rootMargin, threshold: 0 }
     );
 
     for (const target of targets) {

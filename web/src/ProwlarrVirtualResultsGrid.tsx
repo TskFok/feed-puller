@@ -1,14 +1,15 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
-import { useWindowVirtualizer } from '@tanstack/react-virtual';
+import { useCallback, useLayoutEffect, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { useAppScrollElement } from './useAppScrollElement';
 import { useGridColumns } from './useGridColumns';
 import {
-  PROWLARR_ROW_GAP_PX,
-  PROWLARR_ROW_TOTAL_ESTIMATE_PX
+  PROWLARR_ROW_GAP_PX
 } from './prowlarrLayoutConstants';
 import {
   getCachedProwlarrRowEstimate,
   recordProwlarrRowHeight
 } from './prowlarrRowHeightCache';
+import type { ProwlarrVisibleRange } from './prowlarrResultsProgress';
 import { ProwlarrReleaseCard, type ProwlarrReleaseCardProps } from './ProwlarrReleaseCard';
 import type { ProwlarrRelease } from './types';
 
@@ -22,11 +23,29 @@ export type ProwlarrVirtualResultsGridProps = {
   formatTime: ProwlarrReleaseCardProps['formatTime'];
   onToggle: (guid: string) => void;
   onDownload: (release: ProwlarrRelease) => void;
+  onVisibleRangeChange?: (range: ProwlarrVisibleRange) => void;
 };
 
 function titleLengthsForRow(results: ProwlarrRelease[], rowIndex: number, columnCount: number): number[] {
   const startIndex = rowIndex * columnCount;
   return results.slice(startIndex, startIndex + columnCount).map((release) => release.title.length);
+}
+
+function visibleRangeFromVirtualizer(
+  results: ProwlarrRelease[],
+  columnCount: number,
+  virtualItems: Array<{ index: number }>
+): ProwlarrVisibleRange | null {
+  if (virtualItems.length === 0) {
+    return null;
+  }
+  const firstRow = virtualItems[0].index;
+  const lastRow = virtualItems[virtualItems.length - 1].index;
+  return {
+    firstItemIndex: firstRow * columnCount,
+    lastItemIndex: Math.min((lastRow + 1) * columnCount - 1, results.length - 1),
+    total: results.length
+  };
 }
 
 export function ProwlarrVirtualResultsGrid({
@@ -38,24 +57,28 @@ export function ProwlarrVirtualResultsGrid({
   formatBytes,
   formatTime,
   onToggle,
-  onDownload
+  onDownload,
+  onVisibleRangeChange
 }: ProwlarrVirtualResultsGridProps) {
   const columnCount = useGridColumns();
   const rowCount = Math.ceil(results.length / columnCount);
   const anchorRef = useRef<HTMLDivElement>(null);
-  const [scrollMargin, setScrollMargin] = useState(0);
+  const { scrollElement, scrollMargin } = useAppScrollElement(anchorRef, results.length, rowCount, columnCount);
 
   const estimateRowSize = useCallback(
     (rowIndex: number) => getCachedProwlarrRowEstimate(columnCount, titleLengthsForRow(results, rowIndex, columnCount)),
     [columnCount, results]
   );
 
-  const virtualizer = useWindowVirtualizer({
+  const virtualizer = useVirtualizer({
     count: rowCount,
+    getScrollElement: () => scrollElement,
     estimateSize: estimateRowSize,
     overscan: 2,
     scrollMargin
   });
+
+  const virtualItems = virtualizer.getVirtualItems();
 
   const measureVirtualRow = useCallback(
     (node: HTMLDivElement | null) => {
@@ -79,28 +102,23 @@ export function ProwlarrVirtualResultsGrid({
   );
 
   useLayoutEffect(() => {
-    const update = () => {
-      const el = anchorRef.current;
-      if (!el) {
-        return;
-      }
-      setScrollMargin(el.getBoundingClientRect().top + window.scrollY);
-    };
-    update();
-    window.addEventListener('resize', update);
-    const anchor = anchorRef.current;
-    const resizeObserver =
-      anchor && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
-    if (anchor) {
-      resizeObserver?.observe(anchor);
+    if (!onVisibleRangeChange) {
+      return undefined;
     }
-    return () => {
-      window.removeEventListener('resize', update);
-      resizeObserver?.disconnect();
+    const notify = () => {
+      const range = visibleRangeFromVirtualizer(results, columnCount, virtualizer.getVirtualItems());
+      if (range) {
+        onVisibleRangeChange(range);
+      }
     };
-  }, [results.length, rowCount, columnCount]);
+    notify();
+    scrollElement?.addEventListener('scroll', notify, { passive: true });
+    return () => {
+      scrollElement?.removeEventListener('scroll', notify);
+    };
+  }, [columnCount, onVisibleRangeChange, results, scrollElement, virtualItems, virtualizer]);
 
-  // scrollMargin 变化时只重测 DOM 行高；勿调用 virtualizer.measure()，否则会清空
+  // 滚动容器变化时只重测 DOM 行高；勿调用 virtualizer.measure()，否则会清空
   // itemSizeCache 并回退到过小的 estimateSize，导致虚拟行 translateY 重叠。
   useLayoutEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -113,7 +131,7 @@ export function ProwlarrVirtualResultsGrid({
       });
     });
     return () => cancelAnimationFrame(frame);
-  }, [scrollMargin, rowCount, columnCount, results.length, virtualizer]);
+  }, [scrollElement, scrollMargin, rowCount, columnCount, results.length, virtualizer]);
 
   return (
     <div ref={anchorRef} className="prowlarr-results-grid prowlarr-results-grid--virtual">
@@ -121,7 +139,7 @@ export function ProwlarrVirtualResultsGrid({
         className="prowlarr-results-virtual-spacer"
         style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}
       >
-        {virtualizer.getVirtualItems().map((virtualRow) => {
+        {virtualItems.map((virtualRow) => {
           const startIndex = virtualRow.index * columnCount;
           const rowItems = results.slice(startIndex, startIndex + columnCount);
           return (
@@ -138,7 +156,7 @@ export function ProwlarrVirtualResultsGrid({
                 width: '100%',
                 boxSizing: 'border-box',
                 paddingBottom: PROWLARR_ROW_GAP_PX,
-                transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)`,
+                transform: `translateY(${virtualRow.start - scrollMargin}px)`,
                 display: 'grid',
                 gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
                 gap: `${PROWLARR_ROW_GAP_PX}px`

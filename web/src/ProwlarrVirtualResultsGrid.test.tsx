@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react';
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PROWLARR_ROW_GAP_PX } from './prowlarrLayoutConstants';
 import { PROWLARR_ROW_HEIGHT_CACHE_KEY, recordProwlarrRowHeight } from './prowlarrRowHeightCache';
 import { ProwlarrVirtualResultsGrid } from './ProwlarrVirtualResultsGrid';
@@ -30,6 +30,70 @@ describe('ProwlarrVirtualResultsGrid', () => {
     sessionStorage.clear();
   });
 
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  function renderInWorkspace(results: ProwlarrRelease[]) {
+    const workspace = document.createElement('main');
+    workspace.className = 'workspace';
+    Object.assign(workspace.style, {
+      height: '400px',
+      overflowY: 'auto',
+      position: 'relative'
+    });
+    Object.defineProperty(workspace, 'clientHeight', { configurable: true, value: 400 });
+    Object.defineProperty(workspace, 'offsetHeight', { configurable: true, value: 400 });
+    Object.defineProperty(workspace, 'offsetWidth', { configurable: true, value: 800 });
+    Object.defineProperty(workspace, 'scrollHeight', { configurable: true, value: 12000 });
+    document.body.appendChild(workspace);
+
+    const rendered = render(
+      <ProwlarrVirtualResultsGrid
+        results={results}
+        selectedGuids={new Set()}
+        submittedGuids={new Set()}
+        downloadingGuid={null}
+        batchDownloading={false}
+        formatBytes={() => '1 KB'}
+        formatTime={() => '—'}
+        onToggle={noop}
+        onDownload={noop}
+      />,
+      { container: workspace }
+    );
+
+    const grid = workspace.querySelector('.prowlarr-results-grid') as HTMLElement | null;
+    if (grid) {
+      vi.spyOn(grid, 'getBoundingClientRect').mockReturnValue({
+        top: 120,
+        left: 0,
+        right: 800,
+        bottom: 520,
+        width: 800,
+        height: 400,
+        x: 0,
+        y: 120,
+        toJSON: () => ({})
+      } as DOMRect);
+    }
+    vi.spyOn(workspace, 'getBoundingClientRect').mockReturnValue({
+      top: 0,
+      left: 0,
+      right: 800,
+      bottom: 400,
+      width: 800,
+      height: 400,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    } as DOMRect);
+
+    window.dispatchEvent(new Event('resize'));
+
+    return rendered;
+  }
+
   beforeAll(() => {
     Object.defineProperty(window, 'scrollTo', { value: vi.fn(), configurable: true, writable: true });
     Element.prototype.getBoundingClientRect = vi.fn(function (this: Element) {
@@ -49,19 +113,7 @@ describe('ProwlarrVirtualResultsGrid', () => {
 
   it('虚拟行带 data-index、padding-bottom 与 measureElement 引用', () => {
     const results = Array.from({ length: 55 }, (_, index) => makeRelease(index));
-    const { container } = render(
-      <ProwlarrVirtualResultsGrid
-        results={results}
-        selectedGuids={new Set()}
-        submittedGuids={new Set()}
-        downloadingGuid={null}
-        batchDownloading={false}
-        formatBytes={() => '1 KB'}
-        formatTime={() => '—'}
-        onToggle={noop}
-        onDownload={noop}
-      />
-    );
+    const { container } = renderInWorkspace(results);
 
     expect(container.querySelector('.prowlarr-results-grid--virtual')).toBeTruthy();
     const rows = container.querySelectorAll('.prowlarr-results-virtual-row[data-index]');
@@ -75,19 +127,7 @@ describe('ProwlarrVirtualResultsGrid', () => {
   it('estimateSize 使用 session 行高缓存', () => {
     recordProwlarrRowHeight(1, [10], 360);
     const results = Array.from({ length: 55 }, (_, index) => makeRelease(index));
-    render(
-      <ProwlarrVirtualResultsGrid
-        results={results}
-        selectedGuids={new Set()}
-        submittedGuids={new Set()}
-        downloadingGuid={null}
-        batchDownloading={false}
-        formatBytes={() => '1 KB'}
-        formatTime={() => '—'}
-        onToggle={noop}
-        onDownload={noop}
-      />
-    );
+    renderInWorkspace(results);
     expect(sessionStorage.getItem(PROWLARR_ROW_HEIGHT_CACHE_KEY)).toContain('1:40');
   });
 });

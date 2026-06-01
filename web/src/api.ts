@@ -18,6 +18,7 @@ import type {
   ProwlarrRelease,
   ProwlarrBatchDownloadResult,
   ProwlarrSearchHistory,
+  ProwlarrSearchHistoryDetail,
   ProwlarrSearchResult,
   ProwlarrIndexerList,
   ProwlarrSearchType,
@@ -189,6 +190,8 @@ export const api = {
     request<ProwlarrSubmittedGuidsResult>('/api/prowlarr/submitted-guids', { method: 'POST', json: { guids } }),
   prowlarrSearchHistory: (limit = 20) =>
     request<{ items: ProwlarrSearchHistory[] }>(`/api/prowlarr/search-history?limit=${limit}`),
+  getProwlarrSearchHistory: (id: number) =>
+    request<ProwlarrSearchHistoryDetail>(`/api/prowlarr/search-history/${id}`),
   deleteProwlarrSearchHistory: (id: number) =>
     request<{ ok: boolean }>(`/api/prowlarr/search-history/${id}`, { method: 'DELETE' }),
   clearProwlarrSearchHistory: () =>

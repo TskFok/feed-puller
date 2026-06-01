@@ -184,28 +184,44 @@ func (s *Server) handleProwlarrSearchHistory(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *Server) handleProwlarrSearchHistoryByID(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		methodNotAllowed(w)
-		return
-	}
 	id, tail, ok := parseIDTail(r.URL.Path, "/api/prowlarr/search-history/")
 	if !ok || tail != "" || id <= 0 {
 		writeError(w, http.StatusNotFound, "历史记录不存在")
 		return
 	}
-	if err := s.service.DeleteProwlarrSearchHistory(r.Context(), id); err != nil {
-		if errors.Is(err, app.ErrProwlarrNotConfigured) {
-			writeError(w, http.StatusServiceUnavailable, err.Error())
+	switch r.Method {
+	case http.MethodGet:
+		entry, err := s.service.GetProwlarrSearchHistory(r.Context(), id)
+		if err != nil {
+			if errors.Is(err, app.ErrProwlarrNotConfigured) {
+				writeError(w, http.StatusServiceUnavailable, err.Error())
+				return
+			}
+			if store.IsProwlarrSearchHistoryNotFound(err) {
+				writeError(w, http.StatusNotFound, "历史记录不存在")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		if store.IsProwlarrSearchHistoryNotFound(err) {
-			writeError(w, http.StatusNotFound, "历史记录不存在")
+		writeJSON(w, http.StatusOK, entry)
+	case http.MethodDelete:
+		if err := s.service.DeleteProwlarrSearchHistory(r.Context(), id); err != nil {
+			if errors.Is(err, app.ErrProwlarrNotConfigured) {
+				writeError(w, http.StatusServiceUnavailable, err.Error())
+				return
+			}
+			if store.IsProwlarrSearchHistoryNotFound(err) {
+				writeError(w, http.StatusNotFound, "历史记录不存在")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	default:
+		methodNotAllowed(w)
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 func (s *Server) handleProwlarrSubmittedGuids(w http.ResponseWriter, r *http.Request) {

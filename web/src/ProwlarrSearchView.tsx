@@ -7,10 +7,17 @@ import {
   readSessionSubmittedGuids
 } from './prowlarrSubmittedGuids';
 import { useToast } from './Toast';
-import { GLASS_OFFSCREEN_MIN_ITEMS, PROWLARR_VIRTUALIZE_THRESHOLD } from './glassConstants';
+import { PROWLARR_OFFSCREEN_MIN_ITEMS } from './glassConstants';
 import { ProwlarrReleaseCard } from './ProwlarrReleaseCard';
 import { ProwlarrVirtualResultsGrid } from './ProwlarrVirtualResultsGrid';
 import { useOffscreenGlassGrid } from './useOffscreenGlassGrid';
+import {
+  formatProwlarrBrowseProgress,
+  hasBrowsedAllResults,
+  mergeFurthestSeenIndex,
+  type ProwlarrVisibleRange
+} from './prowlarrResultsProgress';
+import { useProwlarrVirtualizeThreshold } from './useProwlarrVirtualizeThreshold';
 import type {
   ProwlarrConfig,
   ProwlarrDownloadInput,
@@ -106,6 +113,7 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
   const [results, setResults] = useState<ProwlarrRelease[]>([]);
   const [resultsSearchType, setResultsSearchType] = useState<ProwlarrSearchType>('movie');
   const [history, setHistory] = useState<ProwlarrSearchHistory[]>([]);
+  const [activeHistoryId, setActiveHistoryId] = useState<number | null>(null);
   const [selectedGuids, setSelectedGuids] = useState<Set<string>>(new Set());
   const [submittedGuids, setSubmittedGuids] = useState<Set<string>>(new Set());
   const [batchSummary, setBatchSummary] = useState<BatchSummary | null>(null);
@@ -113,14 +121,31 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
   const [searching, setSearching] = useState(false);
   const [downloadingGuid, setDownloadingGuid] = useState<string | null>(null);
   const [batchDownloading, setBatchDownloading] = useState(false);
+  const [furthestSeenIndex, setFurthestSeenIndex] = useState(-1);
   const resultsGridRef = useRef<HTMLDivElement>(null);
+  const hasRestoredLatestHistory = useRef(false);
+  const virtualizeThreshold = useProwlarrVirtualizeThreshold();
 
-  const useVirtualGrid = results.length > PROWLARR_VIRTUALIZE_THRESHOLD;
+  const useVirtualGrid = results.length > virtualizeThreshold;
   useOffscreenGlassGrid(
     resultsGridRef,
-    !useVirtualGrid && results.length > GLASS_OFFSCREEN_MIN_ITEMS,
+    !useVirtualGrid && results.length > PROWLARR_OFFSCREEN_MIN_ITEMS,
     [results.length, searching, useVirtualGrid]
   );
+
+  const handleVisibleRangeChange = useCallback((range: ProwlarrVisibleRange) => {
+    setFurthestSeenIndex((current) => mergeFurthestSeenIndex(current, range));
+  }, []);
+
+  useEffect(() => {
+    if (results.length === 0) {
+      setFurthestSeenIndex(-1);
+      return;
+    }
+    if (!useVirtualGrid) {
+      setFurthestSeenIndex(results.length - 1);
+    }
+  }, [results.length, useVirtualGrid]);
 
   const showDownloadSubmittedToast = useCallback(
     (message: string) => {
@@ -155,14 +180,52 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
     });
   }, []);
 
-  const loadHistory = useCallback(async () => {
+  const clearDisplayedSearch = useCallback(() => {
+    setQuery('');
+    setResults([]);
+    setSelectedGuids(new Set());
+    setSubmittedGuids(new Set());
+    setBatchSummary(null);
+    setBatchFailuresExpanded(false);
+    setFurthestSeenIndex(-1);
+  }, []);
+
+  const restoreHistoryEntry = useCallback(async (entry: ProwlarrSearchHistory) => {
+    setActiveHistoryId(entry.id);
+    setQuery(entry.display_query);
+    setSearchType(entry.media_type);
+    setSortBy(entry.sort_by);
+    setSelectedIndexerIds(entry.indexer_ids ?? []);
+    setSelectedGuids(new Set());
+    setBatchSummary(null);
+    setBatchFailuresExpanded(false);
+    setFurthestSeenIndex(-1);
     try {
-      const data = await api.prowlarrSearchHistory();
-      setHistory(data.items ?? []);
+      const detail = await api.getProwlarrSearchHistory(entry.id);
+      const items = detail.results ?? [];
+      setResults(items);
+      setResultsSearchType(entry.media_type);
+      await hydrateSubmittedGuids(items);
     } catch (err) {
       showToast(messageOf(err), 'error');
     }
-  }, [showToast]);
+  }, [hydrateSubmittedGuids, showToast]);
+
+  const loadHistory = useCallback(async (options?: { restoreLatest?: boolean }): Promise<ProwlarrSearchHistory[]> => {
+    try {
+      const data = await api.prowlarrSearchHistory();
+      const items = data.items ?? [];
+      setHistory(items);
+      if (options?.restoreLatest && !hasRestoredLatestHistory.current && items.length > 0) {
+        hasRestoredLatestHistory.current = true;
+        await restoreHistoryEntry(items[0]);
+      }
+      return items;
+    } catch (err) {
+      showToast(messageOf(err), 'error');
+      return [];
+    }
+  }, [restoreHistoryEntry, showToast]);
 
   useEffect(() => {
     api.prowlarrConfig().then((data) => {
@@ -176,7 +239,7 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
     api.prowlarrIndexers()
       .then((data) => setIndexers(data.items ?? []))
       .catch((err) => showToast(messageOf(err), 'error'));
-    void loadHistory();
+    void loadHistory({ restoreLatest: true });
   }, [config?.configured, loadHistory, showToast]);
 
   const searchPlaceholder = useMemo(
@@ -201,13 +264,18 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
     setSelectedGuids(new Set());
     setBatchSummary(null);
     setBatchFailuresExpanded(false);
+    setFurthestSeenIndex(-1);
     try {
       const data = await api.searchProwlarr(trimmed, { type, sort, indexerIds });
       const items = data.items ?? [];
       setResults(items);
       setResultsSearchType(type);
       await hydrateSubmittedGuids(items);
-      await loadHistory();
+      const historyItems = await loadHistory();
+      const matched = historyItems.find(
+        (entry) => entry.display_query === trimmed && entry.media_type === type
+      );
+      setActiveHistoryId(matched?.id ?? null);
       if (items.length === 0) {
         showToast('未找到匹配的 Torrent 结果');
       }
@@ -224,21 +292,17 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
   }
 
   function applyHistory(entry: ProwlarrSearchHistory) {
-    setQuery(entry.display_query);
-    setSearchType(entry.media_type);
-    setSortBy(entry.sort_by);
-    setSelectedIndexerIds(entry.indexer_ids ?? []);
-    void runSearch(entry.display_query, {
-      type: entry.media_type,
-      sort: entry.sort_by,
-      indexerIds: entry.indexer_ids ?? []
-    });
+    void restoreHistoryEntry(entry);
   }
 
   async function removeHistoryEntry(id: number) {
     try {
       await api.deleteProwlarrSearchHistory(id);
       setHistory((current) => current.filter((entry) => entry.id !== id));
+      if (activeHistoryId === id) {
+        setActiveHistoryId(null);
+        clearDisplayedSearch();
+      }
     } catch (err) {
       showToast(messageOf(err), 'error');
     }
@@ -248,6 +312,8 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
     try {
       await api.clearProwlarrSearchHistory();
       setHistory([]);
+      setActiveHistoryId(null);
+      clearDisplayedSearch();
       showToast('搜索历史已清空');
     } catch (err) {
       showToast(messageOf(err), 'error');
@@ -342,6 +408,7 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
   }
 
   const allSelected = results.length > 0 && selectedGuids.size === results.length;
+  const browsedAllResults = hasBrowsedAllResults(furthestSeenIndex, results.length);
 
   if (config && !config.configured) {
     return (
@@ -455,6 +522,10 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
               批量下载
             </button>
           </div>
+          <p className="prowlarr-results-progress muted" role="status">
+            {formatProwlarrBrowseProgress(furthestSeenIndex, results.length)}
+            {browsedAllResults && <span className="prowlarr-results-progress-complete"> · 已浏览全部结果</span>}
+          </p>
           {batchSummary && (
             <div className="prowlarr-batch-summary-wrap">
               <p className="prowlarr-batch-summary" role="status">
@@ -506,6 +577,7 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
             formatTime={formatTime}
             onToggle={toggleResult}
             onDownload={downloadRelease}
+            onVisibleRangeChange={handleVisibleRangeChange}
           />
         ) : (
           <div className="prowlarr-results-grid prowlarr-results-grid--scrollable">

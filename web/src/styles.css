@@ -2079,6 +2079,15 @@ html[data-theme='light'] .feishu-setup-step {
   gap: 10px;
 }
 
+.prowlarr-results-progress {
+  margin: 0;
+  font-size: 13px;
+}
+
+.prowlarr-results-progress-complete {
+  color: var(--glass-primary);
+}
+
 .prowlarr-batch-summary-wrap {
   display: grid;
   gap: 8px;

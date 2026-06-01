@@ -88,6 +88,32 @@ describe('api prowlarr', () => {
     expect(res.items[0].display_query).toBe('Inception');
   });
 
+  it('getProwlarrSearchHistory 请求单条历史及缓存结果', async () => {
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === '/api/prowlarr/search-history/1') {
+        return new Response(
+          JSON.stringify({
+            id: 1,
+            display_query: 'Inception',
+            query: 'inception',
+            media_type: 'movie',
+            sort_by: 'seeders',
+            indexer_ids: [],
+            result_count: 1,
+            searched_at: '2026-01-01T00:00:00Z',
+            results: [{ guid: 'g1', title: 'Inception', protocol: 'torrent' }]
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
+    });
+    const res = await api.getProwlarrSearchHistory(1);
+    expect(res.results).toHaveLength(1);
+    expect(res.results[0].guid).toBe('g1');
+  });
+
   it('batchDownloadProwlarrReleases 批量提交下载', async () => {
     const res = await api.batchDownloadProwlarrReleases([
       { guid: 'g1', title: 'A' },

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -83,6 +84,12 @@ type ProwlarrReleaseFailure struct {
 
 const maxBatchProwlarrDownloads = 50
 
+// ProwlarrSearchHistoryDetail 包含持久化的搜索结果。
+type ProwlarrSearchHistoryDetail struct {
+	store.ProwlarrSearchHistory
+	Results []prowlarr.Release `json:"results"`
+}
+
 func (s *Service) SearchProwlarr(ctx context.Context, req ProwlarrSearchRequest) ([]prowlarr.Release, error) {
 	cfg, err := s.requireProwlarrConfig(ctx)
 	if err != nil {
@@ -118,6 +125,10 @@ func (s *Service) SearchProwlarr(ctx context.Context, req ProwlarrSearchRequest)
 	}
 	releases = prowlarr.FilterTorrentReleases(releases)
 	prowlarr.SortReleases(releases, sortBy)
+	resultsJSON := "[]"
+	if raw, err := json.Marshal(releases); err == nil {
+		resultsJSON = string(raw)
+	}
 	if recordErr := s.store.RecordProwlarrSearchHistory(ctx, store.ProwlarrSearchHistory{
 		DisplayQuery: displayQuery,
 		Query:        normalized,
@@ -125,6 +136,7 @@ func (s *Service) SearchProwlarr(ctx context.Context, req ProwlarrSearchRequest)
 		SortBy:       string(sortBy),
 		IndexerIDs:   indexerIDs,
 		ResultCount:  len(releases),
+		ResultsJSON:  resultsJSON,
 	}); recordErr != nil {
 		s.log.Warn("保存 Prowlarr 搜索历史失败", "error", recordErr)
 	}
@@ -224,6 +236,29 @@ func (s *Service) ListProwlarrSearchHistory(ctx context.Context, limit int) ([]s
 		return nil, err
 	}
 	return s.store.ListProwlarrSearchHistory(ctx, limit)
+}
+
+func (s *Service) GetProwlarrSearchHistory(ctx context.Context, id int64) (ProwlarrSearchHistoryDetail, error) {
+	if _, err := s.requireProwlarrConfig(ctx); err != nil {
+		return ProwlarrSearchHistoryDetail{}, err
+	}
+	entry, err := s.store.GetProwlarrSearchHistoryByID(ctx, id)
+	if err != nil {
+		return ProwlarrSearchHistoryDetail{}, err
+	}
+	results := make([]prowlarr.Release, 0)
+	if raw := strings.TrimSpace(entry.ResultsJSON); raw != "" && raw != "null" {
+		if err := json.Unmarshal([]byte(raw), &results); err != nil {
+			return ProwlarrSearchHistoryDetail{}, fmt.Errorf("解析搜索历史结果失败: %w", err)
+		}
+	}
+	if results == nil {
+		results = []prowlarr.Release{}
+	}
+	return ProwlarrSearchHistoryDetail{
+		ProwlarrSearchHistory: entry,
+		Results:               results,
+	}, nil
 }
 
 func (s *Service) DeleteProwlarrSearchHistory(ctx context.Context, id int64) error {

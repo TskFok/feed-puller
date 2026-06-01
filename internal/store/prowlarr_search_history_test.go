@@ -31,6 +31,7 @@ func TestRecordProwlarrSearchHistory_Upsert(t *testing.T) {
 		SortBy:       "seeders",
 		IndexerIDs:   []int64{1, 2},
 		ResultCount:  3,
+		ResultsJSON:  `[{"guid":"g1","title":"Inception","protocol":"torrent"}]`,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -62,6 +63,31 @@ func TestListProwlarrSearchHistory(t *testing.T) {
 	}
 	if len(items) != 1 || items[0].DisplayQuery != "Inception" {
 		t.Fatalf("unexpected items: %+v", items)
+	}
+}
+
+func TestGetProwlarrSearchHistoryByID(t *testing.T) {
+	t.Parallel()
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	s := New(db)
+	now := time.Now().UTC()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`FROM prowlarr_search_history`)).
+		WithArgs(int64(1)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "display_query", "query", "media_type", "sort_by", "indexer_ids", "result_count", "updated_at", "results",
+		}).AddRow(int64(1), "Inception", "inception", "movie", "seeders", "[]", 1, now, `[{"guid":"g1","title":"Inception","protocol":"torrent"}]`))
+
+	entry, err := s.GetProwlarrSearchHistoryByID(context.Background(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if entry.DisplayQuery != "Inception" || entry.ResultsJSON == "" {
+		t.Fatalf("unexpected entry: %+v", entry)
 	}
 }
 

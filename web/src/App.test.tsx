@@ -2235,6 +2235,39 @@ describe('App', () => {
     expect(screen.queryByRole('heading', { name: '订阅' })).not.toBeInTheDocument();
   });
 
+  it('登录后可折叠侧栏并为工作区留出更多空间', async () => {
+    localStorage.clear();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (isSubscriptionsListPath(path)) {
+          return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
+    expect(document.querySelector('.app-shell--sidebar-collapsed')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '收起侧栏' }));
+    expect(document.querySelector('.app-shell--sidebar-collapsed')).toBeInTheDocument();
+    expect(localStorage.getItem('feed-puller-sidebar-collapsed')).toBe('1');
+
+    fireEvent.click(screen.getByRole('button', { name: '展开侧栏' }));
+    expect(document.querySelector('.app-shell--sidebar-collapsed')).not.toBeInTheDocument();
+    expect(localStorage.getItem('feed-puller-sidebar-collapsed')).toBe('0');
+  });
+
   it('切换标签页时同步 URL hash', async () => {
     window.location.hash = '';
     vi.stubGlobal(

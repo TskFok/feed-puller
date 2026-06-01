@@ -16,7 +16,9 @@ import {
   Copy,
   SquarePen,
   Trash2,
-  X
+  X,
+  PanelLeftClose,
+  PanelLeft
 } from 'lucide-react';
 import { PaginationBar } from './ListPagination';
 import { ToastProvider, useToast } from './Toast';
@@ -30,6 +32,7 @@ import { ProwlarrSearchView } from './ProwlarrSearchView';
 import { AnimatedModal } from './AnimatedModal';
 import { FeishuLoginSetupGuide, FeishuSetupBanner, feishuSetupIncomplete } from './FeishuLoginSetupGuide';
 import { ThemePicker } from './ThemePicker';
+import { useSidebarCollapsed } from './sidebarLayout';
 import { GLASS_OFFSCREEN_MIN_ITEMS } from './glassConstants';
 import { useOffscreenGlassSurface } from './useOffscreenGlassSurface';
 import type {
@@ -285,6 +288,7 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
   const [tab, setTab] = useState<Tab>(() => readTabFromLocation());
   const [authOptions, setAuthOptions] = useState<AuthOptions | null>(null);
   const { showToast } = useToast();
+  const { collapsed: sidebarCollapsed, toggleCollapsed: toggleSidebarCollapsed } = useSidebarCollapsed();
 
   const selectTab = useCallback((next: Tab) => {
     setTab(next);
@@ -310,13 +314,26 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
   }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <Rss size={22} aria-hidden="true" />
-          <span>feed-puller</span>
+    <div className={sidebarCollapsed ? 'app-shell app-shell--sidebar-collapsed' : 'app-shell'}>
+      <aside className={sidebarCollapsed ? 'sidebar sidebar--collapsed' : 'sidebar'}>
+        <div className="sidebar-header">
+          <div className="brand">
+            <Rss size={22} aria-hidden="true" />
+            <span className="brand-label">feed-puller</span>
+          </div>
+          <button
+            type="button"
+            className="ghost sidebar-toggle"
+            aria-expanded={!sidebarCollapsed}
+            aria-controls="app-sidebar-nav"
+            aria-label={sidebarCollapsed ? '展开侧栏' : '收起侧栏'}
+            title={sidebarCollapsed ? '展开侧栏' : '收起侧栏'}
+            onClick={toggleSidebarCollapsed}
+          >
+            {sidebarCollapsed ? <PanelLeft size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}
+          </button>
         </div>
-        <nav className="nav" aria-label="主导航">
+        <nav id="app-sidebar-nav" className="nav" aria-label="主导航">
           <NavButton tab="subscriptions" active={tab} setTab={selectTab} icon={<Rss size={18} />} label="订阅" />
           <NavButton tab="prowlarr" active={tab} setTab={selectTab} icon={<Search size={18} />} label="Prowlarr 搜索" />
           <NavButton tab="active" active={tab} setTab={selectTab} icon={<Loader2 size={18} />} label="下载中" />
@@ -325,10 +342,10 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
           <NavButton tab="settings" active={tab} setTab={selectTab} icon={<Settings size={18} />} label="设置" />
         </nav>
         <div className="account">
-          <span>{user.email}</span>
-          <button className="ghost" onClick={logout}>
+          <span className="account-email">{user.email}</span>
+          <button type="button" className="ghost account-logout" aria-label="退出" title="退出" onClick={logout}>
             <LogOut size={16} aria-hidden="true" />
-            退出
+            <span className="logout-label">退出</span>
           </button>
         </div>
       </aside>
@@ -353,9 +370,15 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
 
 function NavButton({ tab, active, setTab, icon, label }: { tab: Tab; active: Tab; setTab: (tab: Tab) => void; icon: JSX.Element; label: string }) {
   return (
-    <button type="button" className={active === tab ? 'nav-button active' : 'nav-button'} onClick={() => setTab(tab)}>
+    <button
+      type="button"
+      className={active === tab ? 'nav-button active' : 'nav-button'}
+      aria-label={label}
+      title={label}
+      onClick={() => setTab(tab)}
+    >
       {icon}
-      {label}
+      <span className="nav-button-label">{label}</span>
     </button>
   );
 }

@@ -1853,6 +1853,12 @@ html[data-theme='light'] .feishu-setup-step {
   align-items: stretch;
 }
 
+/* 虚拟网格由 TanStack Virtual 管理可见性；关闭 content-visibility 保证行高测量准确 */
+.prowlarr-results-grid--virtual .prowlarr-release-card {
+  content-visibility: visible;
+  contain-intrinsic-size: unset;
+}
+
 /* 非虚拟长列表：关闭 content-visibility，避免滚动时占位高度偏差导致叠层 */
 .prowlarr-results-grid--scrollable .prowlarr-release-card {
   content-visibility: visible;
@@ -1890,7 +1896,7 @@ html[data-theme='light'] .feishu-setup-step {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   box-shadow: var(--glass-shadow), var(--glass-shadow-inset);
   content-visibility: auto;
-  contain-intrinsic-size: auto var(--prowlarr-card-intrinsic-height, 280px);
+  contain-intrinsic-size: auto var(--prowlarr-card-intrinsic-height, 301px);
   transition:
     transform var(--motion-fast) var(--motion-ease-out),
     box-shadow var(--motion-fast) ease,

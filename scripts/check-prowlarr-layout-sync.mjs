@@ -12,8 +12,8 @@ const constants = readFileSync(join(root, 'web/src/prowlarrLayoutConstants.ts'),
 
 const EXPECTED = {
   rowGap: 14,
-  cardIntrinsic: 280,
-  rowEstimate: 248,
+  cardIntrinsic: 301,
+  rowEstimate: 301,
   virtualThreshold: 30
 };
 

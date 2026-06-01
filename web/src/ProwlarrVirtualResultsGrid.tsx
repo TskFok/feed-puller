@@ -100,9 +100,20 @@ export function ProwlarrVirtualResultsGrid({
     };
   }, [results.length, rowCount, columnCount]);
 
+  // scrollMargin 变化时只重测 DOM 行高；勿调用 virtualizer.measure()，否则会清空
+  // itemSizeCache 并回退到过小的 estimateSize，导致虚拟行 translateY 重叠。
   useLayoutEffect(() => {
-    virtualizer.measure();
-  }, [scrollMargin, rowCount, columnCount, results.length]);
+    const frame = requestAnimationFrame(() => {
+      const root = anchorRef.current;
+      if (!root) {
+        return;
+      }
+      root.querySelectorAll<HTMLDivElement>('.prowlarr-results-virtual-row[data-index]').forEach((node) => {
+        virtualizer.measureElement(node);
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [scrollMargin, rowCount, columnCount, results.length, virtualizer]);
 
   return (
     <div ref={anchorRef} className="prowlarr-results-grid prowlarr-results-grid--virtual">

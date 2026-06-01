@@ -508,7 +508,7 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
             onDownload={downloadRelease}
           />
         ) : (
-          <div className="prowlarr-results-grid">
+          <div className="prowlarr-results-grid prowlarr-results-grid--scrollable">
             {results.map((release) => (
               <ProwlarrReleaseCard
                 key={release.guid}

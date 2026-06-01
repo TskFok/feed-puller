@@ -1,6 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { mockLoggedIn, mockLoggedOut, resetClientState } from './helpers/mock-api';
-import { mockProwlarrConfigured, mockProwlarrSearchResults } from './helpers/glass';
+import {
+  mockProwlarrBatchDownload,
+  mockProwlarrConfigured,
+  mockProwlarrSearchResults,
+  virtualProwlarrRowsOverlap
+} from './helpers/glass';
 
 test.describe('玻璃态无障碍（未登录）', () => {
   test.beforeEach(async ({ page }) => {
@@ -94,6 +99,50 @@ test.describe('玻璃态无障碍与性能（已登录）', () => {
     const renderedCards = await page.locator('.prowlarr-release-card:not(.prowlarr-release-card--skeleton)').count();
     expect(renderedCards).toBeLessThan(55);
     expect(renderedCards).toBeGreaterThan(0);
+  });
+
+  test('Prowlarr 虚拟网格相邻行不重叠', async ({ page }) => {
+    await mockProwlarrConfigured(page);
+    await mockProwlarrSearchResults(page, 55);
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto('/#prowlarr');
+    await page.getByLabel('关键词').fill('test');
+    await page.getByRole('button', { name: '搜索', exact: true }).click();
+    await expect(page.locator('.prowlarr-results-grid--virtual')).toBeVisible();
+
+    expect(await virtualProwlarrRowsOverlap(page)).toBe(false);
+  });
+
+  test('Prowlarr 展开批量失败摘要后虚拟行仍不重叠', async ({ page }) => {
+    await mockProwlarrConfigured(page);
+    await mockProwlarrSearchResults(page, 55);
+    await mockProwlarrBatchDownload(page, {
+      successCount: 1,
+      failures: [{ guid: 'guid-1', error: '该资源正在下载中' }]
+    });
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto('/#prowlarr');
+    await page.getByLabel('关键词').fill('test');
+    await page.getByRole('button', { name: '搜索', exact: true }).click();
+    await expect(page.locator('.prowlarr-results-grid--virtual')).toBeVisible();
+
+    await page.getByRole('checkbox', { name: /全选/ }).check();
+    await page.getByRole('button', { name: '批量下载' }).click();
+    await expect(page.getByText(/本次提交：成功 1 条，失败 1 条/)).toBeVisible();
+    await expect(page.locator('.prowlarr-batch-failures-list')).toBeVisible();
+
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.waitForTimeout(200);
+    expect(await virtualProwlarrRowsOverlap(page)).toBe(false);
+  });
+
+  test('Prowlarr 超过 30 条结果启用虚拟网格', async ({ page }) => {
+    await mockProwlarrConfigured(page);
+    await mockProwlarrSearchResults(page, 35);
+    await page.goto('/#prowlarr');
+    await page.getByLabel('关键词').fill('test');
+    await page.getByRole('button', { name: '搜索', exact: true }).click();
+    await expect(page.locator('.prowlarr-results-grid--virtual')).toBeVisible();
   });
 
   test('Prowlarr 中等结果离屏卡片可标记 glass-surface--offscreen', async ({ page }) => {

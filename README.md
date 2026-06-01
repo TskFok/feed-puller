@@ -124,6 +124,7 @@ docker compose down
 GOOS=darwin GOARCH=arm64 GOCACHE=/private/tmp/feed-puller-gocache-darwin go test ./...
 npm test
 npm run check:contrast   # 浅色玻璃主题 WCAG 对比度 + styles.css 令牌同步
+npm run check:prowlarr-layout   # Prowlarr 布局常量与 styles.css 回退值同步
 npm run test:e2e -- e2e/glass-a11y.spec.ts
 npm run build
 docker build -t feed-puller:local .

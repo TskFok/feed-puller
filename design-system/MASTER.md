@@ -124,6 +124,6 @@ npm run check:contrast
 2. 面板使用 `--glass-panel` + 标准 blur 模式
 3. 浅色正文/次要字对比度 ≥4.5:1（跑 `npm run check:contrast`）
 4. 模态用 `AnimatedModal`；尊重 reduced-motion
-5. 长列表网格：`useOffscreenGlassGrid`；>50 条考虑 `ProwlarrVirtualResultsGrid` 模式
+5. 长列表网格：`useOffscreenGlassGrid`；>30 条使用 `ProwlarrVirtualResultsGrid` + `prowlarrRowHeightCache`
 6. 长表格：`useOffscreenGlassSurface` on `.table-wrap`（≥12 行）
 7. E2E 可测：`html.glass-no-backdrop-test` 模拟无 blur 降级（见 `e2e/glass-a11y.spec.ts`）

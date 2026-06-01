@@ -636,8 +636,8 @@ describe('ProwlarrSearchView', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: '已提交' })).toBeDisabled());
   });
 
-  it('结果超过 50 条时使用虚拟网格', async () => {
-    const manyItems = Array.from({ length: 55 }, (_, index) => ({
+  it('结果超过 30 条时使用虚拟网格', async () => {
+    const manyItems = Array.from({ length: 35 }, (_, index) => ({
       guid: `guid-${index}`,
       title: `Release ${index}`,
       indexer: 'Tracker',
@@ -701,7 +701,78 @@ describe('ProwlarrSearchView', () => {
 
     await waitFor(() => expect(document.querySelector('.prowlarr-results-grid--virtual')).toBeTruthy());
     expect(document.querySelectorAll('.prowlarr-release-card:not(.prowlarr-release-card--skeleton)').length).toBeLessThan(
-      55
+      35
     );
+  });
+
+  it('结果不超过 30 条时使用可滚动网格且关闭 content-visibility', async () => {
+    const items = Array.from({ length: 18 }, (_, index) => ({
+      guid: `guid-${index}`,
+      title: `Release ${index}`,
+      indexer: 'Tracker',
+      indexerId: 1,
+      size: 1024,
+      seeders: 1,
+      leechers: 0,
+      protocol: 'torrent',
+      infoHash: `hash-${index}`
+    }));
+
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === '/api/settings/prowlarr') {
+        return new Response(
+          JSON.stringify({
+            url: 'http://127.0.0.1:9696',
+            api_key: 'k',
+            download_dir: '/movies',
+            tv_download_dir: '/tv',
+            movie_rename_enabled: true,
+            tmdb_api_key: '',
+            indexer_ids: [],
+            configured: true
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (path === '/api/prowlarr/indexers') {
+        return new Response(JSON.stringify({ items: [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      if (path.startsWith('/api/prowlarr/search-history')) {
+        return new Response(JSON.stringify({ items: [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      if (path.startsWith('/api/prowlarr/search?')) {
+        return new Response(JSON.stringify({ items }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      if (path === '/api/prowlarr/submitted-guids') {
+        return submittedGuidsResponse();
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    render(
+      <ToastProvider>
+        <ProwlarrSearchView />
+      </ToastProvider>
+    );
+
+    fireEvent.change(screen.getByLabelText('关键词'), { target: { value: 'mid' } });
+    fireEvent.click(screen.getByRole('button', { name: '搜索' }));
+
+    await waitFor(() => expect(document.querySelector('.prowlarr-results-grid--scrollable')).toBeTruthy());
+    expect(document.querySelector('.prowlarr-results-grid--virtual')).toBeNull();
+    const card = document.querySelector('.prowlarr-release-card');
+    const visibility = card ? getComputedStyle(card).contentVisibility : '';
+    expect(visibility === 'visible' || visibility === '').toBe(true);
+    expect(document.querySelector('.prowlarr-results-grid--scrollable')).toBeTruthy();
   });
 });

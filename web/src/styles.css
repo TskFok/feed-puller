@@ -1838,7 +1838,7 @@ html[data-theme='light'] .feishu-setup-step {
 .prowlarr-results-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 14px;
+  gap: var(--prowlarr-row-gap, 14px);
 }
 
 .prowlarr-results-grid--virtual {
@@ -1847,6 +1847,16 @@ html[data-theme='light'] .feishu-setup-step {
 
 .prowlarr-results-virtual-spacer {
   width: 100%;
+}
+
+.prowlarr-results-virtual-row {
+  align-items: stretch;
+}
+
+/* 非虚拟长列表：关闭 content-visibility，避免滚动时占位高度偏差导致叠层 */
+.prowlarr-results-grid--scrollable .prowlarr-release-card {
+  content-visibility: visible;
+  contain-intrinsic-size: unset;
 }
 
 @media (min-width: 640px) {
@@ -1880,7 +1890,7 @@ html[data-theme='light'] .feishu-setup-step {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   box-shadow: var(--glass-shadow), var(--glass-shadow-inset);
   content-visibility: auto;
-  contain-intrinsic-size: auto 220px;
+  contain-intrinsic-size: auto var(--prowlarr-card-intrinsic-height, 280px);
   transition:
     transform var(--motion-fast) var(--motion-ease-out),
     box-shadow var(--motion-fast) ease,

@@ -316,8 +316,6 @@ func (s *Server) handleProwlarrDownload(w http.ResponseWriter, r *http.Request) 
 			writeError(w, http.StatusServiceUnavailable, err.Error())
 		case errors.Is(err, app.ErrProwlarrReleaseInProgress):
 			writeError(w, http.StatusConflict, err.Error())
-		case errors.Is(err, app.ErrProwlarrReleaseCompleted):
-			writeError(w, http.StatusConflict, err.Error())
 		default:
 			writeError(w, http.StatusBadRequest, err.Error())
 		}

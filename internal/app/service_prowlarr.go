@@ -24,7 +24,6 @@ import (
 var (
 	ErrProwlarrNotConfigured     = errors.New("Prowlarr 未配置")
 	ErrProwlarrReleaseInProgress = errors.New("该资源正在下载中")
-	ErrProwlarrReleaseCompleted  = errors.New("该资源已下载完成")
 )
 
 // ProwlarrSearchRequest 表示 Prowlarr 搜索请求。
@@ -244,10 +243,8 @@ func (s *Service) SubmitProwlarrRelease(ctx context.Context, input ProwlarrRelea
 		return store.Item{}, err
 	}
 	switch item.DownloadStatus {
-	case "submitting", "submitted":
+	case "submitting":
 		return store.Item{}, ErrProwlarrReleaseInProgress
-	case "completed":
-		return store.Item{}, ErrProwlarrReleaseCompleted
 	case "failed", "skipped":
 		if err := s.store.ResetProwlarrItemForRetry(ctx, item.ID); err != nil {
 			return store.Item{}, err

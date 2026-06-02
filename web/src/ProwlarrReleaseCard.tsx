@@ -1,4 +1,4 @@
-import { CheckCircle2, Download, Loader2 } from 'lucide-react';
+import { Download, Loader2 } from 'lucide-react';
 import type { ProwlarrRelease } from './types';
 
 export type ProwlarrReleaseCardProps = {
@@ -70,17 +70,15 @@ export function ProwlarrReleaseCard({
         <button
           type="button"
           className="primary-link"
-          disabled={submitted || downloading || batchDownloading}
+          disabled={downloading || batchDownloading}
           onClick={onDownload}
         >
-          {submitted ? (
-            <CheckCircle2 size={14} aria-hidden />
-          ) : downloading ? (
+          {downloading ? (
             <Loader2 size={14} className="icon-spinning" aria-hidden />
           ) : (
             <Download size={14} aria-hidden />
           )}
-          {submitted ? '已提交' : '下载'}
+          {submitted ? '重新下载' : '下载'}
         </button>
       </div>
     </article>

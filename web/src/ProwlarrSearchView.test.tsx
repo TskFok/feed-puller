@@ -238,7 +238,7 @@ describe('ProwlarrSearchView', () => {
     expect(screen.getByText('Inception 2010')).toBeInTheDocument();
   });
 
-  it('下载成功后标记卡片为已提交且不可重复下载', async () => {
+  it('下载成功后标记卡片为已提交且仍可重复下载', async () => {
     let downloadCalls = 0;
     vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const path = String(input);
@@ -316,11 +316,11 @@ describe('ProwlarrSearchView', () => {
     fireEvent.click(downloadButton);
 
     await waitFor(() => expect(screen.getByRole('article')).toHaveClass('prowlarr-release-card--submitted'));
-    expect(screen.getByRole('button', { name: '已提交' })).toBeDisabled();
-    expect(screen.getAllByText('已提交')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: '重新下载' })).toBeEnabled();
+    expect(screen.getByText('已提交')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '已提交' }));
-    expect(downloadCalls).toBe(1);
+    fireEvent.click(screen.getByRole('button', { name: '重新下载' }));
+    await waitFor(() => expect(downloadCalls).toBe(2));
   });
 
   it('下载成功 Toast 可跳转查看进度', async () => {
@@ -494,7 +494,7 @@ describe('ProwlarrSearchView', () => {
     await waitFor(() => expect(screen.getByText('本次提交：成功 1 条，失败 1 条')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: '收起失败原因' })).toBeInTheDocument();
     expect(screen.getByText('该资源正在下载中')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '已提交' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '重新下载' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '下载' })).toBeInTheDocument();
   });
 
@@ -564,7 +564,86 @@ describe('ProwlarrSearchView', () => {
     fireEvent.click(screen.getByRole('button', { name: '搜索' }));
 
     await waitFor(() => expect(screen.getByRole('article')).toHaveClass('prowlarr-release-card--submitted'));
-    expect(screen.getByRole('button', { name: '已提交' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '重新下载' })).toBeEnabled();
+  });
+
+  it('后端恢复已提交状态后仍可再次下载', async () => {
+    let downloadCalls = 0;
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path === '/api/settings/prowlarr') {
+        return new Response(
+          JSON.stringify({
+            url: 'http://127.0.0.1:9696',
+            api_key: 'k',
+            download_dir: '/movies',
+            tv_download_dir: '/tv',
+            movie_rename_enabled: true,
+            tmdb_api_key: '',
+            indexer_ids: [],
+            configured: true
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (path === '/api/prowlarr/indexers') {
+        return new Response(JSON.stringify({ items: [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      if (path.startsWith('/api/prowlarr/search-history')) {
+        return new Response(JSON.stringify({ items: [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      if (path.startsWith('/api/prowlarr/search?')) {
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                guid: 'movie-guid',
+                title: 'Inception 2010',
+                indexer: 'Tracker',
+                indexerId: 1,
+                size: 1024,
+                seeders: 5,
+                leechers: 0,
+                protocol: 'torrent',
+                infoHash: 'abc'
+              }
+            ]
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (path === '/api/prowlarr/submitted-guids' && init?.method === 'POST') {
+        return submittedGuidsResponse(['movie-guid']);
+      }
+      if (path === '/api/prowlarr/download' && init?.method === 'POST') {
+        downloadCalls += 1;
+        return new Response(JSON.stringify({ id: 1, title: 'Inception 2010', download_status: 'submitted' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
+    });
+
+    render(
+      <ToastProvider>
+        <ProwlarrSearchView />
+      </ToastProvider>
+    );
+
+    fireEvent.change(screen.getByLabelText('关键词'), { target: { value: 'Inception' } });
+    fireEvent.click(screen.getByRole('button', { name: '搜索' }));
+
+    await waitFor(() => expect(screen.getByRole('article')).toHaveClass('prowlarr-release-card--submitted'));
+    fireEvent.click(screen.getByRole('button', { name: '重新下载' }));
+
+    await waitFor(() => expect(downloadCalls).toBe(1));
   });
 
   it('sessionStorage 中的已提交 guid 会在搜索后合并展示', async () => {
@@ -633,7 +712,7 @@ describe('ProwlarrSearchView', () => {
     fireEvent.change(screen.getByLabelText('关键词'), { target: { value: 'Inception' } });
     fireEvent.click(screen.getByRole('button', { name: '搜索' }));
 
-    await waitFor(() => expect(screen.getByRole('button', { name: '已提交' })).toBeDisabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: '重新下载' })).toBeEnabled());
   });
 
   it('结果超过 30 条时使用虚拟网格', async () => {

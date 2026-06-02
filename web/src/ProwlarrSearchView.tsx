@@ -347,7 +347,6 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
   }
 
   async function downloadRelease(release: ProwlarrRelease) {
-    if (submittedGuids.has(release.guid)) return;
     setDownloadingGuid(release.guid);
     try {
       await api.downloadProwlarrRelease(releaseToDownloadInput(release, resultsSearchType));

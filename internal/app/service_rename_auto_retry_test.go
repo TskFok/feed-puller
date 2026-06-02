@@ -94,6 +94,7 @@ func TestProcessDueRenameRetries_Success(t *testing.T) {
 	expectAIConfigQueries(mock, ai.URL, now)
 
 	target := filepath.Join(dir, "番剧 第02话 S01E02.mp4")
+	expectRenameHistoryInsert(mock)
 	mock.ExpectExec(regexp.QuoteMeta(`UPDATE download_tasks SET final_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).
 		WithArgs(target, int64(9)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -145,6 +146,7 @@ func TestProcessDueRenameRetries_ExhaustedNotifiesFeishu(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM ai_configs ORDER BY id DESC`)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "base_url", "model", "api_key", "created_at", "updated_at"}))
 
+	expectRenameHistoryInsert(mock)
 	mock.ExpectExec(regexp.QuoteMeta(`UPDATE rename_retries`)).
 		WithArgs(3, sqlmock.AnyArg(), store.RenameRetryStatusAbandoned, int64(1)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -207,4 +209,10 @@ func expectAIConfigQueries(mock sqlmock.Sqlmock, aiURL string, now time.Time) {
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM ai_configs ORDER BY id DESC`)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "base_url", "model", "api_key", "created_at", "updated_at"}).
 			AddRow(1, "test", aiURL+"/v1", "gpt-test", "sk-test", now, now))
+}
+
+func expectRenameHistoryInsert(mock sqlmock.Sqlmock) {
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO rename_history (subscription_id, original_filename, original_path, renamed_path, ai_prompt, ai_response, status, error)`)).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
 }

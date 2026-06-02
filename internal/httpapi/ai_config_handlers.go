@@ -9,6 +9,32 @@ import (
 	"feed-puller/internal/store"
 )
 
+func (s *Server) handleAIConfigModels(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w)
+		return
+	}
+	var input struct {
+		URL    string `json:"url"`
+		APIKey string `json:"api_key"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "请求体无效")
+		return
+	}
+	baseURL := strings.TrimSpace(input.URL)
+	if baseURL == "" {
+		writeError(w, http.StatusBadRequest, "API 地址不能为空")
+		return
+	}
+	models, err := aiclient.ListModels(r.Context(), baseURL, strings.TrimSpace(input.APIKey))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"models": models})
+}
+
 func (s *Server) handleAIConfigs(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -57,6 +83,24 @@ func (s *Server) handleAIConfigByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "API 连通正常"})
+		return
+	}
+	if tail == "models" {
+		if r.Method != http.MethodPost {
+			methodNotAllowed(w)
+			return
+		}
+		cfg, err := s.store.GetAIConfig(r.Context(), id)
+		if err != nil {
+			writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		models, err := aiclient.ListModels(r.Context(), cfg.BaseURL, cfg.APIKey)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"models": models})
 		return
 	}
 	if tail != "" {

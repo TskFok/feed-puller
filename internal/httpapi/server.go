@@ -45,6 +45,7 @@ func New(cfg config.Config, store *store.Store, service *app.Service, log *slog.
 	mux.HandleFunc("/api/downloads/aria2-hook", server.handleAria2Hook)
 	mux.HandleFunc("/api/downloads", server.requireAuth(server.handleDownloads))
 	mux.HandleFunc("/api/downloads/", server.requireAuth(server.handleDownloadByID))
+	mux.HandleFunc("/api/ai-configs/models", server.requireAuth(server.handleAIConfigModels))
 	mux.HandleFunc("/api/ai-configs", server.requireAuth(server.handleAIConfigs))
 	mux.HandleFunc("/api/ai-configs/", server.requireAuth(server.handleAIConfigByID))
 	mux.HandleFunc("/api/settings/proxy", server.requireAuth(server.handleProxySetting))
@@ -62,6 +63,7 @@ func New(cfg config.Config, store *store.Store, service *app.Service, log *slog.
 	mux.HandleFunc("/api/settings/feishu-notify", server.requireAuth(server.handleFeishuNotifySetting))
 	mux.HandleFunc("/api/settings/feishu-notify/test", server.requireAuth(server.handleFeishuNotifyTest))
 	mux.HandleFunc("/api/feishu-notify/history", server.requireAuth(server.handleFeishuNotifyHistory))
+	mux.HandleFunc("/api/rename-history", server.requireAuth(server.handleRenameHistory))
 	mux.HandleFunc("/", server.handleStatic)
 	server.handler = server.withOptionalUser(mux)
 	return server

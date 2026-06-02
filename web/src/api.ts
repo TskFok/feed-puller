@@ -2,6 +2,7 @@ import { DEFAULT_PAGE_SIZE } from './listPaging';
 import type {
   ActiveDownload,
   AIConfig,
+  AIConfigModelsResult,
   AIConfigTestResult,
   CompletedDownload,
   RenameDownloadResult,
@@ -27,6 +28,7 @@ import type {
   ProwlarrTestResult,
   FeishuNotifyConfig,
   FeishuNotifyHistory,
+  RenameHistory,
   Subscription,
   User,
   AuthOptions
@@ -151,6 +153,12 @@ export const api = {
       page,
       pageSize
     ),
+  renameHistory: async (page = 1, pageSize: PageSizeOption = DEFAULT_PAGE_SIZE): Promise<PaginatedResult<RenameHistory>> =>
+    normalizePaginated<RenameHistory>(
+      await request<PaginatedResult<RenameHistory>>(`/api/rename-history?${pageQuery(page, pageSize)}`),
+      page,
+      pageSize
+    ),
   aiConfigs: async (page = 1, pageSize: PageSizeOption = DEFAULT_PAGE_SIZE): Promise<PaginatedResult<AIConfig>> =>
     normalizePaginated<AIConfig>(
       await request<PaginatedResult<AIConfig>>(`/api/ai-configs?${pageQuery(page, pageSize)}`),
@@ -163,6 +171,10 @@ export const api = {
     request<AIConfig>(`/api/ai-configs/${id}`, { method: 'PUT', json: payload }),
   deleteAIConfig: (id: number) => request<{ ok: boolean }>(`/api/ai-configs/${id}`, { method: 'DELETE' }),
   testAIConfig: (id: number) => request<AIConfigTestResult>(`/api/ai-configs/${id}/test`, { method: 'POST' }),
+  fetchAIConfigModels: (payload: Pick<AIConfig, 'url' | 'api_key'>) =>
+    request<AIConfigModelsResult>('/api/ai-configs/models', { method: 'POST', json: payload }),
+  fetchAIConfigModelsById: (id: number) =>
+    request<AIConfigModelsResult>(`/api/ai-configs/${id}/models`, { method: 'POST' }),
   prowlarrConfig: () => request<ProwlarrConfig>('/api/settings/prowlarr'),
   saveProwlarrConfig: (payload: Pick<ProwlarrConfig, 'url' | 'api_key' | 'download_dir' | 'tv_download_dir' | 'movie_rename_enabled' | 'tmdb_api_key' | 'indexer_ids'>) =>
     request<ProwlarrConfig>('/api/settings/prowlarr', { method: 'PUT', json: payload }),

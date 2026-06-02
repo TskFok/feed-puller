@@ -273,6 +273,8 @@ func TestMaybeRenameDownloadFile_WithLocalFallback(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "base_url", "model", "api_key", "created_at", "updated_at"}).
 			AddRow(1, "test", ai.URL+"/v1", "gpt-test", "sk-test", now, now))
 
+	expectRenameHistoryInsert(mock)
+
 	sub := store.Subscription{
 		ID:               2,
 		AIRenameEnabled:  true,

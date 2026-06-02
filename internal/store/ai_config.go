@@ -24,9 +24,6 @@ func validateAIConfig(cfg AIConfig) error {
 	if strings.TrimSpace(cfg.Model) == "" {
 		return fmt.Errorf("模型不能为空")
 	}
-	if strings.TrimSpace(cfg.APIKey) == "" {
-		return fmt.Errorf("API Key 不能为空")
-	}
 	return nil
 }
 

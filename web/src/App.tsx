@@ -36,6 +36,15 @@ import { ThemePicker } from './ThemePicker';
 import { useSidebarCollapsed } from './sidebarLayout';
 import { GLASS_OFFSCREEN_MIN_ITEMS } from './glassConstants';
 import { useOffscreenGlassSurface } from './useOffscreenGlassSurface';
+import {
+  AI_PROVIDER_PRESETS,
+  applyAIProviderPreset,
+  findAIProviderPreset,
+  inferAIProviderId,
+  isAIConfigApiKeyRequired,
+  type AIConfigDraft,
+  type AIProviderPreset
+} from './ai-provider-presets';
 import type {
   ActiveDownload,
   AIConfig,
@@ -47,12 +56,13 @@ import type {
   PaginatedResult,
   User,
   AuthOptions,
-  FeishuNotifyHistory
+  FeishuNotifyHistory,
+  RenameHistory
 } from './types';
 
-type Tab = 'subscriptions' | 'prowlarr' | 'active' | 'completed' | 'notify-history' | 'ai-config' | 'settings';
+type Tab = 'subscriptions' | 'prowlarr' | 'active' | 'completed' | 'notify-history' | 'rename-history' | 'ai-config' | 'settings';
 
-const APP_TABS: Tab[] = ['subscriptions', 'prowlarr', 'active', 'completed', 'notify-history', 'ai-config', 'settings'];
+const APP_TABS: Tab[] = ['subscriptions', 'prowlarr', 'active', 'completed', 'notify-history', 'rename-history', 'ai-config', 'settings'];
 
 function tabFromHash(hash: string): Tab {
   const id = hash.replace(/^#/, '').trim();
@@ -341,6 +351,7 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
           <NavButton tab="active" active={tab} setTab={selectTab} icon={<Loader2 size={18} />} label="下载中" />
           <NavButton tab="completed" active={tab} setTab={selectTab} icon={<CheckCircle2 size={18} />} label="下载完成" />
           <NavButton tab="notify-history" active={tab} setTab={selectTab} icon={<Bell size={18} />} label="通知历史" />
+          <NavButton tab="rename-history" active={tab} setTab={selectTab} icon={<Sparkles size={18} />} label="重命名记录" />
           <NavButton tab="ai-config" active={tab} setTab={selectTab} icon={<Bot size={18} />} label="AI 配置" />
           <NavButton tab="settings" active={tab} setTab={selectTab} icon={<Settings size={18} />} label="设置" />
         </nav>
@@ -362,6 +373,7 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
           {tab === 'active' && <ActiveDownloadsView />}
           {tab === 'completed' && <CompletedDownloadsView />}
           {tab === 'notify-history' && <NotifyHistoryView />}
+          {tab === 'rename-history' && <RenameHistoryView />}
           {tab === 'ai-config' && <AIConfigView />}
           {tab === 'settings' && (
             <SettingsView user={user} setUser={setUser} authOptions={authOptions} onCopyEnv={() => showToast('已复制环境变量配置')} />
@@ -1795,12 +1807,26 @@ function SubscriptionsView({ onGoActive }: { onGoActive?: () => void }) {
 }
 
 
-const emptyAIConfig: Omit<AIConfig, 'id'> = {
+const emptyAIConfig: AIConfigDraft = {
   name: '',
   url: '',
   model: '',
   api_key: ''
 };
+
+function createAIConfigDraft(): AIConfigDraft {
+  const openai = findAIProviderPreset('openai');
+  return openai ? applyAIProviderPreset({ ...emptyAIConfig }, openai) : { ...emptyAIConfig };
+}
+
+function editAIConfigDraft(existing: AIConfig): AIConfigDraft {
+  return {
+    name: existing.name,
+    url: existing.url,
+    model: existing.model,
+    api_key: existing.api_key
+  };
+}
 
 type AIConfigModalTarget = { mode: 'create' } | { mode: 'edit'; configId: number };
 
@@ -1819,17 +1845,70 @@ function AIConfigModal({
   const existing = target.mode === 'edit' ? configs.find((c) => c.id === target.configId) : undefined;
   const titleId = useId();
   const firstFieldRef = useRef<HTMLInputElement>(null);
-  const [draft, setDraft] = useState<Omit<AIConfig, 'id'>>(() => {
-    if (isCreate || !existing) return { ...emptyAIConfig };
-    return {
-      name: existing.name,
-      url: existing.url,
-      model: existing.model,
-      api_key: existing.api_key
-    };
+  const [draft, setDraft] = useState<AIConfigDraft>(() => {
+    if (isCreate || !existing) return createAIConfigDraft();
+    return editAIConfigDraft(existing);
+  });
+  const [providerId, setProviderId] = useState(() => {
+    if (isCreate || !existing) return 'openai';
+    return inferAIProviderId(editAIConfigDraft(existing));
   });
   const [saving, setSaving] = useState(false);
+  const [fetchingModels, setFetchingModels] = useState(false);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [manualModelInput, setManualModelInput] = useState(false);
   const { showToast } = useToast();
+  const activePreset = findAIProviderPreset(providerId);
+  const apiKeyRequired = isAIConfigApiKeyRequired(providerId);
+  const canFetchModels =
+    draft.url.trim().length > 0 && (draft.api_key.trim().length > 0 || !apiKeyRequired);
+  const showModelSelect = availableModels.length > 0 && !manualModelInput;
+
+  function applyLoadedModels(models: string[]) {
+    setAvailableModels(models);
+    if (models.length === 0) {
+      setManualModelInput(true);
+      return;
+    }
+    setManualModelInput(false);
+    setDraft((current) => ({
+      ...current,
+      model: models.includes(current.model) ? current.model : models[0]!
+    }));
+  }
+
+  function handleSelectPreset(preset: AIProviderPreset) {
+    setProviderId(preset.id);
+    setDraft((current) => applyAIProviderPreset(current, preset));
+    setAvailableModels([]);
+    setManualModelInput(false);
+  }
+
+  function markCustomProvider() {
+    setProviderId('custom');
+  }
+
+  async function handleFetchModels() {
+    if (fetchingModels || !canFetchModels) {
+      return;
+    }
+    setFetchingModels(true);
+    try {
+      const result = await api.fetchAIConfigModels({
+        url: draft.url.trim(),
+        api_key: draft.api_key.trim()
+      });
+      applyLoadedModels(result.models);
+      showToast(
+        result.models.length > 0 ? `已加载 ${result.models.length} 个模型` : '未获取到模型列表',
+        'success'
+      );
+    } catch (err) {
+      showToast(messageOf(err), 'error');
+    } finally {
+      setFetchingModels(false);
+    }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -1859,13 +1938,33 @@ function AIConfigModal({
             <h2 id={titleId} className="modal-title">
               {isCreate ? '新增 AI 配置' : '编辑 AI 配置'}
             </h2>
-            <p className="muted modal-subtitle">填写 OpenAI 兼容接口的地址、模型名称与 API Key。</p>
+            <p className="muted modal-subtitle">选择 Provider 预设或自定义 OpenAI 兼容接口，填写模型名称与 API Key。</p>
           </div>
           <button type="button" className="modal-close ghost" aria-label="关闭" onClick={onClose}>
             <X size={20} aria-hidden="true" />
           </button>
         </div>
         <form className="subscription-edit-form" onSubmit={submit}>
+          <fieldset className="modal-fieldset modal-full">
+            <legend>
+              <span className="modal-section-title">Provider 预设</span>
+            </legend>
+            <div className="ai-provider-preset-grid">
+              {AI_PROVIDER_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  className={`ai-provider-preset${providerId === preset.id ? ' is-active' : ''}`}
+                  aria-label={preset.label}
+                  aria-pressed={providerId === preset.id}
+                  onClick={() => handleSelectPreset(preset)}
+                >
+                  <span className="ai-provider-preset-label">{preset.label}</span>
+                  <span className="ai-provider-preset-desc">{preset.description}</span>
+                </button>
+              ))}
+            </div>
+          </fieldset>
           <label className="modal-full">
             模型名称
             <input
@@ -1880,30 +1979,97 @@ function AIConfigModal({
             API 地址
             <input
               value={draft.url}
-              onChange={(event) => setDraft({ ...draft, url: event.target.value })}
+              onChange={(event) => {
+                markCustomProvider();
+                setAvailableModels([]);
+                setDraft({ ...draft, url: event.target.value });
+              }}
               placeholder="https://api.openai.com/v1"
               required
               spellCheck={false}
             />
           </label>
+          <div className="modal-full modal-model-field">
+            <div className="modal-model-field-header">
+              <span className="modal-model-field-label">模型</span>
+              <div className="modal-model-field-actions">
+                {showModelSelect ? (
+                  <button
+                    type="button"
+                    className="ghost modal-model-action"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      setManualModelInput(true);
+                    }}
+                  >
+                    手动输入
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="ghost modal-model-action"
+                  disabled={!canFetchModels || fetchingModels || saving}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    void handleFetchModels();
+                  }}
+                >
+                  {fetchingModels ? (
+                    <>
+                      <Loader2 size={14} className="icon-spinning" aria-hidden="true" />
+                      加载中
+                    </>
+                  ) : (
+                    '刷新模型'
+                  )}
+                </button>
+              </div>
+            </div>
+            {showModelSelect ? (
+              <select
+                className="form-select modal-model-select"
+                aria-label="模型"
+                value={draft.model}
+                onChange={(event) => {
+                  markCustomProvider();
+                  setDraft({ ...draft, model: event.target.value });
+                }}
+                required
+              >
+                {availableModels.map((model) => (
+                  <option key={model} value={model}>
+                    {model}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                aria-label="模型"
+                value={draft.model}
+                onChange={(event) => {
+                  markCustomProvider();
+                  setDraft({ ...draft, model: event.target.value });
+                }}
+                placeholder="gpt-4o-mini"
+                required
+                spellCheck={false}
+              />
+            )}
+            <p className="modal-hint modal-model-hint">
+              {availableModels.length > 0
+                ? `已从 /v1/models 加载 ${availableModels.length} 个模型。`
+                : '填写 API 地址与 Key 后，可点击「刷新模型」从服务端拉取列表。'}
+            </p>
+          </div>
           <label className="modal-full">
-            模型
-            <input
-              value={draft.model}
-              onChange={(event) => setDraft({ ...draft, model: event.target.value })}
-              placeholder="gpt-4o-mini"
-              required
-              spellCheck={false}
-            />
-          </label>
-          <label className="modal-full">
-            API Key
+            API Key{apiKeyRequired ? '' : '（可选）'}
             <input
               value={draft.api_key}
               onChange={(event) => setDraft({ ...draft, api_key: event.target.value })}
               type="password"
               autoComplete="off"
-              required
+              placeholder={activePreset?.apiKeyPlaceholder ?? 'sk-...'}
+              required={apiKeyRequired}
             />
           </label>
           <div className="modal-actions">
@@ -1940,6 +2106,19 @@ function notifySourceLabel(value: FeishuNotifyHistory['source']) {
       return '测试';
     default:
       return 'RSS';
+  }
+}
+
+function renameHistoryStatusLabel(value: RenameHistory['status']) {
+  switch (value) {
+    case 'success':
+      return '成功';
+    case 'skipped':
+      return '已跳过';
+    case 'failed':
+      return '失败';
+    default:
+      return value;
   }
 }
 
@@ -2011,6 +2190,86 @@ function NotifyHistoryView() {
                   </tr>
                 ))}
                 {rows.length === 0 && !loading && <EmptyRow columns={9} text="暂无通知记录" />}
+              </tbody>
+            </table>
+          </div>
+          <PaginationBar
+            page={pagination.page}
+            pageSize={pagination.pageSize}
+            totalPages={pagination.totalPages}
+            totalItems={pagination.total}
+            rangeStart={pagination.rangeStart}
+            rangeEnd={pagination.rangeEnd}
+            onPageChange={pagination.setPage}
+            onPageSizeChange={pagination.setPageSize}
+          />
+        </>
+      )}
+    </section>
+  );
+}
+
+function RenameHistoryView() {
+  const { showToast } = useToast();
+  const loadErrorToastedRef = useRef(false);
+  const listEmptyRef = useRef(true);
+  const loadHistory = useCallback(
+    (page: number, pageSize: PageSizeOption): Promise<PaginatedResult<RenameHistory>> => api.renameHistory(page, pageSize),
+    []
+  );
+  const pagination = useServerPagination<RenameHistory>(loadHistory, {
+    onError: (err) => {
+      if (listEmptyRef.current && !loadErrorToastedRef.current) {
+        showToast(messageOf(err), 'error');
+        loadErrorToastedRef.current = true;
+      }
+    }
+  });
+  const { items: rows, loading, reload } = pagination;
+  listEmptyRef.current = rows.length === 0;
+  const tableRef = useRef<HTMLDivElement>(null);
+  useOffscreenGlassSurface(tableRef, rows.length >= GLASS_OFFSCREEN_MIN_ITEMS, [rows.length]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void reload();
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, [reload]);
+
+  return (
+    <section className="view">
+      <Header title="重命名记录" description="AI 刮削重命名历史，包含提示词、AI 返回值与文件路径。" />
+      {loading && rows.length === 0 ? (
+        <p className="muted">正在加载…</p>
+      ) : (
+        <>
+          <div ref={tableRef} className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>时间</th>
+                  <th>状态</th>
+                  <th>原始文件名</th>
+                  <th>重命名结果</th>
+                  <th>AI 提示词</th>
+                  <th>AI 返回值</th>
+                  <th>错误</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.id}>
+                    <td>{formatTime(row.created_at) || '—'}</td>
+                    <td>{renameHistoryStatusLabel(row.status)}</td>
+                    <td className="break">{row.original_filename}</td>
+                    <td className="break">{row.renamed_path?.trim() || '—'}</td>
+                    <td className="break muted">{row.ai_prompt?.trim() || '—'}</td>
+                    <td className="break muted">{row.ai_response?.trim() || '—'}</td>
+                    <td className="break muted">{row.error?.trim() || '—'}</td>
+                  </tr>
+                ))}
+                {rows.length === 0 && !loading && <EmptyRow columns={7} text="暂无重命名记录" />}
               </tbody>
             </table>
           </div>

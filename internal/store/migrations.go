@@ -142,4 +142,17 @@ var migrations = []string{
 		UNIQUE KEY uniq_rename_retries_task_id (task_id),
 		INDEX idx_rename_retries_due (status, next_retry_at)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+	`CREATE TABLE IF NOT EXISTS rename_history (
+		id BIGINT PRIMARY KEY AUTO_INCREMENT,
+		subscription_id BIGINT NULL,
+		original_filename TEXT NOT NULL,
+		original_path TEXT NOT NULL,
+		renamed_path TEXT NULL,
+		ai_prompt TEXT NOT NULL,
+		ai_response TEXT NULL,
+		status ENUM('success', 'skipped', 'failed') NOT NULL,
+		error TEXT NULL,
+		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		INDEX idx_rename_history_created_at (created_at)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 }

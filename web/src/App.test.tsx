@@ -2149,6 +2149,108 @@ describe('App', () => {
     }
   });
 
+  it('登录后可通过 Provider 预设快速填写 AI 配置', async () => {
+    const createAIConfig = vi.fn(async () => ({
+      id: 1,
+      name: 'DeepSeek',
+      url: 'https://api.deepseek.com/v1',
+      model: 'deepseek-chat',
+      api_key: 'sk-test'
+    }));
+    const savedAIConfigs: Awaited<ReturnType<typeof createAIConfig>>[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (isSubscriptionsListPath(path)) {
+          return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (isAIConfigsListPath(path) && (!init || init.method === undefined)) {
+          return new Response(JSON.stringify({ items: savedAIConfigs, total: savedAIConfigs.length, page: 1, page_size: 30 }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/ai-configs' && init?.method === 'POST') {
+          const created = await createAIConfig();
+          savedAIConfigs.push(created);
+          return new Response(JSON.stringify(created), {
+            status: 201,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'AI 配置' }));
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'AI 配置' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '新增配置' }));
+
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'DeepSeek' }));
+    expect(within(dialog).getByLabelText('API 地址')).toHaveValue('https://api.deepseek.com/v1');
+    expect(within(dialog).getByRole('textbox', { name: '模型' })).toHaveValue('deepseek-chat');
+    fireEvent.change(within(dialog).getByLabelText('API Key'), { target: { value: 'sk-test' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存' }));
+
+    await waitFor(() => expect(createAIConfig).toHaveBeenCalled());
+    expect(await screen.findByText('DeepSeek')).toBeInTheDocument();
+  });
+
+  it('登录后可刷新 AI 模型列表并选择模型', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (isSubscriptionsListPath(path)) {
+          return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (isAIConfigsListPath(path)) {
+          return new Response(JSON.stringify({ items: [], total: 0, page: 1, page_size: 30 }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/ai-configs/models' && init?.method === 'POST') {
+          return new Response(JSON.stringify({ models: ['gpt-4o-mini', 'gpt-4o'] }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'AI 配置' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增配置' }));
+
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('API Key'), { target: { value: 'sk-test' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '刷新模型' }));
+
+    await waitFor(() =>
+      expect(within(dialog).getByRole('combobox', { name: '模型' })).toBeInTheDocument()
+    );
+    expect(within(dialog).getByRole('combobox', { name: '模型' })).toHaveValue('gpt-4o-mini');
+  });
+
   it('登录后可进入 AI 配置并新增一条配置', async () => {
     const createAIConfig = vi.fn(async () => ({
       id: 1,
@@ -2200,7 +2302,7 @@ describe('App', () => {
     fireEvent.change(within(dialog).getByLabelText('API 地址'), {
       target: { value: 'https://api.deepseek.com/v1' }
     });
-    fireEvent.change(within(dialog).getByLabelText('模型'), { target: { value: 'deepseek-chat' } });
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '模型' }), { target: { value: 'deepseek-chat' } });
     fireEvent.change(within(dialog).getByLabelText('API Key'), { target: { value: 'sk-test' } });
     fireEvent.click(within(dialog).getByRole('button', { name: '保存' }));
 

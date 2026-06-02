@@ -32,7 +32,7 @@ func TestConnection(ctx context.Context, baseURL, apiKey, model string) error {
 		return fmt.Errorf("创建请求失败: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(apiKey))
+	setBearerAuth(req, apiKey)
 
 	client := &http.Client{Timeout: testTimeout}
 	resp, err := client.Do(req)
@@ -49,6 +49,14 @@ func TestConnection(ctx context.Context, baseURL, apiKey, model string) error {
 		return fmt.Errorf("API 返回 HTTP %d", resp.StatusCode)
 	}
 	return fmt.Errorf("API 返回 HTTP %d：%s", resp.StatusCode, msg)
+}
+
+func setBearerAuth(req *http.Request, apiKey string) {
+	key := strings.TrimSpace(apiKey)
+	if key == "" {
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+key)
 }
 
 func chatCompletionsURL(baseURL string) (string, error) {

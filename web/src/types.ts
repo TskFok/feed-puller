@@ -44,6 +44,19 @@ export type FeishuNotifyHistory = {
   created_at: string;
 };
 
+export type RenameHistory = {
+  id: number;
+  subscription_id?: number;
+  original_filename: string;
+  original_path: string;
+  renamed_path?: string;
+  ai_prompt: string;
+  ai_response?: string;
+  status: 'success' | 'skipped' | 'failed';
+  error?: string;
+  created_at: string;
+};
+
 export type PaginatedResult<T> = {
   items: T[];
   total: number;
@@ -195,6 +208,10 @@ export type AIConfigTestResult = {
   ok: boolean;
   message?: string;
   error?: string;
+};
+
+export type AIConfigModelsResult = {
+  models: string[];
 };
 
 export type ProwlarrConfig = {

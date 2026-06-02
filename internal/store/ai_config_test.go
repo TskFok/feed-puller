@@ -59,6 +59,40 @@ func TestCreateAIConfig_InsertsRow(t *testing.T) {
 	}
 }
 
+func TestCreateAIConfig_AllowsEmptyAPIKey(t *testing.T) {
+	t.Parallel()
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	now := time.Now().UTC().Truncate(time.Second)
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO ai_configs (name, base_url, model, api_key)`)).
+		WithArgs("Ollama", "http://localhost:11434/v1", "llama3.2", "").
+		WillReturnResult(sqlmock.NewResult(8, 1))
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, name, base_url, model, api_key, created_at, updated_at`)).
+		WithArgs(int64(8)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "base_url", "model", "api_key", "created_at", "updated_at"}).
+			AddRow(8, "Ollama", "http://localhost:11434/v1", "llama3.2", "", now, now))
+
+	s := New(db)
+	cfg, err := s.CreateAIConfig(context.Background(), AIConfig{
+		Name:    "Ollama",
+		BaseURL: "http://localhost:11434/v1",
+		Model:   "llama3.2",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.APIKey != "" {
+		t.Fatalf("expected empty api key, got %q", cfg.APIKey)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestDeleteAIConfig_NotFound(t *testing.T) {
 	t.Parallel()
 	db, mock, err := sqlmock.New()

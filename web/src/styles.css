@@ -1238,6 +1238,91 @@ th {
   grid-column: 1 / -1;
 }
 
+.ai-provider-preset-grid {
+  display: grid;
+  gap: 10px;
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 560px) {
+  .ai-provider-preset-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.ai-provider-preset {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--glass-border-soft);
+  border-radius: 14px;
+  background: var(--glass-surface-raised);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ai-provider-preset:hover {
+  border-color: var(--glass-border);
+  background: var(--glass-surface-hover);
+}
+
+.ai-provider-preset.is-active {
+  border-color: color-mix(in srgb, var(--glass-primary) 55%, var(--glass-border-soft));
+  background: color-mix(in srgb, var(--glass-primary) 12%, var(--glass-surface-raised));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--glass-primary) 25%, transparent);
+}
+
+.ai-provider-preset-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ai-provider-preset-desc {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--glass-text-muted);
+}
+
+.modal-model-field {
+  display: grid;
+  gap: 8px;
+}
+
+.modal-model-field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-model-field-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.modal-model-field-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.modal-model-action {
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.modal-model-select {
+  width: 100%;
+}
+
+.modal-model-hint {
+  margin: 0;
+}
+
 .modal-fieldset-schedule {
   grid-template-columns: minmax(0, 1fr);
   gap: 10px;

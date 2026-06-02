@@ -65,6 +65,16 @@ func (s *Service) renameDownloadFileAt(ctx context.Context, sub store.Subscripti
 	if from == "" {
 		return "", "", false, errEmptyRenamePath
 	}
+	filename := filepath.Base(from)
+	history := store.RenameHistory{
+		SubscriptionID:   sub.ID,
+		OriginalFilename: filename,
+		OriginalPath:     from,
+	}
+	defer func() {
+		s.recordRenameHistory(ctx, history, from, to, skipped, err)
+	}()
+
 	configs, err := s.store.ListAIConfigs(ctx)
 	if err != nil {
 		return from, "", false, err
@@ -74,13 +84,16 @@ func (s *Service) renameDownloadFileAt(ctx context.Context, sub store.Subscripti
 	}
 	cfg := configs[0]
 
-	filename := filepath.Base(from)
 	var aiExtract *rename.AnimeExtract
-	aiInfo, aiErr := aiclient.ExtractAnimeInfo(ctx, cfg.BaseURL, cfg.APIKey, cfg.Model, filename, itemTitle)
-	if aiErr == nil {
+	details, aiErr := aiclient.ExtractAnimeInfoDetailed(ctx, cfg.BaseURL, cfg.APIKey, cfg.Model, filename, itemTitle)
+	if details != nil {
+		history.AIPrompt = details.Prompt
+		history.AIResponse = details.RawResponse
+	}
+	if aiErr == nil && details != nil && details.Info != nil {
 		aiExtract = &rename.AnimeExtract{
-			AnimeName: aiInfo.AnimeName,
-			Episode:   aiInfo.Episode,
+			AnimeName: details.Info.AnimeName,
+			Episode:   details.Info.Episode,
 		}
 	}
 	localEpisode, localOK := rename.DetectEpisodeLocally(filename, itemTitle)
@@ -116,4 +129,27 @@ func (s *Service) renameDownloadFileAt(ctx context.Context, sub store.Subscripti
 		return from, "", false, err
 	}
 	return from, targetPath, false, nil
+}
+
+func (s *Service) recordRenameHistory(ctx context.Context, row store.RenameHistory, from, to string, skipped bool, renameErr error) {
+	if strings.TrimSpace(row.OriginalFilename) == "" {
+		row.OriginalFilename = filepath.Base(strings.TrimSpace(from))
+	}
+	if strings.TrimSpace(row.OriginalPath) == "" {
+		row.OriginalPath = strings.TrimSpace(from)
+	}
+	switch {
+	case renameErr != nil:
+		row.Status = store.RenameHistoryStatusFailed
+		row.Error = renameErr.Error()
+	case skipped:
+		row.Status = store.RenameHistoryStatusSkipped
+		row.RenamedPath = strings.TrimSpace(from)
+	default:
+		row.Status = store.RenameHistoryStatusSuccess
+		row.RenamedPath = strings.TrimSpace(to)
+	}
+	if err := s.store.CreateRenameHistory(ctx, row); err != nil {
+		s.log.Warn("写入重命名历史失败", "subscription_id", row.SubscriptionID, "error", err)
+	}
 }

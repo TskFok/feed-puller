@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"database/sql/driver"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -59,6 +60,29 @@ func expectProwlarrSettings(mock sqlmock.Sqlmock, values map[string]string) {
 	}
 }
 
+type prowlarrResultsJSONMatcher struct{}
+
+func (prowlarrResultsJSONMatcher) Match(value driver.Value) bool {
+	raw, ok := value.(string)
+	if !ok {
+		return false
+	}
+	var results []map[string]any
+	if err := json.Unmarshal([]byte(raw), &results); err != nil {
+		return false
+	}
+	if len(results) != 1 {
+		return false
+	}
+	result := results[0]
+	if result["guid"] != "g1" || result["title"] != "Inception" || result["protocol"] != "torrent" || result["infoHash"] != "abc" {
+		return false
+	}
+	_, hasIndexerID := result["indexerId"]
+	_, hasPublishDate := result["publishDate"]
+	return hasIndexerID && hasPublishDate
+}
+
 func TestProwlarrSearch_RequiresAuth(t *testing.T) {
 	srv, _, cleanup := newProwlarrServer(t)
 	defer cleanup()
@@ -105,7 +129,7 @@ func TestProwlarrSearch_EmptyIndexerParamSearchesAllTorrentIndexers(t *testing.T
 		"prowlarr_tv_subscription_id": "10",
 	})
 	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO prowlarr_search_history`)).
-		WithArgs("inception", "inception", "movie", "seeders", "[]", 1, `[{"guid":"g1","title":"Inception","protocol":"torrent","infoHash":"abc"}]`).
+		WithArgs("inception", "inception", "movie", "seeders", "[]", 1, prowlarrResultsJSONMatcher{}).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM prowlarr_search_history`)).
 		WithArgs(50).
@@ -267,8 +291,8 @@ func TestProwlarrSubmittedGuids_ReturnsMatches(t *testing.T) {
 	srv, mock, cleanup := newProwlarrServer(t)
 	defer cleanup()
 	expectProwlarrSettings(mock, map[string]string{
-		"prowlarr_url":      "http://127.0.0.1:9696",
-		"prowlarr_api_key":  "secret",
+		"prowlarr_url":          "http://127.0.0.1:9696",
+		"prowlarr_api_key":      "secret",
 		"prowlarr_download_dir": "/movies",
 	})
 	mock.ExpectQuery(regexp.QuoteMeta(`

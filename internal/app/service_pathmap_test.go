@@ -71,6 +71,7 @@ func TestRetryCompletedDownloadRename_PathMap(t *testing.T) {
 			AddRow(1, "test", ai.URL+"/v1", "gpt-test", "sk-test", now, now))
 
 	target := filepath.Join(containerRoot, "番剧 第02话 S01E02.mp4")
+	expectRenameHistoryInsert(mock)
 	mock.ExpectExec(regexp.QuoteMeta(`UPDATE download_tasks SET final_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).
 		WithArgs(target, int64(10)).
 		WillReturnResult(sqlmock.NewResult(0, 1))

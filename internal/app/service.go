@@ -17,15 +17,16 @@ import (
 const proxySettingKey = "proxy_url"
 
 type Service struct {
-	store               *store.Store
-	aria2               *downloader.Aria2Client
-	log                 *slog.Logger
-	pathMap             paths.Mapper
-	feishuBot           feishuNotifySender
-	feishuBatchMu       sync.Mutex
-	feishuBatchComplete []feishuNotifyPayload
-	feishuBatchFail     []feishuNotifyPayload
-	feishuBatchTimer    *time.Timer
+	store                  *store.Store
+	aria2                  *downloader.Aria2Client
+	log                    *slog.Logger
+	pathMap                paths.Mapper
+	prowlarrTorrentFetcher prowlarrTorrentFetcher
+	feishuBot              feishuNotifySender
+	feishuBatchMu          sync.Mutex
+	feishuBatchComplete    []feishuNotifyPayload
+	feishuBatchFail        []feishuNotifyPayload
+	feishuBatchTimer       *time.Timer
 }
 
 func NewService(store *store.Store, aria2 *downloader.Aria2Client, log *slog.Logger, pathMap ...paths.Mapper) *Service {

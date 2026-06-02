@@ -5,13 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"feed-puller/internal/prowlarr"
 	"feed-puller/internal/rename"
+	"feed-puller/internal/rss"
 	"feed-puller/internal/store"
 	"feed-puller/internal/tmdb"
 )
@@ -83,6 +88,29 @@ type ProwlarrReleaseFailure struct {
 }
 
 const maxBatchProwlarrDownloads = 50
+const maxProwlarrTorrentBytes = 4 << 20
+
+type prowlarrTorrentFetchResult struct {
+	Body        []byte
+	FinalURL    string
+	ContentType string
+	MagnetURL   string
+}
+
+type prowlarrTorrentFetcher func(ctx context.Context, rawURL string, headers map[string]string) (prowlarrTorrentFetchResult, error)
+
+var prowlarrTorrentHTTPClient = &http.Client{
+	Timeout: 30 * time.Second,
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if req != nil && req.URL != nil && isMagnetURL(req.URL.String()) {
+			return http.ErrUseLastResponse
+		}
+		if len(via) >= 10 {
+			return errors.New("stopped after 10 redirects")
+		}
+		return nil
+	},
+}
 
 // ProwlarrSearchHistoryDetail 包含持久化的搜索结果。
 type ProwlarrSearchHistoryDetail struct {
@@ -180,7 +208,7 @@ func (s *Service) SubmitProwlarrRelease(ctx context.Context, input ProwlarrRelea
 		Season:      input.Season,
 		Episode:     input.Episode,
 	}
-	downloadURL, err := prowlarr.ResolveTorrentURL(release)
+	downloadURL, err := s.resolveProwlarrDownloadURL(ctx, cfg, release)
 	if err != nil {
 		return store.Item{}, err
 	}
@@ -310,6 +338,141 @@ func (s *Service) SubmitProwlarrReleases(ctx context.Context, inputs []ProwlarrR
 		items = append(items, item)
 	}
 	return items, failures
+}
+
+func (s *Service) resolveProwlarrDownloadURL(ctx context.Context, cfg store.ProwlarrConfig, release prowlarr.Release) (string, error) {
+	downloadURL, err := prowlarr.ResolveTorrentURL(release)
+	if err != nil {
+		return "", err
+	}
+	if isMagnetURL(downloadURL) || !isHTTPURL(downloadURL) {
+		return downloadURL, nil
+	}
+	fetcher := s.prowlarrTorrentFetcher
+	if fetcher == nil {
+		fetcher = fetchProwlarrTorrent
+	}
+	result, err := fetcher(ctx, downloadURL, prowlarrDownloadHeaders(downloadURL, cfg))
+	if err != nil {
+		return "", fmt.Errorf("解析 Prowlarr 下载地址失败: %w", err)
+	}
+	if isMagnetURL(result.MagnetURL) {
+		return result.MagnetURL, nil
+	}
+	if isMagnetURL(result.FinalURL) {
+		return result.FinalURL, nil
+	}
+	magnet, err := rss.MagnetFromTorrent(result.Body)
+	if err != nil {
+		if looksLikeProwlarrLoginPage(result) {
+			return "", fmt.Errorf("Prowlarr 下载地址未返回有效 torrent，可能跳转到了登录页或反爬页面: %w", err)
+		}
+		return "", fmt.Errorf("Prowlarr 下载地址未返回有效 torrent: %w", err)
+	}
+	return magnet, nil
+}
+
+func fetchProwlarrTorrent(ctx context.Context, rawURL string, headers map[string]string) (prowlarrTorrentFetchResult, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return prowlarrTorrentFetchResult{}, fmt.Errorf("创建请求失败: %w", err)
+	}
+	req.Header.Set("User-Agent", "feed-puller/1.0")
+	for key, value := range headers {
+		if strings.TrimSpace(value) != "" {
+			req.Header.Set(key, value)
+		}
+	}
+	resp, err := prowlarrTorrentHTTPClient.Do(req)
+	if err != nil {
+		return prowlarrTorrentFetchResult{}, fmt.Errorf("下载资源失败: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+			if location := strings.TrimSpace(resp.Header.Get("Location")); isMagnetURL(location) {
+				return prowlarrTorrentFetchResult{
+					FinalURL:    location,
+					ContentType: resp.Header.Get("Content-Type"),
+					MagnetURL:   location,
+				}, nil
+			}
+		}
+		return prowlarrTorrentFetchResult{}, fmt.Errorf("下载资源失败: HTTP %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxProwlarrTorrentBytes))
+	if err != nil {
+		return prowlarrTorrentFetchResult{}, fmt.Errorf("读取资源失败: %w", err)
+	}
+	finalURL := rawURL
+	if resp.Request != nil && resp.Request.URL != nil {
+		finalURL = resp.Request.URL.String()
+	}
+	return prowlarrTorrentFetchResult{
+		Body:        body,
+		FinalURL:    finalURL,
+		ContentType: resp.Header.Get("Content-Type"),
+	}, nil
+}
+
+func prowlarrDownloadHeaders(rawURL string, cfg store.ProwlarrConfig) map[string]string {
+	headers := map[string]string{
+		"Accept": "application/x-bittorrent, application/octet-stream, */*",
+	}
+	if referer := originReferer(rawURL); referer != "" {
+		headers["Referer"] = referer
+	}
+	if sameURLHost(rawURL, cfg.URL) && strings.TrimSpace(cfg.APIKey) != "" {
+		headers["X-Api-Key"] = strings.TrimSpace(cfg.APIKey)
+	}
+	return headers
+}
+
+func isHTTPURL(raw string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return false
+	}
+	return parsed.Scheme == "http" || parsed.Scheme == "https"
+}
+
+func isMagnetURL(raw string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(raw)), "magnet:")
+}
+
+func originReferer(raw string) string {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return ""
+	}
+	return parsed.Scheme + "://" + parsed.Host + "/"
+}
+
+func sameURLHost(left, right string) bool {
+	leftURL, leftErr := url.Parse(strings.TrimSpace(left))
+	rightURL, rightErr := url.Parse(strings.TrimSpace(right))
+	if leftErr != nil || rightErr != nil {
+		return false
+	}
+	return strings.EqualFold(leftURL.Host, rightURL.Host) && leftURL.Host != ""
+}
+
+func looksLikeProwlarrLoginPage(result prowlarrTorrentFetchResult) bool {
+	contentType := strings.ToLower(result.ContentType)
+	if strings.Contains(contentType, "text/html") || strings.Contains(contentType, "application/xhtml") {
+		return true
+	}
+	if parsed, err := url.Parse(strings.TrimSpace(result.FinalURL)); err == nil {
+		path := strings.ToLower(parsed.Path)
+		if strings.Contains(path, "login") || strings.Contains(path, "signin") {
+			return true
+		}
+	}
+	body := strings.ToLower(strings.TrimSpace(string(result.Body[:min(len(result.Body), 512)])))
+	return strings.HasPrefix(body, "<!doctype html") ||
+		strings.HasPrefix(body, "<html") ||
+		strings.Contains(body, "<title>login") ||
+		strings.Contains(body, "please login")
 }
 
 func (s *Service) resolveProwlarrFinalPath(ctx context.Context, sub store.Subscription, item store.Item, filePath string, taskID int64) string {

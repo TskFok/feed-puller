@@ -1,8 +1,11 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"regexp"
 	"strings"
@@ -12,6 +15,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 
 	"feed-puller/internal/downloader"
+	"feed-puller/internal/prowlarr"
 	"feed-puller/internal/store"
 )
 
@@ -143,6 +147,105 @@ func TestSubmitProwlarrRelease_InProgress(t *testing.T) {
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestSubmitProwlarrReleaseRejectsLoginPageDownloadURL(t *testing.T) {
+	t.Parallel()
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	svc := NewService(store.New(db), downloader.NewAria2Client("", ""), slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	svc.prowlarrTorrentFetcher = func(ctx context.Context, rawURL string, headers map[string]string) (prowlarrTorrentFetchResult, error) {
+		if rawURL != "https://torrent9.test/download" {
+			t.Fatalf("unexpected download URL %q", rawURL)
+		}
+		return prowlarrTorrentFetchResult{
+			Body:        []byte("<html><title>login</title><body>Please login</body></html>"),
+			FinalURL:    "https://torrent9.test/login",
+			ContentType: "text/html; charset=utf-8",
+		}, nil
+	}
+
+	expectProwlarrSettings(mock, map[string]string{
+		"prowlarr_url":                "http://127.0.0.1:9696",
+		"prowlarr_api_key":            "secret",
+		"prowlarr_download_dir":       "/movies",
+		"prowlarr_indexer_ids":        "[]",
+		"prowlarr_subscription_id":    "9",
+		"prowlarr_tv_subscription_id": "10",
+	})
+
+	_, err = svc.SubmitProwlarrRelease(t.Context(), ProwlarrReleaseInput{
+		GUID:        "g-login",
+		Title:       "Movie",
+		DownloadURL: "https://torrent9.test/download",
+	})
+	if err == nil || !strings.Contains(err.Error(), "未返回有效 torrent") {
+		t.Fatalf("expected invalid torrent error, got %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestResolveProwlarrDownloadURLConvertsTorrentToMagnet(t *testing.T) {
+	t.Parallel()
+	svc := NewService(store.New(nil), downloader.NewAria2Client("", ""), slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	var gotHeaders map[string]string
+	svc.prowlarrTorrentFetcher = func(ctx context.Context, rawURL string, headers map[string]string) (prowlarrTorrentFetchResult, error) {
+		if rawURL != "https://prowlarr.test/api/v1/download" {
+			t.Fatalf("unexpected download URL %q", rawURL)
+		}
+		gotHeaders = headers
+		return prowlarrTorrentFetchResult{
+			Body:        minimalTorrentBytes(),
+			FinalURL:    rawURL,
+			ContentType: "application/x-bittorrent",
+		}, nil
+	}
+
+	got, err := svc.resolveProwlarrDownloadURL(t.Context(), store.ProwlarrConfig{
+		URL:    "https://prowlarr.test",
+		APIKey: "secret",
+	}, prowlarr.Release{DownloadURL: "https://prowlarr.test/api/v1/download"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(got, "magnet:?") {
+		t.Fatalf("expected magnet URL, got %q", got)
+	}
+	if gotHeaders["X-Api-Key"] != "secret" {
+		t.Fatalf("X-Api-Key header = %q, want secret", gotHeaders["X-Api-Key"])
+	}
+	if gotHeaders["Referer"] != "https://prowlarr.test/" {
+		t.Fatalf("Referer header = %q", gotHeaders["Referer"])
+	}
+}
+
+func TestResolveProwlarrDownloadURLReturnsMagnetRedirect(t *testing.T) {
+	t.Parallel()
+	want := "magnet:?xt=urn:btih:7ebeccb7a17432e22ee362a6a7544b303d2f0f1f&tr=udp://tracker.opentrackr.org:1337/announce"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, want, http.StatusFound)
+	}))
+	defer server.Close()
+	svc := NewService(store.New(nil), downloader.NewAria2Client("", ""), slog.New(slog.NewTextHandler(os.Stderr, nil)))
+
+	got, err := svc.resolveProwlarrDownloadURL(t.Context(), store.ProwlarrConfig{}, prowlarr.Release{
+		DownloadURL: server.URL + "/9/download",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("resolved URL = %q, want %q", got, want)
+	}
+}
+
+func minimalTorrentBytes() []byte {
+	return []byte("d4:infod6:lengthi1e4:name4:test12:piece lengthi16384e6:pieces20:aaaaaaaaaaaaaaaaaaaaee")
 }
 
 func TestParseSeasonEpisodeFromFilename(t *testing.T) {

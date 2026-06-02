@@ -1,0 +1,28 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="feed-puller">
+  <defs>
+    <linearGradient id="bg" x1="10" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0D9488" />
+      <stop offset="1" stop-color="#14B8A6" />
+    </linearGradient>
+    <linearGradient id="accent" x1="24" y1="14" x2="48" y2="50" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F97316" stop-opacity="0.9" />
+      <stop offset="1" stop-color="#FB923C" stop-opacity="0.2" />
+    </linearGradient>
+    <filter id="shadow" x="10" y="10" width="44" height="44" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#042F2E" flood-opacity="0.22" />
+    </filter>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#bg)" />
+  <path
+    d="M48 18.5C48 15.4624 45.5376 13 42.5 13H31.5C28.4624 13 26 15.4624 26 18.5V45.5C26 48.5376 28.4624 51 31.5 51H42.5C45.5376 51 48 48.5376 48 45.5V18.5Z"
+    fill="url(#accent)"
+    opacity="0.34"
+  />
+  <g filter="url(#shadow)" stroke="#F8FAFC" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M18 18V46" stroke-width="7" />
+    <path d="M18 18H34" stroke-width="7" />
+    <path d="M18 32H30" stroke-width="7" />
+    <path d="M41 18C46 18 50 22 50 27C50 32 46 36 41 36H36V18H41Z" fill="#F8FAFC" stroke-width="4" />
+    <path d="M36 27H42" stroke="#0F172A" stroke-opacity="0.08" stroke-width="2.5" />
+  </g>
+</svg>

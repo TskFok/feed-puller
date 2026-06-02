@@ -28,6 +28,7 @@ func (s *Service) SyncAria2DownloadStatus(ctx context.Context) error {
 					continue
 				}
 				s.log.Info("aria2 已无任务记录，按完成处理", "task_id", task.ID, "item_id", task.ItemID, "gid", task.Aria2GID)
+				s.notifyDownloadCompleteAfterSync(ctx, task, "")
 				continue
 			}
 			s.log.Warn("查询 aria2 任务状态失败", "task_id", task.ID, "gid", task.Aria2GID, "error", err)
@@ -49,7 +50,7 @@ func (s *Service) SyncAria2DownloadStatus(ctx context.Context) error {
 		finalPath := ""
 		if path, pathErr := downloader.Aria2DownloadPath(status); pathErr == nil {
 			if subErr == nil {
-				finalPath = s.resolveDownloadFinalPath(ctx, sub, item, path)
+				finalPath = s.resolveDownloadFinalPath(ctx, sub, item, path, task.ID)
 				} else {
 					finalPath = strings.TrimSpace(s.mapDownloadPath(path))
 					s.log.Warn("读取订阅失败，跳过重命名", "subscription_id", task.SubscriptionID, "error", subErr)
@@ -62,12 +63,14 @@ func (s *Service) SyncAria2DownloadStatus(ctx context.Context) error {
 				continue
 			}
 			s.log.Info("下载已完成", "task_id", task.ID, "item_id", task.ItemID, "gid", task.Aria2GID)
+			s.notifyDownloadCompleteAfterSync(ctx, task, finalPath)
 		case downloader.Aria2TaskError:
 			if err := s.store.FailDownloadTaskFromAria2(ctx, task.ID, task.ItemID, errMsg); err != nil {
 				s.log.Warn("记录下载失败状态失败", "task_id", task.ID, "error", err)
 				continue
 			}
 			s.log.Info("下载失败", "task_id", task.ID, "item_id", task.ItemID, "gid", task.Aria2GID, "error", errMsg)
+			s.notifyDownloadFailAfterSync(ctx, task, errMsg)
 		case downloader.Aria2TaskRemoved:
 			// 任务被外部移除，不再轮询。
 			continue

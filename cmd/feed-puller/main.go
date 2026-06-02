@@ -16,6 +16,7 @@ import (
 	"feed-puller/internal/app"
 	"feed-puller/internal/config"
 	"feed-puller/internal/downloader"
+	"feed-puller/internal/feishu"
 	"feed-puller/internal/httpapi"
 	"feed-puller/internal/paths"
 	"feed-puller/internal/store"
@@ -67,6 +68,11 @@ func main() {
 	}
 	log.Info("进程身份", "uid", os.Geteuid(), "gid", os.Getegid())
 	service := app.NewService(repo, aria2, log, pathMap)
+	feishuBot := feishu.NewBotService(feishu.AppConfig{
+		AppID:     cfg.FeishuAppID,
+		AppSecret: cfg.FeishuAppSecret,
+	})
+	service.SetFeishuBot(feishuBot)
 	scheduler := app.NewScheduler(repo, service, log)
 	go scheduler.Run(ctx)
 

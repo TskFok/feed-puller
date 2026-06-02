@@ -59,6 +59,9 @@ func New(cfg config.Config, store *store.Store, service *app.Service, log *slog.
 	mux.HandleFunc("/api/prowlarr/download", server.requireAuth(server.handleProwlarrDownload))
 	mux.HandleFunc("/api/settings/feishu-binding", server.requireAuth(server.handleFeishuBinding))
 	mux.HandleFunc("/api/settings/feishu-bind-url", server.requireAuth(server.handleFeishuBindURL))
+	mux.HandleFunc("/api/settings/feishu-notify", server.requireAuth(server.handleFeishuNotifySetting))
+	mux.HandleFunc("/api/settings/feishu-notify/test", server.requireAuth(server.handleFeishuNotifyTest))
+	mux.HandleFunc("/api/feishu-notify/history", server.requireAuth(server.handleFeishuNotifyHistory))
 	mux.HandleFunc("/", server.handleStatic)
 	server.handler = server.withOptionalUser(mux)
 	return server

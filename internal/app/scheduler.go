@@ -49,4 +49,7 @@ func (s *Scheduler) runOnce(ctx context.Context) {
 	if err := s.service.SyncAria2DownloadStatus(ctx); err != nil {
 		s.log.Warn("同步 aria2 下载状态失败", "error", err)
 	}
+	if err := s.service.ProcessDueRenameRetries(ctx); err != nil {
+		s.log.Warn("处理重命名重试失败", "error", err)
+	}
 }

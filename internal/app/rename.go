@@ -19,13 +19,13 @@ var (
 )
 
 // resolveDownloadFinalPath 在下载完成时执行可选重命名，返回应持久化的最终文件路径。
-func (s *Service) resolveDownloadFinalPath(ctx context.Context, sub store.Subscription, item store.Item, filePath string) string {
+func (s *Service) resolveDownloadFinalPath(ctx context.Context, sub store.Subscription, item store.Item, filePath string, taskID int64) string {
 	filePath = strings.TrimSpace(s.mapDownloadPath(filePath))
 	if filePath == "" {
 		return ""
 	}
 	if store.IsProwlarrInternalSubscription(sub) {
-		return s.resolveProwlarrFinalPath(ctx, sub, item, filePath)
+		return s.resolveProwlarrFinalPath(ctx, sub, item, filePath, taskID)
 	}
 	if !sub.AIRenameEnabled {
 		return filePath
@@ -33,6 +33,7 @@ func (s *Service) resolveDownloadFinalPath(ctx context.Context, sub store.Subscr
 	from, to, skipped, err := s.renameDownloadFileAt(ctx, sub, item.Title, filePath)
 	if err != nil {
 		s.log.Warn("重命名下载文件失败", "subscription_id", sub.ID, "file", filePath, "error", err)
+		s.scheduleRenameRetry(ctx, taskID, from, err.Error())
 		if from != "" {
 			return from
 		}
@@ -55,7 +56,7 @@ func (s *Service) maybeRenameDownloadFile(ctx context.Context, sub store.Subscri
 		s.log.Warn("获取下载文件路径失败，跳过重命名", "subscription_id", sub.ID, "error", err)
 		return
 	}
-	_ = s.resolveDownloadFinalPath(ctx, sub, store.Item{Title: itemTitle}, filePath)
+	_ = s.resolveDownloadFinalPath(ctx, sub, store.Item{Title: itemTitle}, filePath, 0)
 }
 
 // renameDownloadFileAt 执行刮削重命名，返回原路径、目标路径及是否因已是目标格式而跳过。

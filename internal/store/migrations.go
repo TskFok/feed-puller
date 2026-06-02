@@ -115,4 +115,31 @@ var migrations = []string{
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 	`ALTER TABLE prowlarr_search_history
 		ADD COLUMN IF NOT EXISTS results MEDIUMTEXT NOT NULL DEFAULT '[]'`,
+	`CREATE TABLE IF NOT EXISTS feishu_notify_history (
+		id BIGINT PRIMARY KEY AUTO_INCREMENT,
+		event_type ENUM('complete', 'fail', 'test') NOT NULL,
+		source ENUM('rss', 'prowlarr', 'test') NOT NULL DEFAULT 'rss',
+		notify_type VARCHAR(16) NOT NULL DEFAULT '',
+		title TEXT NOT NULL,
+		content TEXT NOT NULL,
+		item_count INT NOT NULL DEFAULT 1,
+		status ENUM('sent', 'failed') NOT NULL,
+		error TEXT NULL,
+		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		INDEX idx_feishu_notify_history_created_at (created_at)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+	`CREATE TABLE IF NOT EXISTS rename_retries (
+		id BIGINT PRIMARY KEY AUTO_INCREMENT,
+		task_id BIGINT NOT NULL,
+		file_path TEXT NOT NULL,
+		retry_count INT NOT NULL DEFAULT 0,
+		failed_at TIMESTAMP NOT NULL,
+		next_retry_at TIMESTAMP NOT NULL,
+		last_error TEXT NULL,
+		status ENUM('pending', 'succeeded', 'abandoned') NOT NULL DEFAULT 'pending',
+		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		UNIQUE KEY uniq_rename_retries_task_id (task_id),
+		INDEX idx_rename_retries_due (status, next_retry_at)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 }

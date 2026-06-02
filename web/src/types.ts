@@ -11,6 +11,39 @@ export type AuthOptions = {
   feishu_login_enabled: boolean;
 };
 
+export type FeishuNotifyConfig = {
+  feishu_notify_type: '' | 'webhook' | 'api';
+  feishu_bot_webhook: string;
+  feishu_receive_open_id: string;
+  feishu_receive_targets: string;
+  feishu_complete_title: string;
+  feishu_fail_title: string;
+  feishu_prowlarr_complete_title: string;
+  feishu_prowlarr_fail_title: string;
+  feishu_prowlarr_complete_body: string;
+  feishu_prowlarr_fail_body: string;
+  feishu_include_subscription: boolean;
+  feishu_include_title: boolean;
+  feishu_include_path: boolean;
+  feishu_notify_on_fail: boolean;
+  feishu_use_interactive_card: boolean;
+  feishu_batch_window_seconds: number;
+  configured: boolean;
+};
+
+export type FeishuNotifyHistory = {
+  id: number;
+  event_type: 'complete' | 'fail' | 'test';
+  source: 'rss' | 'prowlarr' | 'test';
+  notify_type: string;
+  title: string;
+  content: string;
+  item_count: number;
+  status: 'sent' | 'failed';
+  error?: string;
+  created_at: string;
+};
+
 export type PaginatedResult<T> = {
   items: T[];
   total: number;

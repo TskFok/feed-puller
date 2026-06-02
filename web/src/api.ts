@@ -25,6 +25,8 @@ import type {
   ProwlarrSortBy,
   ProwlarrSubmittedGuidsResult,
   ProwlarrTestResult,
+  FeishuNotifyConfig,
+  FeishuNotifyHistory,
   Subscription,
   User,
   AuthOptions
@@ -139,6 +141,16 @@ export const api = {
   getFeishuLoginUrl: () => request<{ url: string; goto: string }>('/api/auth/feishu/login-url'),
   getFeishuBindUrl: () => request<{ url: string; goto?: string }>('/api/settings/feishu-bind-url'),
   unbindFeishu: () => request<{ ok: boolean }>('/api/settings/feishu-binding', { method: 'DELETE' }),
+  feishuNotifyConfig: () => request<FeishuNotifyConfig>('/api/settings/feishu-notify'),
+  saveFeishuNotifyConfig: (payload: Omit<FeishuNotifyConfig, 'configured'>) =>
+    request<FeishuNotifyConfig>('/api/settings/feishu-notify', { method: 'PUT', json: payload }),
+  testFeishuNotify: () => request<{ message: string }>('/api/settings/feishu-notify/test', { method: 'POST' }),
+  feishuNotifyHistory: async (page = 1, pageSize: PageSizeOption = DEFAULT_PAGE_SIZE): Promise<PaginatedResult<FeishuNotifyHistory>> =>
+    normalizePaginated<FeishuNotifyHistory>(
+      await request<PaginatedResult<FeishuNotifyHistory>>(`/api/feishu-notify/history?${pageQuery(page, pageSize)}`),
+      page,
+      pageSize
+    ),
   aiConfigs: async (page = 1, pageSize: PageSizeOption = DEFAULT_PAGE_SIZE): Promise<PaginatedResult<AIConfig>> =>
     normalizePaginated<AIConfig>(
       await request<PaginatedResult<AIConfig>>(`/api/ai-configs?${pageQuery(page, pageSize)}`),

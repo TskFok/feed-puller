@@ -11,6 +11,7 @@ import {
   Bot,
   Settings,
   Search,
+  Bell,
   ShieldCheck,
   Sparkles,
   Copy,
@@ -45,12 +46,13 @@ import type {
   Subscription,
   PaginatedResult,
   User,
-  AuthOptions
+  AuthOptions,
+  FeishuNotifyHistory
 } from './types';
 
-type Tab = 'subscriptions' | 'prowlarr' | 'active' | 'completed' | 'ai-config' | 'settings';
+type Tab = 'subscriptions' | 'prowlarr' | 'active' | 'completed' | 'notify-history' | 'ai-config' | 'settings';
 
-const APP_TABS: Tab[] = ['subscriptions', 'prowlarr', 'active', 'completed', 'ai-config', 'settings'];
+const APP_TABS: Tab[] = ['subscriptions', 'prowlarr', 'active', 'completed', 'notify-history', 'ai-config', 'settings'];
 
 function tabFromHash(hash: string): Tab {
   const id = hash.replace(/^#/, '').trim();
@@ -338,6 +340,7 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
           <NavButton tab="prowlarr" active={tab} setTab={selectTab} icon={<Search size={18} />} label="Prowlarr 搜索" />
           <NavButton tab="active" active={tab} setTab={selectTab} icon={<Loader2 size={18} />} label="下载中" />
           <NavButton tab="completed" active={tab} setTab={selectTab} icon={<CheckCircle2 size={18} />} label="下载完成" />
+          <NavButton tab="notify-history" active={tab} setTab={selectTab} icon={<Bell size={18} />} label="通知历史" />
           <NavButton tab="ai-config" active={tab} setTab={selectTab} icon={<Bot size={18} />} label="AI 配置" />
           <NavButton tab="settings" active={tab} setTab={selectTab} icon={<Settings size={18} />} label="设置" />
         </nav>
@@ -358,6 +361,7 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
           )}
           {tab === 'active' && <ActiveDownloadsView />}
           {tab === 'completed' && <CompletedDownloadsView />}
+          {tab === 'notify-history' && <NotifyHistoryView />}
           {tab === 'ai-config' && <AIConfigView />}
           {tab === 'settings' && (
             <SettingsView user={user} setUser={setUser} authOptions={authOptions} onCopyEnv={() => showToast('已复制环境变量配置')} />
@@ -1915,6 +1919,117 @@ function AIConfigModal({
   );
 }
 
+function notifyEventLabel(value: FeishuNotifyHistory['event_type']) {
+  switch (value) {
+    case 'complete':
+      return '下载完成';
+    case 'fail':
+      return '下载失败';
+    case 'test':
+      return '测试';
+    default:
+      return value;
+  }
+}
+
+function notifySourceLabel(value: FeishuNotifyHistory['source']) {
+  switch (value) {
+    case 'prowlarr':
+      return 'Prowlarr';
+    case 'test':
+      return '测试';
+    default:
+      return 'RSS';
+  }
+}
+
+function NotifyHistoryView() {
+  const { showToast } = useToast();
+  const loadErrorToastedRef = useRef(false);
+  const listEmptyRef = useRef(true);
+  const loadHistory = useCallback(
+    (page: number, pageSize: PageSizeOption): Promise<PaginatedResult<FeishuNotifyHistory>> =>
+      api.feishuNotifyHistory(page, pageSize),
+    []
+  );
+  const pagination = useServerPagination<FeishuNotifyHistory>(loadHistory, {
+    onError: (err) => {
+      if (listEmptyRef.current && !loadErrorToastedRef.current) {
+        showToast(messageOf(err), 'error');
+        loadErrorToastedRef.current = true;
+      }
+    }
+  });
+  const { items: rows, loading, reload } = pagination;
+  listEmptyRef.current = rows.length === 0;
+  const tableRef = useRef<HTMLDivElement>(null);
+  useOffscreenGlassSurface(tableRef, rows.length >= GLASS_OFFSCREEN_MIN_ITEMS, [rows.length]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void reload();
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, [reload]);
+
+  return (
+    <section className="view">
+      <Header title="通知历史" description="飞书通知发送记录，便于排查漏发或失败原因。" />
+      {loading && rows.length === 0 ? (
+        <p className="muted">正在加载…</p>
+      ) : (
+        <>
+          <div ref={tableRef} className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>时间</th>
+                  <th>事件</th>
+                  <th>来源</th>
+                  <th>方式</th>
+                  <th>状态</th>
+                  <th>条数</th>
+                  <th>标题</th>
+                  <th>内容</th>
+                  <th>错误</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.id}>
+                    <td>{formatTime(row.created_at) || '—'}</td>
+                    <td>{notifyEventLabel(row.event_type)}</td>
+                    <td>{notifySourceLabel(row.source)}</td>
+                    <td>{row.notify_type || '—'}</td>
+                    <td>
+                      <Status value={row.status === 'sent' ? 'completed' : 'failed'} />
+                    </td>
+                    <td>{row.item_count}</td>
+                    <td className="break">{row.title}</td>
+                    <td className="break muted">{row.content}</td>
+                    <td className="break muted">{row.error?.trim() || '—'}</td>
+                  </tr>
+                ))}
+                {rows.length === 0 && !loading && <EmptyRow columns={9} text="暂无通知记录" />}
+              </tbody>
+            </table>
+          </div>
+          <PaginationBar
+            page={pagination.page}
+            pageSize={pagination.pageSize}
+            totalPages={pagination.totalPages}
+            totalItems={pagination.total}
+            rangeStart={pagination.rangeStart}
+            rangeEnd={pagination.rangeEnd}
+            onPageChange={pagination.setPage}
+            onPageSizeChange={pagination.setPageSize}
+          />
+        </>
+      )}
+    </section>
+  );
+}
+
 function AIConfigView() {
   const [modal, setModal] = useState<AIConfigModalTarget | null>(null);
   const { showToast } = useToast();
@@ -2059,6 +2174,24 @@ function SettingsView({
   const [prowlarrTMDBKey, setProwlarrTMDBKey] = useState('');
   const [prowlarrIndexerIDs, setProwlarrIndexerIDs] = useState<number[]>([]);
   const [prowlarrTesting, setProwlarrTesting] = useState(false);
+  const [feishuNotifyType, setFeishuNotifyType] = useState<'' | 'webhook' | 'api'>('');
+  const [feishuWebhook, setFeishuWebhook] = useState('');
+  const [feishuReceiveOpenID, setFeishuReceiveOpenID] = useState('');
+  const [feishuReceiveTargets, setFeishuReceiveTargets] = useState('');
+  const [feishuCompleteTitle, setFeishuCompleteTitle] = useState('[Feed Puller 下载完成]');
+  const [feishuFailTitle, setFeishuFailTitle] = useState('[Feed Puller 下载失败]');
+  const [feishuProwlarrCompleteTitle, setFeishuProwlarrCompleteTitle] = useState('[Feed Puller Prowlarr 下载完成]');
+  const [feishuProwlarrFailTitle, setFeishuProwlarrFailTitle] = useState('[Feed Puller Prowlarr 下载失败]');
+  const [feishuProwlarrCompleteBody, setFeishuProwlarrCompleteBody] = useState('**类型**: {{media_type}}\n**标题**: {{title}}\n**路径**: {{path}}');
+  const [feishuProwlarrFailBody, setFeishuProwlarrFailBody] = useState('**类型**: {{media_type}}\n**标题**: {{title}}\n**错误**: {{error}}');
+  const [feishuIncludeSubscription, setFeishuIncludeSubscription] = useState(true);
+  const [feishuIncludeTitle, setFeishuIncludeTitle] = useState(true);
+  const [feishuIncludePath, setFeishuIncludePath] = useState(true);
+  const [feishuNotifyOnFail, setFeishuNotifyOnFail] = useState(true);
+  const [feishuUseCard, setFeishuUseCard] = useState(true);
+  const [feishuBatchWindow, setFeishuBatchWindow] = useState(30);
+  const [feishuNotifySaving, setFeishuNotifySaving] = useState(false);
+  const [feishuNotifyTesting, setFeishuNotifyTesting] = useState(false);
   const { showToast } = useToast();
   const [bindFeishuAuthUrl, setBindFeishuAuthUrl] = useState<string | null>(null);
   const [bindModalOpen, setBindModalOpen] = useState(false);
@@ -2075,6 +2208,32 @@ function SettingsView({
         setProwlarrMovieRename(data.movie_rename_enabled);
         setProwlarrTMDBKey(data.tmdb_api_key);
         setProwlarrIndexerIDs(data.indexer_ids ?? []);
+      })
+      .catch((err) => showToast(messageOf(err), 'error'));
+    api.feishuNotifyConfig()
+      .then((data) => {
+        let notifyType: '' | 'webhook' | 'api' = data.feishu_notify_type || '';
+        if (!notifyType && data.feishu_bot_webhook) notifyType = 'webhook';
+        setFeishuNotifyType(notifyType);
+        setFeishuWebhook(data.feishu_bot_webhook || '');
+        setFeishuReceiveOpenID(data.feishu_receive_open_id || '');
+        setFeishuReceiveTargets(data.feishu_receive_targets || '');
+        setFeishuCompleteTitle(data.feishu_complete_title || '[Feed Puller 下载完成]');
+        setFeishuFailTitle(data.feishu_fail_title || '[Feed Puller 下载失败]');
+        setFeishuProwlarrCompleteTitle(data.feishu_prowlarr_complete_title || '[Feed Puller Prowlarr 下载完成]');
+        setFeishuProwlarrFailTitle(data.feishu_prowlarr_fail_title || '[Feed Puller Prowlarr 下载失败]');
+        setFeishuProwlarrCompleteBody(
+          data.feishu_prowlarr_complete_body || '**类型**: {{media_type}}\n**标题**: {{title}}\n**路径**: {{path}}'
+        );
+        setFeishuProwlarrFailBody(
+          data.feishu_prowlarr_fail_body || '**类型**: {{media_type}}\n**标题**: {{title}}\n**错误**: {{error}}'
+        );
+        setFeishuIncludeSubscription(data.feishu_include_subscription ?? true);
+        setFeishuIncludeTitle(data.feishu_include_title ?? true);
+        setFeishuIncludePath(data.feishu_include_path ?? true);
+        setFeishuNotifyOnFail(data.feishu_notify_on_fail ?? true);
+        setFeishuUseCard(data.feishu_use_interactive_card ?? true);
+        setFeishuBatchWindow(data.feishu_batch_window_seconds ?? 30);
       })
       .catch((err) => showToast(messageOf(err), 'error'));
   }, [showToast]);
@@ -2156,6 +2315,70 @@ function SettingsView({
       showToast(messageOf(err), 'error');
     } finally {
       setProwlarrTesting(false);
+    }
+  }
+
+  async function saveFeishuNotify(event: FormEvent) {
+    event.preventDefault();
+    setFeishuNotifySaving(true);
+    try {
+      const saved = await api.saveFeishuNotifyConfig({
+        feishu_notify_type: feishuNotifyType,
+        feishu_bot_webhook: feishuWebhook,
+        feishu_receive_open_id: feishuReceiveOpenID,
+        feishu_receive_targets: feishuReceiveTargets,
+        feishu_complete_title: feishuCompleteTitle,
+        feishu_fail_title: feishuFailTitle,
+        feishu_prowlarr_complete_title: feishuProwlarrCompleteTitle,
+        feishu_prowlarr_fail_title: feishuProwlarrFailTitle,
+        feishu_prowlarr_complete_body: feishuProwlarrCompleteBody,
+        feishu_prowlarr_fail_body: feishuProwlarrFailBody,
+        feishu_include_subscription: feishuIncludeSubscription,
+        feishu_include_title: feishuIncludeTitle,
+        feishu_include_path: feishuIncludePath,
+        feishu_notify_on_fail: feishuNotifyOnFail,
+        feishu_use_interactive_card: feishuUseCard,
+        feishu_batch_window_seconds: feishuBatchWindow
+      });
+      let notifyType: '' | 'webhook' | 'api' = saved.feishu_notify_type || '';
+      if (!notifyType && saved.feishu_bot_webhook) notifyType = 'webhook';
+      setFeishuNotifyType(notifyType);
+      setFeishuWebhook(saved.feishu_bot_webhook || '');
+      setFeishuReceiveOpenID(saved.feishu_receive_open_id || '');
+      setFeishuReceiveTargets(saved.feishu_receive_targets || '');
+      setFeishuCompleteTitle(saved.feishu_complete_title || '[Feed Puller 下载完成]');
+      setFeishuFailTitle(saved.feishu_fail_title || '[Feed Puller 下载失败]');
+      setFeishuProwlarrCompleteTitle(saved.feishu_prowlarr_complete_title || '[Feed Puller Prowlarr 下载完成]');
+      setFeishuProwlarrFailTitle(saved.feishu_prowlarr_fail_title || '[Feed Puller Prowlarr 下载失败]');
+      setFeishuProwlarrCompleteBody(
+        saved.feishu_prowlarr_complete_body || '**类型**: {{media_type}}\n**标题**: {{title}}\n**路径**: {{path}}'
+      );
+      setFeishuProwlarrFailBody(
+        saved.feishu_prowlarr_fail_body || '**类型**: {{media_type}}\n**标题**: {{title}}\n**错误**: {{error}}'
+      );
+      setFeishuIncludeSubscription(saved.feishu_include_subscription ?? true);
+      setFeishuIncludeTitle(saved.feishu_include_title ?? true);
+      setFeishuIncludePath(saved.feishu_include_path ?? true);
+      setFeishuNotifyOnFail(saved.feishu_notify_on_fail ?? true);
+      setFeishuUseCard(saved.feishu_use_interactive_card ?? true);
+      setFeishuBatchWindow(saved.feishu_batch_window_seconds ?? 30);
+      showToast('飞书通知设置已保存');
+    } catch (err) {
+      showToast(messageOf(err), 'error');
+    } finally {
+      setFeishuNotifySaving(false);
+    }
+  }
+
+  async function testFeishuNotify() {
+    setFeishuNotifyTesting(true);
+    try {
+      const result = await api.testFeishuNotify();
+      showToast(result.message || '测试消息已发送');
+    } catch (err) {
+      showToast(messageOf(err), 'error');
+    } finally {
+      setFeishuNotifyTesting(false);
     }
   }
 
@@ -2274,6 +2497,153 @@ function SettingsView({
             )}
           </div>
         </div>
+        <form className="settings-panel" onSubmit={saveFeishuNotify}>
+          <h2>飞书下载通知</h2>
+          <p className="muted">下载完成或失败时发送通知。支持 Webhook 或服务端 API，可配置模板、批量合并与 interactive 卡片。</p>
+          <label>
+            通知方式
+            <select value={feishuNotifyType} onChange={(event) => setFeishuNotifyType((event.target.value || '') as '' | 'webhook' | 'api')}>
+              <option value="">关闭</option>
+              <option value="webhook">Webhook（自定义机器人）</option>
+              <option value="api">服务端 API（飞书开放平台）</option>
+            </select>
+          </label>
+          {feishuNotifyType === 'webhook' && (
+            <>
+              <label>
+                Webhook URL
+                <input
+                  value={feishuWebhook}
+                  onChange={(event) => setFeishuWebhook(event.target.value)}
+                  placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                />
+              </label>
+              <p className="muted">在飞书群中添加「自定义机器人」，选择 Webhook 方式即可获取地址。</p>
+            </>
+          )}
+          {feishuNotifyType === 'api' && (
+            <>
+              <p className="muted">
+                使用环境变量中的飞书应用（FEISHU_APP_ID / FEISHU_APP_SECRET）。支持多个接收者（每行一个）。
+              </p>
+              <label>
+                主接收者 open_id（可选）
+                <input
+                  value={feishuReceiveOpenID}
+                  onChange={(event) => setFeishuReceiveOpenID(event.target.value)}
+                  placeholder={user.feishu_open_id || 'ou_xxxxxxxx'}
+                />
+              </label>
+              <label>
+                额外接收者（每行一个）
+                <textarea
+                  value={feishuReceiveTargets}
+                  onChange={(event) => setFeishuReceiveTargets(event.target.value)}
+                  placeholder={'open_id:ou_xxx\nchat_id:oc_xxx'}
+                  rows={3}
+                />
+              </label>
+            </>
+          )}
+          <label>
+            完成通知标题模板
+            <input value={feishuCompleteTitle} onChange={(event) => setFeishuCompleteTitle(event.target.value)} placeholder="[Feed Puller 下载完成]" />
+          </label>
+          <label>
+            失败通知标题模板
+            <input value={feishuFailTitle} onChange={(event) => setFeishuFailTitle(event.target.value)} placeholder="[Feed Puller 下载失败]" />
+          </label>
+          <h3>Prowlarr 独立模板</h3>
+          <p className="muted">Prowlarr 搜索下载完成/失败时使用以下标题与正文模板；RSS 订阅仍使用上方字段开关组装正文。</p>
+          <label>
+            Prowlarr 完成标题模板
+            <input
+              value={feishuProwlarrCompleteTitle}
+              onChange={(event) => setFeishuProwlarrCompleteTitle(event.target.value)}
+              placeholder="[Feed Puller Prowlarr 下载完成]"
+            />
+          </label>
+          <label>
+            Prowlarr 失败标题模板
+            <input
+              value={feishuProwlarrFailTitle}
+              onChange={(event) => setFeishuProwlarrFailTitle(event.target.value)}
+              placeholder="[Feed Puller Prowlarr 下载失败]"
+            />
+          </label>
+          <label>
+            Prowlarr 完成正文模板
+            <textarea
+              value={feishuProwlarrCompleteBody}
+              onChange={(event) => setFeishuProwlarrCompleteBody(event.target.value)}
+              placeholder={'**类型**: {{media_type}}\n**标题**: {{title}}\n**路径**: {{path}}'}
+              rows={3}
+            />
+          </label>
+          <label>
+            Prowlarr 失败正文模板
+            <textarea
+              value={feishuProwlarrFailBody}
+              onChange={(event) => setFeishuProwlarrFailBody(event.target.value)}
+              placeholder={'**类型**: {{media_type}}\n**标题**: {{title}}\n**错误**: {{error}}'}
+              rows={3}
+            />
+          </label>
+          <p className="muted">模板变量：{'{{subscription}}'}、{'{{title}}'}、{'{{path}}'}、{'{{error}}'}、{'{{count}}'}、{'{{media_type}}'}</p>
+          <div className="checkbox-grid">
+            <label className="checkbox-row">
+              <input type="checkbox" checked={feishuIncludeSubscription} onChange={(event) => setFeishuIncludeSubscription(event.target.checked)} />
+              包含订阅名
+            </label>
+            <label className="checkbox-row">
+              <input type="checkbox" checked={feishuIncludeTitle} onChange={(event) => setFeishuIncludeTitle(event.target.checked)} />
+              包含条目标题
+            </label>
+            <label className="checkbox-row">
+              <input type="checkbox" checked={feishuIncludePath} onChange={(event) => setFeishuIncludePath(event.target.checked)} />
+              包含文件路径
+            </label>
+            <label className="checkbox-row">
+              <input type="checkbox" checked={feishuNotifyOnFail} onChange={(event) => setFeishuNotifyOnFail(event.target.checked)} />
+              下载失败时也通知
+            </label>
+            <label className="checkbox-row">
+              <input type="checkbox" checked={feishuUseCard} onChange={(event) => setFeishuUseCard(event.target.checked)} />
+              使用 interactive 卡片
+            </label>
+          </div>
+          <label>
+            批量合并窗口（秒，0 表示立即发送）
+            <input
+              type="number"
+              min={0}
+              max={300}
+              value={feishuBatchWindow}
+              onChange={(event) => setFeishuBatchWindow(Number(event.target.value) || 0)}
+            />
+          </label>
+          <div className="horizontal-actions">
+            <button
+              type="button"
+              className="ghost"
+              disabled={
+                feishuNotifyTesting ||
+                !feishuNotifyType ||
+                (feishuNotifyType === 'webhook' && !feishuWebhook.trim()) ||
+                (feishuNotifyType === 'api' &&
+                  !feishuReceiveOpenID.trim() &&
+                  !feishuReceiveTargets.trim() &&
+                  !user.feishu_bound)
+              }
+              onClick={testFeishuNotify}
+            >
+              {feishuNotifyTesting ? '发送中…' : '测试发送'}
+            </button>
+            <button className="primary" disabled={feishuNotifySaving}>
+              {feishuNotifySaving ? '保存中…' : '保存通知设置'}
+            </button>
+          </div>
+        </form>
       </div>
       {bindFeishuModal}
     </section>

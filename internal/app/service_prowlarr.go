@@ -312,18 +312,31 @@ func (s *Service) SubmitProwlarrReleases(ctx context.Context, inputs []ProwlarrR
 	return items, failures
 }
 
-func (s *Service) resolveProwlarrFinalPath(ctx context.Context, _ store.Subscription, item store.Item, filePath string) string {
+func (s *Service) resolveProwlarrFinalPath(ctx context.Context, sub store.Subscription, item store.Item, filePath string, taskID int64) string {
 	filePath = strings.TrimSpace(s.mapDownloadPath(filePath))
 	if filePath == "" {
 		return ""
 	}
+	finalPath, renameErr := s.renameProwlarrAt(ctx, sub, item, filePath)
+	if renameErr != nil {
+		s.log.Warn("Prowlarr 重命名失败", "subscription_id", sub.ID, "file", filePath, "error", renameErr)
+		s.scheduleRenameRetry(ctx, taskID, filePath, renameErr.Error())
+	}
+	return finalPath
+}
+
+func (s *Service) renameProwlarrAt(ctx context.Context, sub store.Subscription, item store.Item, filePath string) (string, error) {
+	filePath = strings.TrimSpace(s.mapDownloadPath(filePath))
+	if filePath == "" {
+		return "", fmt.Errorf("下载文件路径为空")
+	}
 	meta, ok := store.ParseProwlarrItemMeta(item.Link)
 	if !ok {
-		return filePath
+		return filePath, nil
 	}
 	cfg, err := s.store.GetProwlarrConfig(ctx)
 	if err != nil {
-		return filePath
+		return filePath, fmt.Errorf("读取 Prowlarr 配置失败: %w", err)
 	}
 	tmdbClient := tmdb.NewClient(cfg.TMDBAPIKey)
 	switch meta.MediaType {
@@ -331,13 +344,13 @@ func (s *Service) resolveProwlarrFinalPath(ctx context.Context, _ store.Subscrip
 		return s.renameProwlarrTV(ctx, tmdbClient, meta, item.Title, filePath)
 	default:
 		if !cfg.MovieRenameEnabled {
-			return filePath
+			return filePath, nil
 		}
 		return s.renameProwlarrMovie(ctx, tmdbClient, meta, item.Title, filePath)
 	}
 }
 
-func (s *Service) renameProwlarrMovie(ctx context.Context, client *tmdb.Client, meta store.ProwlarrItemMeta, fallbackTitle, filePath string) string {
+func (s *Service) renameProwlarrMovie(ctx context.Context, client *tmdb.Client, meta store.ProwlarrItemMeta, fallbackTitle, filePath string) (string, error) {
 	title := strings.TrimSpace(fallbackTitle)
 	year := 0
 	if client.Enabled() {
@@ -353,18 +366,16 @@ func (s *Service) renameProwlarrMovie(ctx context.Context, client *tmdb.Client, 
 	}
 	target, err := rename.BuildMovieTargetPath(filePath, title, year)
 	if err != nil {
-		s.log.Warn("生成电影重命名路径失败", "file", filePath, "error", err)
-		return filePath
+		return filePath, fmt.Errorf("生成电影重命名路径失败: %w", err)
 	}
 	if err := rename.RenameFile(filePath, target); err != nil {
-		s.log.Warn("电影重命名失败", "from", filePath, "to", target, "error", err)
-		return filePath
+		return filePath, fmt.Errorf("电影重命名失败: %w", err)
 	}
 	s.log.Info("Prowlarr 电影已重命名", "from", filePath, "to", target)
-	return target
+	return target, nil
 }
 
-func (s *Service) renameProwlarrTV(ctx context.Context, client *tmdb.Client, meta store.ProwlarrItemMeta, fallbackTitle, filePath string) string {
+func (s *Service) renameProwlarrTV(ctx context.Context, client *tmdb.Client, meta store.ProwlarrItemMeta, fallbackTitle, filePath string) (string, error) {
 	showTitle := strings.TrimSpace(fallbackTitle)
 	if client.Enabled() {
 		details, err := client.GetTVDetails(ctx, meta.TmdbID, meta.TvdbID)
@@ -381,19 +392,17 @@ func (s *Service) renameProwlarrTV(ctx context.Context, client *tmdb.Client, met
 		}
 	}
 	if season < 1 || episode < 1 {
-		return filePath
+		return filePath, nil
 	}
 	target, err := rename.BuildTVTargetPath(filePath, showTitle, season, episode)
 	if err != nil {
-		s.log.Warn("生成剧集重命名路径失败", "file", filePath, "error", err)
-		return filePath
+		return filePath, fmt.Errorf("生成剧集重命名路径失败: %w", err)
 	}
 	if err := rename.RenameFile(filePath, target); err != nil {
-		s.log.Warn("剧集重命名失败", "from", filePath, "to", target, "error", err)
-		return filePath
+		return filePath, fmt.Errorf("剧集重命名失败: %w", err)
 	}
 	s.log.Info("Prowlarr 剧集已重命名", "from", filePath, "to", target)
-	return target
+	return target, nil
 }
 
 func parseSeasonEpisodeFromFilename(name string) (season, episode int, ok bool) {

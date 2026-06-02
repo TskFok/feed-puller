@@ -70,6 +70,9 @@ func TestRetryCompletedDownloadRename_Success(t *testing.T) {
 	mock.ExpectExec(regexp.QuoteMeta(`UPDATE download_tasks SET final_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).
 		WithArgs(target, int64(9)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE rename_retries`)).
+		WithArgs(store.RenameRetryStatusSucceeded, int64(9), store.RenameRetryStatusPending).
+		WillReturnResult(sqlmock.NewResult(0, 0))
 
 	result, err := svc.RetryCompletedDownloadRename(context.Background(), 9)
 	if err != nil {
@@ -146,6 +149,9 @@ func TestRetryCompletedDownloadRename_PrefersStoredFinalPath(t *testing.T) {
 	mock.ExpectExec(regexp.QuoteMeta(`UPDATE download_tasks SET final_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).
 		WithArgs(target, int64(11)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE rename_retries`)).
+		WithArgs(store.RenameRetryStatusSucceeded, int64(11), store.RenameRetryStatusPending).
+		WillReturnResult(sqlmock.NewResult(0, 0))
 
 	result, err := svc.RetryCompletedDownloadRename(context.Background(), 11)
 	if err != nil {

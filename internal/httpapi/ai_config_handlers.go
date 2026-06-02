@@ -78,7 +78,7 @@ func (s *Server) handleAIConfigByID(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		if err := aiclient.TestConnection(r.Context(), cfg.BaseURL, cfg.APIKey, cfg.Model); err != nil {
+		if err := aiclient.TestConnection(r.Context(), cfg.BaseURL, cfg.APIKey, cfg.Model, cfg.RequestOptions); err != nil {
 			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
 			return
 		}
@@ -140,17 +140,19 @@ func (s *Server) handleAIConfigByID(w http.ResponseWriter, r *http.Request) {
 }
 
 type aiConfigInput struct {
-	Name   string `json:"name"`
-	URL    string `json:"url"`
-	Model  string `json:"model"`
-	APIKey string `json:"api_key"`
+	Name           string `json:"name"`
+	URL            string `json:"url"`
+	Model          string `json:"model"`
+	APIKey         string `json:"api_key"`
+	RequestOptions string `json:"request_options"`
 }
 
 func (input aiConfigInput) toAIConfig() store.AIConfig {
 	return store.AIConfig{
-		Name:    strings.TrimSpace(input.Name),
-		BaseURL: strings.TrimSpace(input.URL),
-		Model:   strings.TrimSpace(input.Model),
-		APIKey:  strings.TrimSpace(input.APIKey),
+		Name:           strings.TrimSpace(input.Name),
+		BaseURL:        strings.TrimSpace(input.URL),
+		Model:          strings.TrimSpace(input.Model),
+		APIKey:         strings.TrimSpace(input.APIKey),
+		RequestOptions: strings.TrimSpace(input.RequestOptions),
 	}
 }

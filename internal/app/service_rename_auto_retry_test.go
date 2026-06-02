@@ -144,7 +144,7 @@ func TestProcessDueRenameRetries_ExhaustedNotifiesFeishu(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT COUNT(*) FROM ai_configs`)).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM ai_configs ORDER BY id DESC`)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "base_url", "model", "api_key", "created_at", "updated_at"}))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "base_url", "model", "api_key", "request_options", "created_at", "updated_at"}))
 
 	expectRenameHistoryInsert(mock)
 	mock.ExpectExec(regexp.QuoteMeta(`UPDATE rename_retries`)).
@@ -207,8 +207,8 @@ func expectAIConfigQueries(mock sqlmock.Sqlmock, aiURL string, now time.Time) {
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT COUNT(*) FROM ai_configs`)).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM ai_configs ORDER BY id DESC`)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "base_url", "model", "api_key", "created_at", "updated_at"}).
-			AddRow(1, "test", aiURL+"/v1", "gpt-test", "sk-test", now, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "base_url", "model", "api_key", "request_options", "created_at", "updated_at"}).
+			AddRow(1, "test", aiURL+"/v1", "gpt-test", "sk-test", "", now, now))
 }
 
 func expectRenameHistoryInsert(mock sqlmock.Sqlmock) {

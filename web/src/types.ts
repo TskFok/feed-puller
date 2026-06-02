@@ -200,6 +200,7 @@ export type AIConfig = {
   /** 模型标识 */
   model: string;
   api_key: string;
+  request_options: string;
   created_at?: string;
   updated_at?: string;
 };
@@ -313,4 +314,3 @@ export type ProwlarrBatchDownloadResult = {
 export type ProwlarrSubmittedGuidsResult = {
   guids: string[];
 };
-

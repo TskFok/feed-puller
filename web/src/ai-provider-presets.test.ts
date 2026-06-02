@@ -12,7 +12,8 @@ const emptyDraft = {
   name: '',
   url: '',
   model: '',
-  api_key: ''
+  api_key: '',
+  request_options: ''
 };
 
 describe('ai provider presets', () => {
@@ -38,6 +39,7 @@ describe('ai provider presets', () => {
     expect(next.url).toBe('https://api.moonshot.cn/v1');
     expect(next.model).toBe('kimi-k2.6');
     expect(next.name).toBe('Kimi');
+    expect(JSON.parse(next.request_options)).toEqual({ thinking: { type: 'disabled' } });
   });
 
   it('custom preset keeps current draft', () => {
@@ -45,7 +47,8 @@ describe('ai provider presets', () => {
       name: 'My API',
       url: 'https://example.com/v1',
       model: 'demo',
-      api_key: 'secret'
+      api_key: 'secret',
+      request_options: '{"temperature":0.6}'
     };
     const next = applyAIProviderPreset(current, findAIProviderPreset('custom')!);
     expect(next).toEqual(current);

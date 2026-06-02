@@ -73,10 +73,10 @@ func TestHandleAIConfigByID_Models(t *testing.T) {
 	defer db.Close()
 
 	now := time.Now().UTC().Truncate(time.Second)
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, name, base_url, model, api_key, created_at, updated_at`)).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, name, base_url, model, api_key, request_options, created_at, updated_at`)).
 		WithArgs(int64(3)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "base_url", "model", "api_key", "created_at", "updated_at"}).
-			AddRow(3, "Demo", upstream.URL+"/v1", "deepseek-chat", "sk-test", now, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "base_url", "model", "api_key", "request_options", "created_at", "updated_at"}).
+			AddRow(3, "Demo", upstream.URL+"/v1", "deepseek-chat", "sk-test", "", now, now))
 
 	server := &Server{store: store.New(db)}
 	req := httptest.NewRequest(http.MethodPost, "/api/ai-configs/3/models", nil)

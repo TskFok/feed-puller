@@ -42,8 +42,8 @@ func TestRecordRenameHistory_Success(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT COUNT(*) FROM ai_configs`)).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM ai_configs ORDER BY id DESC`)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "base_url", "model", "api_key", "created_at", "updated_at"}).
-			AddRow(1, "test", ai.URL+"/v1", "gpt-test", "sk-test", now, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "base_url", "model", "api_key", "request_options", "created_at", "updated_at"}).
+			AddRow(1, "test", ai.URL+"/v1", "gpt-test", "sk-test", "", now, now))
 
 	target := filepath.Join(dir, "番剧 S01E02.mp4")
 	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO rename_history (subscription_id, original_filename, original_path, renamed_path, ai_prompt, ai_response, status, error)`)).

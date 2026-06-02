@@ -12,8 +12,8 @@ import (
 var jsonEpisodePattern = regexp.MustCompile(`"episode"\s*:\s*(\d+)`)
 
 // ExtractEpisode 调用 OpenAI 兼容接口，从文件名与标题中识别集数。
-func ExtractEpisode(ctx context.Context, baseURL, apiKey, model, filename, title string) (int, error) {
-	info, err := ExtractAnimeInfo(ctx, baseURL, apiKey, model, filename, title)
+func ExtractEpisode(ctx context.Context, baseURL, apiKey, model, requestOptions, filename, title string) (int, error) {
+	info, err := ExtractAnimeInfo(ctx, baseURL, apiKey, model, requestOptions, filename, title)
 	if err != nil {
 		return 0, err
 	}

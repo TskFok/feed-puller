@@ -3,12 +3,13 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
 )
 
-const aiConfigColumns = `id, name, base_url, model, api_key, created_at, updated_at`
+const aiConfigColumns = `id, name, base_url, model, api_key, request_options, created_at, updated_at`
 
 func validateAIConfig(cfg AIConfig) error {
 	if strings.TrimSpace(cfg.Name) == "" {
@@ -24,12 +25,39 @@ func validateAIConfig(cfg AIConfig) error {
 	if strings.TrimSpace(cfg.Model) == "" {
 		return fmt.Errorf("模型不能为空")
 	}
+	if err := validateAIRequestOptions(cfg.RequestOptions); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateAIRequestOptions(raw string) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var options map[string]any
+	if err := json.Unmarshal([]byte(raw), &options); err != nil {
+		return fmt.Errorf("请求参数 JSON 无效: %w", err)
+	}
+	if options == nil {
+		return fmt.Errorf("请求参数必须是 JSON 对象")
+	}
+	for _, key := range []string{"model", "messages"} {
+		if _, ok := options[key]; ok {
+			return fmt.Errorf("请求参数不能覆盖 %s", key)
+		}
+	}
 	return nil
 }
 
 func scanAIConfig(row rowScanner) (AIConfig, error) {
 	var cfg AIConfig
-	err := row.Scan(&cfg.ID, &cfg.Name, &cfg.BaseURL, &cfg.Model, &cfg.APIKey, &cfg.CreatedAt, &cfg.UpdatedAt)
+	var requestOptions sql.NullString
+	err := row.Scan(&cfg.ID, &cfg.Name, &cfg.BaseURL, &cfg.Model, &cfg.APIKey, &requestOptions, &cfg.CreatedAt, &cfg.UpdatedAt)
+	if requestOptions.Valid {
+		cfg.RequestOptions = requestOptions.String
+	}
 	return cfg, err
 }
 
@@ -100,13 +128,14 @@ func (s *Store) CreateAIConfig(ctx context.Context, cfg AIConfig) (AIConfig, err
 	cfg.BaseURL = strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
 	cfg.Model = strings.TrimSpace(cfg.Model)
 	cfg.APIKey = strings.TrimSpace(cfg.APIKey)
+	cfg.RequestOptions = strings.TrimSpace(cfg.RequestOptions)
 	if err := validateAIConfig(cfg); err != nil {
 		return AIConfig{}, err
 	}
 	result, err := s.db.ExecContext(ctx, `
-		INSERT INTO ai_configs (name, base_url, model, api_key)
-		VALUES (?, ?, ?, ?)
-	`, cfg.Name, cfg.BaseURL, cfg.Model, cfg.APIKey)
+		INSERT INTO ai_configs (name, base_url, model, api_key, request_options)
+		VALUES (?, ?, ?, ?, ?)
+	`, cfg.Name, cfg.BaseURL, cfg.Model, cfg.APIKey, cfg.RequestOptions)
 	if err != nil {
 		return AIConfig{}, fmt.Errorf("创建 AI 配置失败: %w", err)
 	}
@@ -119,14 +148,15 @@ func (s *Store) UpdateAIConfig(ctx context.Context, id int64, cfg AIConfig) (AIC
 	cfg.BaseURL = strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
 	cfg.Model = strings.TrimSpace(cfg.Model)
 	cfg.APIKey = strings.TrimSpace(cfg.APIKey)
+	cfg.RequestOptions = strings.TrimSpace(cfg.RequestOptions)
 	if err := validateAIConfig(cfg); err != nil {
 		return AIConfig{}, err
 	}
 	res, err := s.db.ExecContext(ctx, `
 		UPDATE ai_configs
-		SET name = ?, base_url = ?, model = ?, api_key = ?, updated_at = CURRENT_TIMESTAMP
+		SET name = ?, base_url = ?, model = ?, api_key = ?, request_options = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
-	`, cfg.Name, cfg.BaseURL, cfg.Model, cfg.APIKey, id)
+	`, cfg.Name, cfg.BaseURL, cfg.Model, cfg.APIKey, cfg.RequestOptions, id)
 	if err != nil {
 		return AIConfig{}, fmt.Errorf("更新 AI 配置失败: %w", err)
 	}

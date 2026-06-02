@@ -33,13 +33,13 @@ func TestCreateAIConfig_InsertsRow(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 
 	now := time.Now().UTC().Truncate(time.Second)
-	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO ai_configs (name, base_url, model, api_key)`)).
-		WithArgs("Demo", "https://api.example.com/v1", "gpt-4o-mini", "sk-test").
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO ai_configs (name, base_url, model, api_key, request_options)`)).
+		WithArgs("Demo", "https://api.example.com/v1", "gpt-4o-mini", "sk-test", "").
 		WillReturnResult(sqlmock.NewResult(7, 1))
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, name, base_url, model, api_key, created_at, updated_at`)).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, name, base_url, model, api_key, request_options, created_at, updated_at`)).
 		WithArgs(int64(7)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "base_url", "model", "api_key", "created_at", "updated_at"}).
-			AddRow(7, "Demo", "https://api.example.com/v1", "gpt-4o-mini", "sk-test", now, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "base_url", "model", "api_key", "request_options", "created_at", "updated_at"}).
+			AddRow(7, "Demo", "https://api.example.com/v1", "gpt-4o-mini", "sk-test", "", now, now))
 
 	s := New(db)
 	cfg, err := s.CreateAIConfig(context.Background(), AIConfig{
@@ -59,6 +59,83 @@ func TestCreateAIConfig_InsertsRow(t *testing.T) {
 	}
 }
 
+func TestCreateAIConfig_PersistsRequestOptions(t *testing.T) {
+	t.Parallel()
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	now := time.Now().UTC().Truncate(time.Second)
+	options := `{"thinking":{"type":"disabled"}}`
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO ai_configs (name, base_url, model, api_key, request_options)`)).
+		WithArgs("Demo", "https://api.example.com/v1", "kimi-k2.6", "sk-test", options).
+		WillReturnResult(sqlmock.NewResult(7, 1))
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, name, base_url, model, api_key, request_options, created_at, updated_at`)).
+		WithArgs(int64(7)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "base_url", "model", "api_key", "request_options", "created_at", "updated_at"}).
+			AddRow(7, "Demo", "https://api.example.com/v1", "kimi-k2.6", "sk-test", options, now, now))
+
+	s := New(db)
+	cfg, err := s.CreateAIConfig(context.Background(), AIConfig{
+		Name:           "Demo",
+		BaseURL:        "https://api.example.com/v1/",
+		Model:          "kimi-k2.6",
+		APIKey:         "sk-test",
+		RequestOptions: options,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.RequestOptions != options {
+		t.Fatalf("request_options = %q, want %q", cfg.RequestOptions, options)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCreateAIConfig_ValidatesRequestOptionsJSON(t *testing.T) {
+	t.Parallel()
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	s := New(db)
+	_, err = s.CreateAIConfig(context.Background(), AIConfig{
+		Name:           "Demo",
+		BaseURL:        "https://api.example.com/v1",
+		Model:          "gpt-4o-mini",
+		RequestOptions: `{"thinking":`,
+	})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+}
+
+func TestCreateAIConfig_RejectsRequestOptionsArray(t *testing.T) {
+	t.Parallel()
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	s := New(db)
+	_, err = s.CreateAIConfig(context.Background(), AIConfig{
+		Name:           "Demo",
+		BaseURL:        "https://api.example.com/v1",
+		Model:          "gpt-4o-mini",
+		RequestOptions: `[{"temperature":0.6}]`,
+	})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+}
+
 func TestCreateAIConfig_AllowsEmptyAPIKey(t *testing.T) {
 	t.Parallel()
 	db, mock, err := sqlmock.New()
@@ -68,13 +145,13 @@ func TestCreateAIConfig_AllowsEmptyAPIKey(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 
 	now := time.Now().UTC().Truncate(time.Second)
-	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO ai_configs (name, base_url, model, api_key)`)).
-		WithArgs("Ollama", "http://localhost:11434/v1", "llama3.2", "").
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO ai_configs (name, base_url, model, api_key, request_options)`)).
+		WithArgs("Ollama", "http://localhost:11434/v1", "llama3.2", "", "").
 		WillReturnResult(sqlmock.NewResult(8, 1))
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, name, base_url, model, api_key, created_at, updated_at`)).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, name, base_url, model, api_key, request_options, created_at, updated_at`)).
 		WithArgs(int64(8)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "base_url", "model", "api_key", "created_at", "updated_at"}).
-			AddRow(8, "Ollama", "http://localhost:11434/v1", "llama3.2", "", now, now))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "base_url", "model", "api_key", "request_options", "created_at", "updated_at"}).
+			AddRow(8, "Ollama", "http://localhost:11434/v1", "llama3.2", "", "", now, now))
 
 	s := New(db)
 	cfg, err := s.CreateAIConfig(context.Background(), AIConfig{

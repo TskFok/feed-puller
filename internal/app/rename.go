@@ -85,7 +85,7 @@ func (s *Service) renameDownloadFileAt(ctx context.Context, sub store.Subscripti
 	cfg := configs[0]
 
 	var aiExtract *rename.AnimeExtract
-	details, aiErr := aiclient.ExtractAnimeInfoDetailed(ctx, cfg.BaseURL, cfg.APIKey, cfg.Model, filename, itemTitle)
+	details, aiErr := aiclient.ExtractAnimeInfoDetailed(ctx, cfg.BaseURL, cfg.APIKey, cfg.Model, cfg.RequestOptions, filename, itemTitle)
 	if details != nil {
 		history.AIPrompt = details.Prompt
 		history.AIResponse = details.RawResponse

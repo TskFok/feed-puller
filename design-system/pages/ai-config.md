@@ -5,7 +5,7 @@
 ## 布局
 
 - 页头：`.view-header` + 工具栏 `.subscriptions-toolbar`
-- 列表：`.table-wrap` 表格（模型名称 + 操作列）
+- 列表：`.table-wrap` 表格（模型名称 + 高级参数 + 操作列）
 - 分页：`.pagination-bar`
 
 ## 玻璃与动效
@@ -17,7 +17,7 @@
 ## 弹窗
 
 - 新建/编辑：`AnimatedModal` + `.subscription-edit-form` 布局
-- 字段：模型名称、API 地址、API Key
+- 字段：模型名称、API 地址、模型、高级请求参数（JSON，可选）、API Key
 - 初始焦点：第一个 input（`initialFocusRef`）
 
 ## 操作

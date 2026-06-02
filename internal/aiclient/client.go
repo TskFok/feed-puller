@@ -3,7 +3,6 @@ package aiclient
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,18 +13,19 @@ import (
 const testTimeout = 15 * time.Second
 
 // TestConnection 向 OpenAI 兼容接口发送最小 chat 请求以验证连通性。
-func TestConnection(ctx context.Context, baseURL, apiKey, model string) error {
+func TestConnection(ctx context.Context, baseURL, apiKey, model, requestOptions string) error {
 	endpoint, err := chatCompletionsURL(baseURL)
 	if err != nil {
 		return err
 	}
-	body, err := json.Marshal(map[string]any{
-		"model":      strings.TrimSpace(model),
-		"messages":   []map[string]string{{"role": "user", "content": "ping"}},
-		"max_tokens": 1,
-	})
+	body, err := buildChatCompletionBody(
+		model,
+		[]map[string]string{{"role": "user", "content": "ping"}},
+		1,
+		requestOptions,
+	)
 	if err != nil {
-		return fmt.Errorf("构建请求失败: %w", err)
+		return err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {

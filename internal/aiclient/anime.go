@@ -42,7 +42,7 @@ func BuildAnimeExtractPrompt(filename, title string) string {
 }
 
 // ExtractAnimeInfoDetailed 调用 OpenAI 兼容接口，返回提示词、原始响应与解析结果。
-func ExtractAnimeInfoDetailed(ctx context.Context, baseURL, apiKey, model, filename, title string) (*AnimeExtractDetails, error) {
+func ExtractAnimeInfoDetailed(ctx context.Context, baseURL, apiKey, model, requestOptions, filename, title string) (*AnimeExtractDetails, error) {
 	endpoint, err := chatCompletionsURL(baseURL)
 	if err != nil {
 		return nil, err
@@ -53,17 +53,17 @@ func ExtractAnimeInfoDetailed(ctx context.Context, baseURL, apiKey, model, filen
 		return nil, fmt.Errorf("文件名与标题不能同时为空")
 	}
 	prompt := BuildAnimeExtractPrompt(filename, title)
-	body, err := json.Marshal(map[string]any{
-		"model": strings.TrimSpace(model),
-		"messages": []map[string]string{
+	body, err := buildChatCompletionBody(
+		model,
+		[]map[string]string{
 			{"role": "system", "content": "你是文件名解析助手，只输出 JSON。"},
 			{"role": "user", "content": prompt},
 		},
-		"temperature": 0,
-		"max_tokens":  128,
-	})
+		128,
+		requestOptions,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("构建请求失败: %w", err)
+		return nil, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
@@ -97,8 +97,8 @@ func ExtractAnimeInfoDetailed(ctx context.Context, baseURL, apiKey, model, filen
 }
 
 // ExtractAnimeInfo 调用 OpenAI 兼容接口，从文件名与标题中识别番剧名与集数。
-func ExtractAnimeInfo(ctx context.Context, baseURL, apiKey, model, filename, title string) (*AnimeInfo, error) {
-	details, err := ExtractAnimeInfoDetailed(ctx, baseURL, apiKey, model, filename, title)
+func ExtractAnimeInfo(ctx context.Context, baseURL, apiKey, model, requestOptions, filename, title string) (*AnimeInfo, error) {
+	details, err := ExtractAnimeInfoDetailed(ctx, baseURL, apiKey, model, requestOptions, filename, title)
 	if err != nil {
 		return nil, err
 	}

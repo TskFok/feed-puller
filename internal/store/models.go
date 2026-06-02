@@ -100,11 +100,12 @@ type PendingDownload struct {
 
 // AIConfig 表示一条 OpenAI 兼容的 AI 服务配置。
 type AIConfig struct {
-	ID        int64     `json:"id"`
-	Name      string    `json:"name"`
-	BaseURL   string    `json:"url"`
-	Model     string    `json:"model"`
-	APIKey    string    `json:"api_key"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID             int64     `json:"id"`
+	Name           string    `json:"name"`
+	BaseURL        string    `json:"url"`
+	Model          string    `json:"model"`
+	APIKey         string    `json:"api_key"`
+	RequestOptions string    `json:"request_options"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }

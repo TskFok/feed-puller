@@ -15,7 +15,7 @@ func TestExtractEpisode_Success(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	got, err := ExtractEpisode(context.Background(), srv.URL+"/v1", "sk-test", "gpt-test", "xxx 02.mp4", "第2话")
+	got, err := ExtractEpisode(context.Background(), srv.URL+"/v1", "sk-test", "gpt-test", "", "xxx 02.mp4", "第2话")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func TestExtractEpisode_InvalidResponse(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	_, err := ExtractEpisode(context.Background(), srv.URL+"/v1", "sk-test", "gpt-test", "unknown.mp4", "")
+	_, err := ExtractEpisode(context.Background(), srv.URL+"/v1", "sk-test", "gpt-test", "", "unknown.mp4", "")
 	if err == nil {
 		t.Fatal("expected error")
 	}

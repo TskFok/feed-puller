@@ -1811,7 +1811,8 @@ const emptyAIConfig: AIConfigDraft = {
   name: '',
   url: '',
   model: '',
-  api_key: ''
+  api_key: '',
+  request_options: ''
 };
 
 function createAIConfigDraft(): AIConfigDraft {
@@ -1824,8 +1825,20 @@ function editAIConfigDraft(existing: AIConfig): AIConfigDraft {
     name: existing.name,
     url: existing.url,
     model: existing.model,
-    api_key: existing.api_key
+    api_key: existing.api_key,
+    request_options: existing.request_options ?? ''
   };
+}
+
+function validateAIRequestOptions(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return true;
+  try {
+    const parsed = JSON.parse(trimmed);
+    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed);
+  } catch {
+    return false;
+  }
 }
 
 type AIConfigModalTarget = { mode: 'create' } | { mode: 'edit'; configId: number };
@@ -1912,12 +1925,17 @@ function AIConfigModal({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (!validateAIRequestOptions(draft.request_options)) {
+      showToast('高级请求参数必须是 JSON 对象', 'error');
+      return;
+    }
     setSaving(true);
     try {
+      const payload = { ...draft, request_options: draft.request_options.trim() };
       const saved =
         target.mode === 'create'
-          ? await api.createAIConfig(draft)
-          : await api.updateAIConfig(target.configId, draft);
+          ? await api.createAIConfig(payload)
+          : await api.updateAIConfig(target.configId, payload);
       await onSuccess(saved);
       onClose();
     } catch (err) {
@@ -1938,7 +1956,7 @@ function AIConfigModal({
             <h2 id={titleId} className="modal-title">
               {isCreate ? '新增 AI 配置' : '编辑 AI 配置'}
             </h2>
-            <p className="muted modal-subtitle">选择 Provider 预设或自定义 OpenAI 兼容接口，填写模型名称与 API Key。</p>
+            <p className="muted modal-subtitle">选择 Provider 预设或自定义 OpenAI 兼容接口，按需填写高级请求参数与 API Key。</p>
           </div>
           <button type="button" className="modal-close ghost" aria-label="关闭" onClick={onClose}>
             <X size={20} aria-hidden="true" />
@@ -2061,6 +2079,18 @@ function AIConfigModal({
                 : '填写 API 地址与 Key 后，可点击「刷新模型」从服务端拉取列表。'}
             </p>
           </div>
+          <label className="modal-full">
+            高级请求参数（JSON，可选）
+            <textarea
+              aria-label="高级请求参数（JSON，可选）"
+              value={draft.request_options}
+              onChange={(event) => setDraft({ ...draft, request_options: event.target.value })}
+              placeholder='例如：{"thinking":{"type":"disabled"}}'
+              rows={5}
+              spellCheck={false}
+            />
+            <span className="modal-hint">留空则只发送模型、消息与默认 max_tokens；填写的 JSON 对象会合并进请求体。</span>
+          </label>
           <label className="modal-full">
             API Key{apiKeyRequired ? '' : '（可选）'}
             <input
@@ -2347,6 +2377,7 @@ function AIConfigView() {
           <thead>
             <tr>
               <th>模型名称</th>
+              <th>高级参数</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -2354,6 +2385,7 @@ function AIConfigView() {
             {configs.map((cfg) => (
               <tr key={cfg.id}>
                 <td>{cfg.name}</td>
+                <td>{cfg.request_options?.trim() ? '已配置' : '默认'}</td>
                 <td className="actions">
                   <button
                     type="button"
@@ -2387,7 +2419,7 @@ function AIConfigView() {
                 </td>
               </tr>
             ))}
-            {configs.length === 0 && !loading && <EmptyRow columns={2} text="暂无 AI 配置" />}
+            {configs.length === 0 && !loading && <EmptyRow columns={3} text="暂无 AI 配置" />}
           </tbody>
         </table>
       </div>
@@ -2940,4 +2972,3 @@ function formatTime(value?: string) {
 function messageOf(err: unknown) {
   return err instanceof Error ? err.message : '请求失败';
 }
-

@@ -2155,7 +2155,8 @@ describe('App', () => {
       name: 'DeepSeek',
       url: 'https://api.deepseek.com/v1',
       model: 'deepseek-chat',
-      api_key: 'sk-test'
+      api_key: 'sk-test',
+      request_options: ''
     }));
     const savedAIConfigs: Awaited<ReturnType<typeof createAIConfig>>[] = [];
     vi.stubGlobal(
@@ -2252,12 +2253,13 @@ describe('App', () => {
   });
 
   it('登录后可进入 AI 配置并新增一条配置', async () => {
-    const createAIConfig = vi.fn(async () => ({
+    const createAIConfig = vi.fn(async (payload: Record<string, unknown>) => ({
       id: 1,
       name: 'DeepSeek',
       url: 'https://api.deepseek.com/v1',
       model: 'deepseek-chat',
-      api_key: 'sk-test'
+      api_key: 'sk-test',
+      request_options: payload.request_options
     }));
     const savedAIConfigs: Awaited<ReturnType<typeof createAIConfig>>[] = [];
     vi.stubGlobal(
@@ -2280,7 +2282,7 @@ describe('App', () => {
           });
         }
         if (path === '/api/ai-configs' && init?.method === 'POST') {
-          const created = await createAIConfig();
+          const created = await createAIConfig(JSON.parse(String(init.body)));
           savedAIConfigs.push(created);
           return new Response(JSON.stringify(created), {
             status: 201,
@@ -2303,10 +2305,14 @@ describe('App', () => {
       target: { value: 'https://api.deepseek.com/v1' }
     });
     fireEvent.change(within(dialog).getByRole('textbox', { name: '模型' }), { target: { value: 'deepseek-chat' } });
+    fireEvent.change(within(dialog).getByLabelText('高级请求参数（JSON，可选）'), {
+      target: { value: '{"temperature":0.8}' }
+    });
     fireEvent.change(within(dialog).getByLabelText('API Key'), { target: { value: 'sk-test' } });
     fireEvent.click(within(dialog).getByRole('button', { name: '保存' }));
 
     await waitFor(() => expect(createAIConfig).toHaveBeenCalled());
+    expect(createAIConfig).toHaveBeenCalledWith(expect.objectContaining({ request_options: '{"temperature":0.8}' }));
     expect(await screen.findByText('DeepSeek')).toBeInTheDocument();
   });
 
@@ -2398,4 +2404,3 @@ describe('App', () => {
     await waitFor(() => expect(window.location.hash).toBe('#completed'));
   });
 });
-

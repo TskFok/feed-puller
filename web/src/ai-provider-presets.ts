@@ -8,6 +8,7 @@ export type AIProviderPreset = {
   description: string;
   baseUrl: string;
   model: string;
+  requestOptions: string;
   apiKeyRequired: boolean;
   apiKeyPlaceholder: string;
 };
@@ -19,6 +20,7 @@ export const AI_PROVIDER_PRESETS: ReadonlyArray<AIProviderPreset> = [
     description: '官方 OpenAI API',
     baseUrl: 'https://api.openai.com/v1',
     model: 'gpt-4o-mini',
+    requestOptions: '',
     apiKeyRequired: true,
     apiKeyPlaceholder: 'sk-...'
   },
@@ -28,6 +30,7 @@ export const AI_PROVIDER_PRESETS: ReadonlyArray<AIProviderPreset> = [
     description: 'DeepSeek OpenAI 兼容接口',
     baseUrl: 'https://api.deepseek.com/v1',
     model: 'deepseek-chat',
+    requestOptions: '',
     apiKeyRequired: true,
     apiKeyPlaceholder: 'sk-...'
   },
@@ -37,6 +40,7 @@ export const AI_PROVIDER_PRESETS: ReadonlyArray<AIProviderPreset> = [
     description: 'Kimi 开放平台 OpenAI 兼容接口，使用 platform.kimi.com 申请的 API Key',
     baseUrl: 'https://api.moonshot.cn/v1',
     model: 'kimi-k2.6',
+    requestOptions: '{\n  "thinking": {\n    "type": "disabled"\n  }\n}',
     apiKeyRequired: true,
     apiKeyPlaceholder: '在 Kimi 开放平台申请的 API Key'
   },
@@ -46,6 +50,7 @@ export const AI_PROVIDER_PRESETS: ReadonlyArray<AIProviderPreset> = [
     description: '本地 Ollama 服务，通常无需 API Key',
     baseUrl: 'http://localhost:11434/v1',
     model: 'llama3.2',
+    requestOptions: '',
     apiKeyRequired: false,
     apiKeyPlaceholder: '可选，本地一般留空'
   },
@@ -55,6 +60,7 @@ export const AI_PROVIDER_PRESETS: ReadonlyArray<AIProviderPreset> = [
     description: '手动填写地址与模型',
     baseUrl: '',
     model: '',
+    requestOptions: '',
     apiKeyRequired: true,
     apiKeyPlaceholder: 'sk-...'
   }
@@ -117,7 +123,8 @@ export function applyAIProviderPreset(current: AIConfigDraft, preset: AIProvider
     ...current,
     name: resolveNameAfterPreset(current.name, preset),
     url: preset.baseUrl,
-    model: preset.model
+    model: preset.model,
+    request_options: preset.requestOptions
   };
 }
 

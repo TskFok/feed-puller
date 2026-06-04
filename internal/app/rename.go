@@ -84,24 +84,20 @@ func (s *Service) renameDownloadFileAt(ctx context.Context, sub store.Subscripti
 	}
 	cfg := configs[0]
 
-	var aiExtract *rename.AnimeExtract
 	details, aiErr := aiclient.ExtractAnimeInfoDetailed(ctx, cfg.BaseURL, cfg.APIKey, cfg.Model, cfg.RequestOptions, filename, itemTitle)
 	if details != nil {
 		history.AIPrompt = details.Prompt
 		history.AIResponse = details.RawResponse
 	}
-	if aiErr == nil && details != nil && details.Info != nil {
-		aiExtract = &rename.AnimeExtract{
-			AnimeName: details.Info.AnimeName,
-			Episode:   details.Info.Episode,
-		}
+	if aiErr != nil {
+		return from, "", false, fmt.Errorf("识别番剧信息失败: %w", aiErr)
 	}
-	localEpisode, localOK := rename.DetectEpisodeLocally(filename, itemTitle)
-	if aiExtract == nil {
-		if !localOK {
-			return from, "", false, fmt.Errorf("识别番剧信息失败: %w", aiErr)
-		}
-		s.log.Info("AI 识别失败，使用本地规则", "subscription_id", sub.ID, "episode", localEpisode, "error", aiErr)
+	if details == nil || details.Info == nil {
+		return from, "", false, fmt.Errorf("识别番剧信息失败")
+	}
+	aiExtract := &rename.AnimeExtract{
+		AnimeName: details.Info.AnimeName,
+		Episode:   details.Info.Episode,
 	}
 
 	season := sub.AIRenameSeason
@@ -115,8 +111,6 @@ func (s *Service) renameDownloadFileAt(ctx context.Context, sub store.Subscripti
 		SubscriptionSeason: season,
 		EpisodeOffset:      sub.AIRenameEpOffset,
 		AI:                 aiExtract,
-		LocalEpisode:       localEpisode,
-		LocalEpisodeOK:     localOK,
 	})
 	if err != nil {
 		return from, "", false, err

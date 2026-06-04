@@ -246,17 +246,12 @@ func TestSyncAria2DownloadStatus_MarksCompleteWhenGlobalProgressDone(t *testing.
 	}
 }
 
-func TestMaybeRenameDownloadFile_WithLocalFallback(t *testing.T) {
+func TestMaybeRenameDownloadFile_AIHTTPFailureDoesNotUseLocalFallback(t *testing.T) {
 	dir := t.TempDir()
 	from := filepath.Join(dir, "xxx 02.mp4")
 	if err := os.WriteFile(from, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-
-	ai := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "fail", http.StatusInternalServerError)
-	}))
-	defer ai.Close()
 
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -271,7 +266,7 @@ func TestMaybeRenameDownloadFile_WithLocalFallback(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM ai_configs ORDER BY id DESC`)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "base_url", "model", "api_key", "request_options", "created_at", "updated_at"}).
-			AddRow(1, "test", ai.URL+"/v1", "gpt-test", "sk-test", "", now, now))
+			AddRow(1, "test", "http://127.0.0.1:1/v1", "gpt-test", "sk-test", "", now, now))
 
 	expectRenameHistoryInsert(mock)
 
@@ -284,11 +279,14 @@ func TestMaybeRenameDownloadFile_WithLocalFallback(t *testing.T) {
 	status := map[string]any{
 		"files": []any{map[string]any{"path": from}},
 	}
-	svc.maybeRenameDownloadFile(context.Background(), sub, "第2话", status)
+	svc.maybeRenameDownloadFile(context.Background(), sub, "第2集", status)
 
 	target := filepath.Join(dir, "xxx S01E04.mp4")
-	if _, err := os.Stat(target); err != nil {
-		t.Fatalf("expected renamed file: %v", err)
+	if _, err := os.Stat(from); err != nil {
+		t.Fatalf("original file should remain: %v", err)
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Fatalf("target should not be created when AI fails, stat err=%v", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

@@ -1018,6 +1018,114 @@ describe('App', () => {
     expect(postCalls).toHaveLength(0);
   });
 
+  it('订阅列表的行内操作按钮使用非透明操作样式', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input);
+        const method = (init?.method ?? 'GET').toUpperCase();
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (isSubscriptionsListPath(path) && method === 'GET') {
+          return new Response(
+            JSON.stringify([
+              {
+                id: 9,
+                name: 'Demo',
+                feed_url: 'https://example.test/feed.xml',
+                enabled: true,
+                poll_interval_minutes: 30,
+                poll_cron: '',
+                poll_cron_timezone: 'UTC',
+                download_dir: '/data',
+                include_keywords: '',
+                exclude_keywords: '',
+                use_proxy: false
+              }
+            ]),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /拉取/ })).toHaveClass('subscription-action');
+    expect(screen.getByRole('button', { name: /编辑/ })).toHaveClass('subscription-action');
+    expect(screen.getByRole('button', { name: /复制 Demo/ })).toHaveClass('subscription-action');
+  });
+
+  it('删除订阅前需要二次确认', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      const method = (init?.method ?? 'GET').toUpperCase();
+      if (path === '/api/auth/me') {
+        return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      if (isSubscriptionsListPath(path) && method === 'GET') {
+        return new Response(
+          JSON.stringify([
+            {
+              id: 9,
+              name: 'Demo',
+              feed_url: 'https://example.test/feed.xml',
+              enabled: true,
+              poll_interval_minutes: 30,
+              poll_cron: '',
+              poll_cron_timezone: 'UTC',
+              download_dir: '/data',
+              include_keywords: '',
+              exclude_keywords: '',
+              use_proxy: false
+            }
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (path === '/api/subscriptions/9' && method === 'DELETE') {
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const deleteCalls = () =>
+      fetchMock.mock.calls.filter(
+        ([url, init]) => String(url) === '/api/subscriptions/9' && (init?.method ?? 'GET').toUpperCase() === 'DELETE'
+      );
+
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '删除' }));
+
+    const dialog = await screen.findByRole('dialog', { name: '删除订阅' });
+    expect(within(dialog).getByText(/Demo/)).toBeInTheDocument();
+    expect(deleteCalls()).toHaveLength(0);
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '取消' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '删除订阅' })).not.toBeInTheDocument());
+    expect(deleteCalls()).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole('button', { name: '删除' }));
+    const confirmDialog = await screen.findByRole('dialog', { name: '删除订阅' });
+    fireEvent.click(within(confirmDialog).getByRole('button', { name: '确认删除' }));
+
+    await waitFor(() => expect(deleteCalls()).toHaveLength(1));
+  });
+
   it('点击拉取后展示条目预览弹窗', async () => {
     vi.stubGlobal(
       'fetch',

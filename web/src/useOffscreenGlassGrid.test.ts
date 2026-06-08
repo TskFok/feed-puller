@@ -26,7 +26,9 @@ describe('useOffscreenGlassGrid', () => {
     const observe = vi.fn();
     vi.stubGlobal(
       'IntersectionObserver',
-      vi.fn(() => ({ observe, disconnect: vi.fn(), unobserve: vi.fn() }))
+      vi.fn(function () {
+        return { observe, disconnect: vi.fn(), unobserve: vi.fn() };
+      })
     );
 
     renderHook(() => useOffscreenGlassGrid(mountContainer(), false, [1]));
@@ -40,7 +42,7 @@ describe('useOffscreenGlassGrid', () => {
     const disconnect = vi.fn();
     vi.stubGlobal(
       'IntersectionObserver',
-      vi.fn((cb: IntersectionObserverCallback) => {
+      vi.fn(function (cb: IntersectionObserverCallback) {
         callback = cb;
         return { observe, disconnect, unobserve: vi.fn() };
       })
@@ -68,7 +70,9 @@ describe('useOffscreenGlassGrid', () => {
     const observe = vi.fn();
     vi.stubGlobal(
       'IntersectionObserver',
-      vi.fn(() => ({ observe, disconnect: vi.fn(), unobserve: vi.fn() }))
+      vi.fn(function () {
+        return { observe, disconnect: vi.fn(), unobserve: vi.fn() };
+      })
     );
 
     renderHook(() => useOffscreenGlassGrid(mountContainer(), false, [6]));
@@ -91,7 +95,7 @@ describe('useOffscreenGlassGrid', () => {
     let observerRoot: Element | null = null;
     vi.stubGlobal(
       'IntersectionObserver',
-      vi.fn((_cb: IntersectionObserverCallback, init?: IntersectionObserverInit) => {
+      vi.fn(function (_cb: IntersectionObserverCallback, init?: IntersectionObserverInit) {
         observerRoot = (init?.root as Element | null | undefined) ?? null;
         return { observe: vi.fn(), disconnect: vi.fn(), unobserve: vi.fn() };
       })

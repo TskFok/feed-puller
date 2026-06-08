@@ -1586,6 +1586,8 @@ function SubscriptionsView({ onGoActive }: { onGoActive?: () => void }) {
   const [subscriptionModal, setSubscriptionModal] = useState<SubscriptionModalTarget | null>(null);
   const [fetchPreview, setFetchPreview] = useState<{ name: string; items: PolledFeedItem[] } | null>(null);
   const [fetchLoadingId, setFetchLoadingId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Subscription | null>(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [reorderSaving, setReorderSaving] = useState(false);
@@ -1628,6 +1630,21 @@ function SubscriptionsView({ onGoActive }: { onGoActive?: () => void }) {
     }
   }
 
+  async function confirmDeleteSubscription() {
+    if (!deleteTarget) return;
+    setDeleteSaving(true);
+    try {
+      await api.deleteSubscription(deleteTarget.id);
+      setDeleteTarget(null);
+      showToast('订阅已删除');
+      await reload();
+    } catch (err) {
+      showToast(messageOf(err), 'error');
+    } finally {
+      setDeleteSaving(false);
+    }
+  }
+
   async function commitReorder(from: number, to: number) {
     if (from === to) return;
     setReorderSaving(true);
@@ -1644,7 +1661,7 @@ function SubscriptionsView({ onGoActive }: { onGoActive?: () => void }) {
     }
   }
 
-  const rowBusy = fetchLoadingId !== null || reorderSaving;
+  const rowBusy = fetchLoadingId !== null || reorderSaving || deleteSaving;
   const subscriptionPageOffset = pageOffset(pagination.page, pagination.pageSize);
 
   return (
@@ -1680,6 +1697,18 @@ function SubscriptionsView({ onGoActive }: { onGoActive?: () => void }) {
             } else {
               showToast('订阅已更新');
             }
+          }}
+        />
+      )}
+      {deleteTarget && (
+        <DeleteSubscriptionConfirmModal
+          subscription={deleteTarget}
+          saving={deleteSaving}
+          onClose={() => {
+            if (!deleteSaving) setDeleteTarget(null);
+          }}
+          onConfirm={() => {
+            void confirmDeleteSubscription();
           }}
         />
       )}
@@ -1747,23 +1776,23 @@ function SubscriptionsView({ onGoActive }: { onGoActive?: () => void }) {
                 </td>
                 <td>{sub.name}</td>
                 <td className="sub-schedule-cell">{subscriptionScheduleSummary(sub)}</td>
-                <td className="actions">
+                <td className="actions subscription-actions">
                   <button
                     type="button"
-                    className="icon-text"
+                    className="icon-text subscription-action"
                     disabled={rowBusy || fetchLoadingId === sub.id}
                     onClick={() => pullSubscription(sub)}
                   >
                     <RefreshCw size={16} className={fetchLoadingId === sub.id ? 'icon-spinning' : undefined} aria-hidden="true" />
                     拉取
                   </button>
-                  <button className="icon-text" disabled={rowBusy} onClick={() => edit(sub)}>
-                    <SquarePen size={16} />
+                  <button type="button" className="icon-text subscription-action" disabled={rowBusy} onClick={() => edit(sub)}>
+                    <SquarePen size={16} aria-hidden="true" />
                     编辑
                   </button>
                   <button
                     type="button"
-                    className="icon-text"
+                    className="icon-text subscription-action"
                     disabled={rowBusy}
                     aria-label={`复制 ${sub.name}`}
                     onClick={() => copySubscription(sub)}
@@ -1772,16 +1801,12 @@ function SubscriptionsView({ onGoActive }: { onGoActive?: () => void }) {
                     复制
                   </button>
                   <button
-                    className="danger"
+                    type="button"
+                    className="danger subscription-action subscription-delete-action"
                     disabled={rowBusy}
-                    onClick={() =>
-                      api
-                        .deleteSubscription(sub.id)
-                        .then(() => reload())
-                        .catch((err) => showToast(messageOf(err), 'error'))
-                    }
+                    onClick={() => setDeleteTarget(sub)}
                   >
-                    <Trash2 size={16} />
+                    <Trash2 size={16} aria-hidden="true" />
                     删除
                   </button>
                 </td>
@@ -1803,6 +1828,52 @@ function SubscriptionsView({ onGoActive }: { onGoActive?: () => void }) {
         onPageSizeChange={pagination.setPageSize}
       />
     </section>
+  );
+}
+
+function DeleteSubscriptionConfirmModal({
+  subscription,
+  saving,
+  onClose,
+  onConfirm
+}: {
+  subscription: Subscription;
+  saving: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const titleId = useId();
+  const cancelRef = useRef<HTMLButtonElement>(null);
+
+  return (
+    <AnimatedModal onClose={onClose} ariaLabelledBy={titleId} panelClassName="delete-confirm-modal" initialFocusRef={cancelRef}>
+      <div className="modal-header-row">
+        <div>
+          <h2 id={titleId} className="modal-title">
+            删除订阅
+          </h2>
+          <p className="muted modal-subtitle">删除前请确认目标订阅。</p>
+        </div>
+        <button type="button" className="modal-close ghost" aria-label="关闭删除确认" disabled={saving} onClick={onClose}>
+          <X size={20} aria-hidden="true" />
+        </button>
+      </div>
+      <div className="delete-confirm-body">
+        <p>
+          确定要删除订阅「<strong>{subscription.name}</strong>」吗？
+        </p>
+        <p className="muted">删除后该订阅将从列表移除，后续不会再按该配置拉取 RSS。</p>
+      </div>
+      <div className="modal-actions">
+        <button type="button" className="ghost" ref={cancelRef} disabled={saving} onClick={onClose}>
+          取消
+        </button>
+        <button type="button" className="danger" disabled={saving} onClick={onConfirm}>
+          <Trash2 size={16} aria-hidden="true" />
+          {saving ? '删除中…' : '确认删除'}
+        </button>
+      </div>
+    </AnimatedModal>
   );
 }
 

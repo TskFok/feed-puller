@@ -768,6 +768,32 @@ th {
   flex-wrap: wrap;
 }
 
+.subscription-actions {
+  align-items: center;
+  gap: 10px;
+}
+
+.subscription-action {
+  min-height: 36px;
+  padding: 7px 12px;
+  background: color-mix(in srgb, var(--glass-panel-solid) 72%, var(--glass-primary) 10%);
+  border-color: color-mix(in srgb, var(--glass-border) 75%, var(--glass-primary) 25%);
+  box-shadow:
+    0 6px 18px rgba(12, 18, 34, 0.12),
+    var(--glass-shadow-inset);
+}
+
+.subscription-action:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--glass-panel-solid) 66%, var(--glass-primary) 18%);
+  border-color: color-mix(in srgb, var(--glass-primary) 55%, var(--glass-border));
+}
+
+.subscription-delete-action,
+.subscription-delete-action:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.24);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
 .status {
   display: inline-flex;
   min-height: 26px;
@@ -1385,6 +1411,28 @@ th {
   padding-top: 4px;
   border-top: 1px solid var(--glass-border-soft);
   margin-top: 4px;
+}
+
+.delete-confirm-modal {
+  max-width: 460px;
+}
+
+.delete-confirm-body {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 14px;
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  border-radius: var(--glass-radius);
+  background: color-mix(in srgb, rgba(239, 68, 68, 0.18) 62%, var(--glass-panel-solid));
+}
+
+.delete-confirm-body p {
+  margin: 0;
+}
+
+.delete-confirm-body strong {
+  color: var(--glass-text);
 }
 
 @media (max-width: 900px) {
@@ -2351,4 +2399,3 @@ html[data-theme='light'] .prowlarr-skeleton-line {
     background-position: -100% 0;
   }
 }
-

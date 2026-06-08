@@ -13,7 +13,7 @@ describe('useOffscreenGlassSurface', () => {
     let callback: IntersectionObserverCallback = () => undefined;
     vi.stubGlobal(
       'IntersectionObserver',
-      vi.fn((cb: IntersectionObserverCallback) => {
+      vi.fn(function (cb: IntersectionObserverCallback) {
         callback = cb;
         return { observe: vi.fn(), disconnect: vi.fn(), unobserve: vi.fn() };
       })

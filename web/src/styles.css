@@ -51,6 +51,8 @@ html:not([data-theme]) {
   --ghost-bg: var(--glass-ghost-bg, rgba(255, 255, 255, 0.08));
   --sidebar-bg: var(--glass-sidebar-bg, rgba(255, 255, 255, 0.05));
   --overlay-bg: rgba(12, 18, 34, 0.55);
+  --modal-overlay-bg: rgba(12, 18, 34, 0.72);
+  --modal-panel-bg: rgba(20, 28, 46, 0.98);
   background: var(--glass-deep);
   color: var(--glass-text);
 }
@@ -83,6 +85,8 @@ html[data-theme='light'] {
   --ghost-bg: var(--glass-ghost-bg, rgba(255, 255, 255, 0.55));
   --sidebar-bg: var(--glass-sidebar-bg, rgba(255, 255, 255, 0.45));
   --overlay-bg: rgba(19, 78, 74, 0.35);
+  --modal-overlay-bg: rgba(19, 78, 74, 0.48);
+  --modal-panel-bg: rgba(255, 255, 255, 0.96);
   background: var(--glass-deep);
   color: var(--glass-text);
 }
@@ -1093,7 +1097,7 @@ th {
   display: grid;
   place-items: center;
   padding: 24px 16px;
-  background: var(--overlay-bg);
+  background: var(--modal-overlay-bg, var(--overlay-bg));
   backdrop-filter: blur(8px) saturate(120%);
   -webkit-backdrop-filter: blur(8px) saturate(120%);
   animation: overlay-in var(--motion-enter) var(--motion-ease-out);
@@ -1104,6 +1108,7 @@ th {
   max-height: min(92dvh, 900px);
   overflow-y: auto;
   border-radius: var(--glass-radius-lg);
+  background: var(--modal-panel-bg, var(--glass-panel-solid));
   padding: 22px 24px 24px;
   animation: modal-in var(--motion-enter) var(--motion-ease-out);
 }

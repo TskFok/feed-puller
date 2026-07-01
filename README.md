@@ -144,7 +144,7 @@ docker build -t feed-puller:local .
 - `GET /api/auth/feishu/callback` — 飞书 OAuth 回调（iframe 内 postMessage，不整页跳转）
 - `GET/POST /api/subscriptions` — **新建订阅不会立即拉取 RSS**；首次内容依赖定时调度（按创建时间与间隔/crontab 计算）或 `refresh` 手动拉取。
 - `GET/PUT/DELETE /api/subscriptions/{id}`
-- `POST /api/subscriptions/{id}/refresh` — 拉取 RSS 并写入条目，响应 `{ "items": [...] }`（条目含可选 `content_length` 字节数）；新条目状态为 `preview`（仅预览），**不会**自动提交 aria2 下载，需在预览弹窗中手动下载或批量标记为「未处理」后由调度器提交。
+- `POST /api/subscriptions/{id}/refresh` — 拉取 RSS 并写入条目，响应 `{ "items": [...] }`（条目含可选 `content_length` 字节数）；新条目状态为 `preview`（仅预览），**本次不会**自动提交 aria2 下载；定时调度会在后续周期自动提交，也可在预览弹窗中手动下载。
 - `GET /api/items`
 - `POST /api/items/{id}/download` — 将单条条目提交给 aria2（等同于队列中的单条处理）。
 - `GET /api/downloads`

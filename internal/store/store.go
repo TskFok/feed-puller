@@ -534,7 +534,7 @@ func (s *Store) PendingDownloads(ctx context.Context, limit int) ([]PendingDownl
 		SELECT i.id, i.subscription_id, i.download_url, sub.download_dir
 		FROM feed_items i
 		JOIN subscriptions sub ON sub.id = i.subscription_id
-		WHERE i.download_status IN ('pending', 'failed') AND i.download_url IS NOT NULL AND i.download_url <> ''
+		WHERE i.download_status IN ('pending', 'preview', 'failed') AND i.download_url IS NOT NULL AND i.download_url <> ''
 		ORDER BY i.id ASC LIMIT ?
 	`, limit)
 	if err != nil {

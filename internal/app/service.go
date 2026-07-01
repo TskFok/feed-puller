@@ -43,7 +43,7 @@ func (s *Service) mapDownloadPath(path string) string {
 
 // PollOptions 控制订阅拉取行为。
 type PollOptions struct {
-	// PreviewOnly 为 true 时新条目标记为 preview，不进入自动下载队列。
+	// PreviewOnly 为 true 时新条目标记为 preview，本次拉取不立即提交下载；调度器后续会处理 preview 条目。
 	PreviewOnly bool
 }
 

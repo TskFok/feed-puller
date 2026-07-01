@@ -44,7 +44,7 @@ func TestSaveFeedItems_InsertReturnsStoredRow(t *testing.T) {
 		WillReturnRows(sqlRows)
 
 	s := New(db)
-	got, err := s.SaveFeedItems(context.Background(), subID, rssItems)
+	got, err := s.SaveFeedItems(context.Background(), subID, rssItems, false)
 	if err != nil {
 		t.Fatal(err)
 	}

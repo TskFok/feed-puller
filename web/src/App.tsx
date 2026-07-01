@@ -957,16 +957,17 @@ function canSelectFeedItem(row: FeedItemDownloadRow): boolean {
 }
 
 function feedItemDownloadButtonLabel(status: string): string {
-  if (status === 'pending') return '下载';
+  if (status === 'preview' || status === 'pending') return '下载';
   if (status === 'failed') return '重试';
   if (status === 'completed') return '重新下载';
   return '重新下载';
 }
 
-type FetchPreviewStatusFilter = 'all' | 'pending' | 'submitted' | 'failed' | 'submitting' | 'completed' | 'no-download';
+type FetchPreviewStatusFilter = 'all' | 'preview' | 'pending' | 'submitted' | 'failed' | 'submitting' | 'completed' | 'no-download';
 
 const FETCH_PREVIEW_STATUS_FILTER_OPTIONS: { value: FetchPreviewStatusFilter; label: string }[] = [
   { value: 'all', label: '全部' },
+  { value: 'preview', label: '预览' },
   { value: 'pending', label: '未处理' },
   { value: 'submitted', label: '已处理' },
   { value: 'failed', label: '失败' },
@@ -978,6 +979,7 @@ const FETCH_PREVIEW_STATUS_FILTER_OPTIONS: { value: FetchPreviewStatusFilter; la
 function fetchPreviewStatusKey(row: PolledFeedItem): Exclude<FetchPreviewStatusFilter, 'all'> {
   const url = row.download_url?.trim();
   if (!url) return 'no-download';
+  if (row.download_status === 'preview') return 'preview';
   if (row.download_status === 'pending') return 'pending';
   if (row.download_status === 'failed') return 'failed';
   if (row.download_status === 'submitting') return 'submitting';

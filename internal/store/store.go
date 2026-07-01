@@ -363,7 +363,18 @@ func (s *Store) DeleteSubscription(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (s *Store) SaveFeedItems(ctx context.Context, subscriptionID int64, items []rss.FeedItem) ([]Item, error) {
+// NewFeedItemDownloadStatus 决定 RSS 新条目的初始下载状态。
+func NewFeedItemDownloadStatus(downloadURL string, previewOnly bool) string {
+	if strings.TrimSpace(downloadURL) == "" {
+		return "skipped"
+	}
+	if previewOnly {
+		return "preview"
+	}
+	return "pending"
+}
+
+func (s *Store) SaveFeedItems(ctx context.Context, subscriptionID int64, items []rss.FeedItem, previewOnly bool) ([]Item, error) {
 	var out []Item
 	for _, item := range items {
 		key := rss.DedupeKey(item)
@@ -394,10 +405,7 @@ func (s *Store) SaveFeedItems(ctx context.Context, subscriptionID int64, items [
 		if !errors.Is(err, sql.ErrNoRows) {
 			return out, fmt.Errorf("查询条目失败: %w", err)
 		}
-		status := "skipped"
-		if strings.TrimSpace(item.DownloadURL) != "" {
-			status = "pending"
-		}
+		status := NewFeedItemDownloadStatus(item.DownloadURL, previewOnly)
 		res, err := s.db.ExecContext(ctx, `
 			INSERT INTO feed_items (subscription_id, guid, title, link, download_url, dedupe_key, published_at, download_status)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?)

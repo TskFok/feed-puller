@@ -158,4 +158,6 @@ var migrations = []string{
 		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		INDEX idx_rename_history_created_at (created_at)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+	`ALTER TABLE feed_items
+		MODIFY COLUMN download_status ENUM('pending', 'submitting', 'submitted', 'failed', 'skipped', 'completed', 'preview') NOT NULL DEFAULT 'pending'`,
 }

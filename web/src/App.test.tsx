@@ -1167,7 +1167,7 @@ describe('App', () => {
                   subscription_id: 9,
                   title: 'Episode 1',
                   download_url: 'https://example.test/a.mp4',
-                  download_status: 'pending',
+                  download_status: 'preview',
                   created_at: '2026-05-19T10:00:00Z',
                   updated_at: '2026-05-19T10:00:00Z',
                   content_length: 1024
@@ -1188,7 +1188,7 @@ describe('App', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByRole('heading', { name: /拉取结果 · Demo/ })).toBeInTheDocument();
     expect(within(dialog).getByText('Episode 1')).toBeInTheDocument();
-    expect(within(dialog).getByRole('cell', { name: '未处理' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('cell', { name: '预览' })).toBeInTheDocument();
   });
 
   it('拉取完成后提示会自动消失', async () => {
@@ -1234,7 +1234,7 @@ describe('App', () => {
                     subscription_id: 9,
                     title: 'Episode 1',
                     download_url: 'https://example.test/a.mp4',
-                    download_status: 'pending',
+                    download_status: 'preview',
                     created_at: '2026-05-19T10:00:00Z',
                     updated_at: '2026-05-19T10:00:00Z',
                     content_length: 1024
@@ -1370,7 +1370,7 @@ describe('App', () => {
                   subscription_id: 9,
                   title: 'Pending',
                   download_url: 'https://example.test/p.mp4',
-                  download_status: 'pending',
+                  download_status: 'preview',
                   created_at: '2026-05-19T10:00:00Z'
                 },
                 {
@@ -1475,7 +1475,7 @@ describe('App', () => {
                   subscription_id: 9,
                   title: 'Pending',
                   download_url: 'https://example.test/p.mp4',
-                  download_status: 'pending',
+                  download_status: 'preview',
                   created_at: '2026-05-19T10:00:00Z'
                 }
               ]
@@ -1575,7 +1575,7 @@ describe('App', () => {
                   subscription_id: 9,
                   title: 'Item A',
                   download_url: 'https://example.test/a.mp4',
-                  download_status: 'pending',
+                  download_status: 'preview',
                   created_at: '2026-05-19T10:00:00Z'
                 },
                 {
@@ -1583,7 +1583,7 @@ describe('App', () => {
                   subscription_id: 9,
                   title: 'Item B',
                   download_url: 'https://example.test/b.mp4',
-                  download_status: 'pending',
+                  download_status: 'preview',
                   created_at: '2026-05-19T10:00:00Z'
                 }
               ]
@@ -1679,7 +1679,7 @@ describe('App', () => {
                   subscription_id: 9,
                   title: 'Pending',
                   download_url: 'https://example.test/p.mp4',
-                  download_status: 'pending',
+                  download_status: 'preview',
                   created_at: '2026-05-19T10:00:00Z'
                 }
               ]
@@ -1770,7 +1770,7 @@ describe('App', () => {
                   subscription_id: 9,
                   title: 'Pending Item',
                   download_url: 'https://example.test/p.mp4',
-                  download_status: 'pending',
+                  download_status: 'preview',
                   created_at: '2026-05-19T10:00:00Z'
                 },
                 {
@@ -1786,7 +1786,7 @@ describe('App', () => {
                   subscription_id: 9,
                   title: 'No URL Item',
                   download_url: '',
-                  download_status: 'pending',
+                  download_status: 'skipped',
                   created_at: '2026-05-19T10:00:00Z'
                 }
               ]
@@ -1809,7 +1809,7 @@ describe('App', () => {
     expect(within(dialog).getByText('No URL Item')).toBeInTheDocument();
     expect(within(dialog).getByText('显示 3 / 3 条')).toBeInTheDocument();
 
-    fireEvent.change(within(dialog).getByLabelText('状态筛选'), { target: { value: 'pending' } });
+    fireEvent.change(within(dialog).getByLabelText('状态筛选'), { target: { value: 'preview' } });
     expect(within(dialog).getByText('Pending Item')).toBeInTheDocument();
     expect(within(dialog).queryByText('Done Item')).not.toBeInTheDocument();
     expect(within(dialog).queryByText('No URL Item')).not.toBeInTheDocument();
@@ -1868,7 +1868,7 @@ describe('App', () => {
                   subscription_id: 9,
                   title: 'A',
                   download_url: 'https://example.test/a.mp4',
-                  download_status: 'pending',
+                  download_status: 'preview',
                   created_at: '2026-05-19T10:00:00Z'
                 },
                 {
@@ -1876,7 +1876,7 @@ describe('App', () => {
                   subscription_id: 9,
                   title: 'B',
                   download_url: 'https://example.test/b.mp4',
-                  download_status: 'pending',
+                  download_status: 'preview',
                   created_at: '2026-05-19T10:00:00Z'
                 }
               ]

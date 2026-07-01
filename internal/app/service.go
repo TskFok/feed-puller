@@ -41,7 +41,17 @@ func (s *Service) mapDownloadPath(path string) string {
 	return s.pathMap.Map(path)
 }
 
-func (s *Service) PollSubscription(ctx context.Context, sub store.Subscription) ([]store.Item, error) {
+// PollOptions 控制订阅拉取行为。
+type PollOptions struct {
+	// PreviewOnly 为 true 时新条目标记为 preview，不进入自动下载队列。
+	PreviewOnly bool
+}
+
+func (s *Service) PollSubscription(ctx context.Context, sub store.Subscription, opts ...PollOptions) ([]store.Item, error) {
+	previewOnly := false
+	if len(opts) > 0 && opts[0].PreviewOnly {
+		previewOnly = true
+	}
 	proxyURL, err := s.store.GetSetting(ctx, proxySettingKey)
 	if err != nil {
 		return nil, err
@@ -60,7 +70,7 @@ func (s *Service) PollSubscription(ctx context.Context, sub store.Subscription) 
 		_ = s.store.MarkSubscriptionFetched(ctx, sub.ID, err.Error())
 		return nil, err
 	}
-	saved, err := s.store.SaveFeedItems(ctx, sub.ID, items)
+	saved, err := s.store.SaveFeedItems(ctx, sub.ID, items, previewOnly)
 	if err != nil {
 		_ = s.store.MarkSubscriptionFetched(ctx, sub.ID, err.Error())
 		return nil, err

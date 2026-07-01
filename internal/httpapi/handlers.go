@@ -113,7 +113,7 @@ func (s *Server) handleSubscriptionByID(w http.ResponseWriter, r *http.Request) 
 			writeError(w, http.StatusNotFound, "订阅不存在")
 			return
 		}
-		items, err := s.service.PollSubscription(r.Context(), sub)
+		items, err := s.service.PollSubscription(r.Context(), sub, app.PollOptions{PreviewOnly: true})
 		if err != nil {
 			writeError(w, http.StatusBadGateway, err.Error())
 			return

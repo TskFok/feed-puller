@@ -54,6 +54,11 @@ func main() {
 		log.Error("数据库迁移失败", "error", err)
 		os.Exit(1)
 	}
+	cfg, err = repo.ApplyRuntimeServiceConfig(ctx, cfg)
+	if err != nil {
+		log.Error("加载运行时服务配置失败", "error", err)
+		os.Exit(1)
+	}
 	if err := repo.BootstrapAdmin(ctx, cfg.AdminEmail, cfg.AdminPassword); err != nil {
 		log.Error("初始化管理员失败", "error", err)
 		os.Exit(1)

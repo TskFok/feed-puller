@@ -2038,7 +2038,12 @@ function AIConfigModal({
   }
 
   return (
-    <AnimatedModal onClose={onClose} ariaLabelledBy={titleId} initialFocusRef={firstFieldRef}>
+    <AnimatedModal
+      onClose={onClose}
+      ariaLabelledBy={titleId}
+      initialFocusRef={firstFieldRef}
+      panelClassName="ai-config-form-modal"
+    >
         <div className="modal-header-row">
           <div>
             <h2 id={titleId} className="modal-title">
@@ -2050,7 +2055,8 @@ function AIConfigModal({
             <X size={20} aria-hidden="true" />
           </button>
         </div>
-        <form className="subscription-edit-form" onSubmit={submit}>
+        <form className="ai-config-edit-form" onSubmit={submit}>
+          <div className="ai-config-form-scroll">
           <fieldset className="modal-fieldset modal-full">
             <legend>
               <span className="modal-section-title">Provider 预设</span>
@@ -2190,7 +2196,8 @@ function AIConfigModal({
               required={apiKeyRequired}
             />
           </label>
-          <div className="modal-actions">
+          </div>
+          <div className="modal-actions ai-config-form-actions">
             <button type="button" className="ghost" onClick={onClose}>
               取消
             </button>

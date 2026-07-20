@@ -16,7 +16,7 @@
 
 ## 弹窗
 
-- 新建/编辑：`AnimatedModal` + `.subscription-edit-form` 布局
+- 新建/编辑：`AnimatedModal` + `.ai-config-form-modal`；标题和操作区固定，`.ai-config-form-scroll` 单独滚动
 - 字段：模型名称、API 地址、模型、高级请求参数（JSON，可选）、API Key
 - 初始焦点：第一个 input（`initialFocusRef`）
 

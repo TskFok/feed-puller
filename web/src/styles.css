@@ -1174,6 +1174,46 @@ th {
   padding: 16px 24px 24px;
 }
 
+.ai-config-form-modal.modal-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.ai-config-form-modal .modal-header-row {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 22px 24px 14px;
+}
+
+.ai-config-edit-form {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ai-config-form-scroll {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  gap: 18px;
+  overflow-y: auto;
+  padding: 0 24px 18px;
+}
+
+.ai-config-form-scroll > .modal-fieldset:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.ai-config-form-actions.modal-actions {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 16px 24px 24px;
+}
+
 .modal-header-row {
   display: flex;
   align-items: flex-start;

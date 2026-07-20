@@ -2345,6 +2345,108 @@ describe('App', () => {
     expect(await screen.findByText('DeepSeek')).toBeInTheDocument();
   });
 
+  it('新增 AI 配置弹窗固定头尾，仅字段区域滚动', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (isSubscriptionsListPath(path)) {
+          return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (isAIConfigsListPath(path)) {
+          return new Response(JSON.stringify({ items: [], total: 0, page: 1, page_size: 30 }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'AI 配置' }));
+    fireEvent.click(await screen.findByRole('button', { name: '新增配置' }));
+
+    const dialog = await screen.findByRole('dialog', { name: '新增 AI 配置' });
+    const form = dialog.querySelector<HTMLFormElement>('form.ai-config-edit-form');
+    const scrollArea = dialog.querySelector<HTMLElement>('.ai-config-form-scroll');
+    const actions = dialog.querySelector<HTMLElement>('.ai-config-form-actions');
+    const nameField = within(dialog).getByLabelText('模型名称');
+
+    expect(dialog).toHaveClass('ai-config-form-modal');
+    expect(dialog.querySelector('.modal-header-row')?.parentElement).toBe(dialog);
+    expect(form).not.toBeNull();
+    expect(scrollArea?.parentElement).toBe(form);
+    expect(scrollArea?.contains(nameField)).toBe(true);
+    expect(actions?.parentElement).toBe(form);
+    expect(scrollArea?.contains(actions ?? null)).toBe(false);
+  });
+
+  it('编辑 AI 配置弹窗固定头尾，仅字段区域滚动', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (isSubscriptionsListPath(path)) {
+          return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (isAIConfigsListPath(path)) {
+          return new Response(
+            JSON.stringify({
+              items: [
+                {
+                  id: 1,
+                  name: 'Demo',
+                  url: 'https://api.example.test/v1',
+                  model: 'demo-model',
+                  api_key: 'sk-test',
+                  request_options: ''
+                }
+              ],
+              total: 1,
+              page: 1,
+              page_size: 30
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'AI 配置' }));
+    fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
+
+    const dialog = await screen.findByRole('dialog', { name: '编辑 AI 配置' });
+    const form = dialog.querySelector<HTMLFormElement>('form.ai-config-edit-form');
+    const scrollArea = dialog.querySelector<HTMLElement>('.ai-config-form-scroll');
+    const actions = dialog.querySelector<HTMLElement>('.ai-config-form-actions');
+    const nameField = within(dialog).getByDisplayValue('Demo');
+
+    expect(dialog).toHaveClass('ai-config-form-modal');
+    expect(dialog.querySelector('.modal-header-row')?.parentElement).toBe(dialog);
+    expect(form).not.toBeNull();
+    expect(scrollArea?.parentElement).toBe(form);
+    expect(scrollArea?.contains(nameField)).toBe(true);
+    expect(actions?.parentElement).toBe(form);
+    expect(scrollArea?.contains(actions ?? null)).toBe(false);
+  });
+
   it('登录后可刷新 AI 模型列表并选择模型', async () => {
     vi.stubGlobal(
       'fetch',

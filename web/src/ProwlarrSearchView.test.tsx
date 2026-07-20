@@ -975,7 +975,9 @@ describe('ProwlarrSearchView', () => {
       </ToastProvider>
     );
 
-    await waitFor(() => expect(screen.getByRole('button', { name: '搜索历史' })).toBeInTheDocument());
+    const trigger = await screen.findByRole('button', { name: '搜索历史' });
+    expect(trigger).toHaveClass('prowlarr-history-trigger');
+    expect(trigger.parentElement).toHaveClass('prowlarr-search-header');
     await waitFor(() => expect(indexersLoaded).toBe(true));
     expect(historyCalls).toEqual([]);
     expect(screen.queryByText('Cached Inception')).not.toBeInTheDocument();

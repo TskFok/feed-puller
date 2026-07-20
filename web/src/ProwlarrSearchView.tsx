@@ -427,14 +427,14 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
   return (
     <section className="view">
       <header className="view-header prowlarr-search-header">
-        <div>
-          <button type="button" className="ghost" onClick={() => void openHistoryModal()}>
-            <History size={16} aria-hidden />
-            搜索历史
-          </button>
+        <div className="prowlarr-search-header-copy">
           <h1>Prowlarr 搜索</h1>
           <p>搜索电影或剧集 Torrent，支持搜索历史与批量下载。</p>
         </div>
+        <button type="button" className="ghost prowlarr-history-trigger" onClick={() => void openHistoryModal()}>
+          <History size={16} aria-hidden />
+          搜索历史
+        </button>
       </header>
 
       <form className="panel" onSubmit={handleSearch}>

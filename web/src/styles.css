@@ -638,9 +638,8 @@ button:active:not(:disabled) {
   align-items: flex-start;
 }
 
-.prowlarr-search-header > div {
+.prowlarr-search-header-copy {
   display: grid;
-  justify-items: start;
   gap: 8px;
 }
 
@@ -1529,6 +1528,10 @@ th {
 
   .view-header {
     display: grid;
+  }
+
+  .prowlarr-history-trigger {
+    justify-self: end;
   }
 
   .feishu-setup-banner {

@@ -642,7 +642,12 @@ function SubscriptionModal({
   }
 
   return (
-    <AnimatedModal onClose={onClose} ariaLabelledBy={titleId} initialFocusRef={firstFieldRef}>
+    <AnimatedModal
+      onClose={onClose}
+      ariaLabelledBy={titleId}
+      initialFocusRef={firstFieldRef}
+      panelClassName="subscription-form-modal"
+    >
         <div className="modal-header-row">
           <div>
             <h2 id={titleId} className="modal-title">
@@ -666,6 +671,7 @@ function SubscriptionModal({
           </button>
         </div>
         <form className="subscription-edit-form" onSubmit={submit}>
+          <div className="subscription-form-scroll">
           <fieldset className="modal-fieldset">
             <legend>
               <span className="modal-section-title">基本信息</span>
@@ -919,7 +925,8 @@ function SubscriptionModal({
             </div>
           </fieldset>
 
-          <div className="modal-actions">
+          </div>
+          <div className="modal-actions subscription-form-actions">
             <button type="button" className="ghost" disabled={saving} onClick={onClose}>
               取消
             </button>

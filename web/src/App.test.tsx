@@ -684,6 +684,18 @@ describe('App', () => {
     expect(screen.getByRole('textbox', { name: '排除关键字' })).toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: '新增订阅' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '关闭新建订阅' })).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog', { name: '新增订阅' });
+    const form = dialog.querySelector<HTMLFormElement>('form.subscription-edit-form');
+    const scrollArea = dialog.querySelector<HTMLElement>('.subscription-form-scroll');
+    const actions = dialog.querySelector<HTMLElement>('.subscription-form-actions');
+
+    expect(dialog).toHaveClass('subscription-form-modal');
+    expect(dialog.querySelector('.modal-header-row')?.parentElement).toBe(dialog);
+    expect(form).not.toBeNull();
+    expect(scrollArea?.parentElement).toBe(form);
+    expect(scrollArea?.contains(screen.getByRole('textbox', { name: '包含关键字' }))).toBe(true);
+    expect(actions?.parentElement).toBe(form);
+    expect(scrollArea?.contains(actions ?? null)).toBe(false);
   });
 
   it('新增订阅时可切换为 Crontab 调度', async () => {
@@ -893,6 +905,18 @@ describe('App', () => {
     expect(screen.getByRole('dialog', { name: '编辑订阅' })).toBeInTheDocument();
     expect(screen.getByDisplayValue('Demo')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '关闭编辑订阅' })).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog', { name: '编辑订阅' });
+    const form = dialog.querySelector<HTMLFormElement>('form.subscription-edit-form');
+    const scrollArea = dialog.querySelector<HTMLElement>('.subscription-form-scroll');
+    const actions = dialog.querySelector<HTMLElement>('.subscription-form-actions');
+
+    expect(dialog).toHaveClass('subscription-form-modal');
+    expect(dialog.querySelector('.modal-header-row')?.parentElement).toBe(dialog);
+    expect(form).not.toBeNull();
+    expect(scrollArea?.parentElement).toBe(form);
+    expect(scrollArea?.contains(screen.getByDisplayValue('Demo'))).toBe(true);
+    expect(actions?.parentElement).toBe(form);
+    expect(scrollArea?.contains(actions ?? null)).toBe(false);
   });
 
   it('创建订阅成功后不会自动调用拉取接口', async () => {

@@ -59,7 +59,7 @@ func (s *Server) handleAria2Hook(w http.ResponseWriter, r *http.Request) {
 // checkAria2HookSecret 使用常量时间比较校验 Bearer / X-Hook-Secret，避免时序侧信道。
 // 当 ARIA2_HOOK_SECRET 未配置时一律拒绝，避免无意中暴露未鉴权端点。
 func (s *Server) checkAria2HookSecret(r *http.Request) bool {
-	expected := strings.TrimSpace(s.cfg.Aria2HookSecret)
+	expected := strings.TrimSpace(s.runtimeConfig().Aria2HookSecret)
 	if expected == "" {
 		return false
 	}

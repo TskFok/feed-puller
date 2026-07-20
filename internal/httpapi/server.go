@@ -6,18 +6,22 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"feed-puller/internal/app"
 	"feed-puller/internal/config"
+	"feed-puller/internal/downloader"
+	"feed-puller/internal/feishu"
 	"feed-puller/internal/store"
 )
 
 type Server struct {
-	cfg     config.Config
-	store   *store.Store
-	service *app.Service
-	log     *slog.Logger
-	handler http.Handler
+	runtimeMu sync.RWMutex
+	cfg       config.Config
+	store     *store.Store
+	service   *app.Service
+	log       *slog.Logger
+	handler   http.Handler
 }
 
 func New(cfg config.Config, store *store.Store, service *app.Service, log *slog.Logger) *Server {
@@ -49,6 +53,7 @@ func New(cfg config.Config, store *store.Store, service *app.Service, log *slog.
 	mux.HandleFunc("/api/ai-configs", server.requireAuth(server.handleAIConfigs))
 	mux.HandleFunc("/api/ai-configs/", server.requireAuth(server.handleAIConfigByID))
 	mux.HandleFunc("/api/settings/proxy", server.requireAuth(server.handleProxySetting))
+	mux.HandleFunc("/api/settings/runtime-config", server.requireAuth(server.handleRuntimeServiceConfig))
 	mux.HandleFunc("/api/settings/prowlarr", server.requireAuth(server.handleProwlarrSetting))
 	mux.HandleFunc("/api/settings/prowlarr/test", server.requireAuth(server.handleProwlarrSettingTest))
 	mux.HandleFunc("/api/prowlarr/indexers", server.requireAuth(server.handleProwlarrIndexers))
@@ -67,6 +72,39 @@ func New(cfg config.Config, store *store.Store, service *app.Service, log *slog.
 	mux.HandleFunc("/", server.handleStatic)
 	server.handler = server.withOptionalUser(mux)
 	return server
+}
+
+func (s *Server) runtimeConfig() config.Config {
+	s.runtimeMu.RLock()
+	defer s.runtimeMu.RUnlock()
+	return s.cfg
+}
+
+func (s *Server) currentRuntimeServiceConfig() store.RuntimeServiceConfig {
+	cfg := s.runtimeConfig()
+	return store.RuntimeServiceConfig{
+		Aria2RPCURL:     cfg.Aria2RPCURL,
+		Aria2RPCSecret:  cfg.Aria2RPCSecret,
+		FeishuAppID:     cfg.FeishuAppID,
+		FeishuAppSecret: cfg.FeishuAppSecret,
+		Aria2HookSecret: cfg.Aria2HookSecret,
+	}
+}
+
+func (s *Server) replaceRuntimeServiceConfig(runtime store.RuntimeServiceConfig) {
+	s.runtimeMu.Lock()
+	s.cfg.Aria2RPCURL = runtime.Aria2RPCURL
+	s.cfg.Aria2RPCSecret = runtime.Aria2RPCSecret
+	s.cfg.FeishuAppID = runtime.FeishuAppID
+	s.cfg.FeishuAppSecret = runtime.FeishuAppSecret
+	s.cfg.Aria2HookSecret = runtime.Aria2HookSecret
+	s.runtimeMu.Unlock()
+
+	s.service.SetAria2Client(downloader.NewAria2Client(runtime.Aria2RPCURL, runtime.Aria2RPCSecret))
+	s.service.SetFeishuBot(feishu.NewBotService(feishu.AppConfig{
+		AppID:     runtime.FeishuAppID,
+		AppSecret: runtime.FeishuAppSecret,
+	}))
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {

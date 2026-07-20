@@ -101,9 +101,10 @@ func (s *Server) handleAuthOptions(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
+	cfg := s.runtimeConfig()
 	writeJSON(w, http.StatusOK, map[string]bool{
-		"password_login_enabled": s.cfg.PasswordLoginEnabled,
-		"feishu_login_enabled":   s.cfg.FeishuAppID != "" && s.cfg.FeishuAppSecret != "",
+		"password_login_enabled": cfg.PasswordLoginEnabled,
+		"feishu_login_enabled":   cfg.FeishuAppID != "" && cfg.FeishuAppSecret != "",
 	})
 }
 
@@ -175,14 +176,15 @@ func (s *Server) handleFeishuLoginURL(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
-	if s.cfg.FeishuAppID == "" || s.cfg.FeishuAppSecret == "" {
+	cfg := s.runtimeConfig()
+	if cfg.FeishuAppID == "" || cfg.FeishuAppSecret == "" {
 		writeError(w, http.StatusBadRequest, "飞书应用未配置")
 		return
 	}
 	state := "login"
 	writeJSON(w, http.StatusOK, map[string]string{
 		"url":  "/api/auth/feishu/login?state=" + state,
-		"goto": feishuPassportAuthorizeURLFor(s.cfg.BaseURL, s.cfg.FeishuAppID, state),
+		"goto": feishuPassportAuthorizeURLFor(cfg.BaseURL, cfg.FeishuAppID, state),
 	})
 }
 
@@ -191,7 +193,8 @@ func (s *Server) handleFeishuLoginRedirect(w http.ResponseWriter, r *http.Reques
 		methodNotAllowed(w)
 		return
 	}
-	if s.cfg.FeishuAppID == "" || s.cfg.FeishuAppSecret == "" {
+	cfg := s.runtimeConfig()
+	if cfg.FeishuAppID == "" || cfg.FeishuAppSecret == "" {
 		writeError(w, http.StatusBadRequest, "飞书应用未配置")
 		return
 	}
@@ -199,7 +202,7 @@ func (s *Server) handleFeishuLoginRedirect(w http.ResponseWriter, r *http.Reques
 	if state == "" {
 		state = "login"
 	}
-	http.Redirect(w, r, feishuPassportAuthorizeURLFor(s.cfg.BaseURL, s.cfg.FeishuAppID, state), http.StatusFound)
+	http.Redirect(w, r, feishuPassportAuthorizeURLFor(cfg.BaseURL, cfg.FeishuAppID, state), http.StatusFound)
 }
 
 func (s *Server) handleFeishuStart(w http.ResponseWriter, r *http.Request) {
@@ -224,7 +227,8 @@ func (s *Server) handleFeishuBindURL(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "未登录")
 		return
 	}
-	if s.cfg.FeishuAppID == "" || s.cfg.FeishuAppSecret == "" {
+	cfg := s.runtimeConfig()
+	if cfg.FeishuAppID == "" || cfg.FeishuAppSecret == "" {
 		writeError(w, http.StatusBadRequest, "飞书应用未配置")
 		return
 	}
@@ -232,8 +236,8 @@ func (s *Server) handleFeishuBindURL(w http.ResponseWriter, r *http.Request) {
 	out := map[string]string{
 		"url": "/api/auth/feishu/login?state=" + state,
 	}
-	if s.cfg.FeishuAppID != "" {
-		out["goto"] = feishuPassportAuthorizeURLFor(s.cfg.BaseURL, s.cfg.FeishuAppID, state)
+	if cfg.FeishuAppID != "" {
+		out["goto"] = feishuPassportAuthorizeURLFor(cfg.BaseURL, cfg.FeishuAppID, state)
 	}
 	writeJSON(w, http.StatusOK, out)
 }

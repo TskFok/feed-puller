@@ -36,7 +36,8 @@ func feishuPassportAuthorizeURLFor(baseURL, appID, state string) string {
 }
 
 func (s *Server) exchangeFeishuCode(ctx context.Context, code string) (feishuIdentity, error) {
-	return fetchFeishuUserInfo(http.DefaultClient, s.cfg.FeishuAppID, s.cfg.FeishuAppSecret, feishuRedirectURI(s.cfg.BaseURL), code)
+	cfg := s.runtimeConfig()
+	return fetchFeishuUserInfo(http.DefaultClient, cfg.FeishuAppID, cfg.FeishuAppSecret, feishuRedirectURI(cfg.BaseURL), code)
 }
 
 func fetchFeishuUserInfo(client *http.Client, appID, appSecret, redirectURI, code string) (feishuIdentity, error) {

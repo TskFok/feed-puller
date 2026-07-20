@@ -125,6 +125,7 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
   const [batchDownloading, setBatchDownloading] = useState(false);
   const [furthestSeenIndex, setFurthestSeenIndex] = useState(-1);
   const resultsGridRef = useRef<HTMLDivElement>(null);
+  const historyRequestIdRef = useRef(0);
   const virtualizeThreshold = useProwlarrVirtualizeThreshold();
 
   const useVirtualGrid = results.length > virtualizeThreshold;
@@ -214,11 +215,15 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
   }, [hydrateSubmittedGuids, showToast]);
 
   const openHistoryModal = useCallback(async () => {
+    const requestId = historyRequestIdRef.current + 1;
+    historyRequestIdRef.current = requestId;
     try {
       const data = await api.prowlarrSearchHistory();
+      if (historyRequestIdRef.current !== requestId) return;
       setHistory(data.items ?? []);
       setHistoryModalOpen(true);
     } catch (err) {
+      if (historyRequestIdRef.current !== requestId) return;
       showToast(messageOf(err), 'error');
     }
   }, [showToast]);

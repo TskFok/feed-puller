@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProwlarrSearchView } from './ProwlarrSearchView';
 import { PROWLARR_SUBMITTED_STORAGE_KEY } from './prowlarrSubmittedGuids';
@@ -954,10 +954,14 @@ describe('ProwlarrSearchView', () => {
 
   it('进入页面不请求搜索历史，也不恢复最近一次结果', async () => {
     const historyCalls: string[] = [];
+    let indexersLoaded = false;
     vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => {
       const path = String(input);
       if (path === '/api/settings/prowlarr') return configuredProwlarrResponse();
-      if (path === '/api/prowlarr/indexers') return jsonResponse({ items: [] });
+      if (path === '/api/prowlarr/indexers') {
+        indexersLoaded = true;
+        return jsonResponse({ items: [] });
+      }
       if (path.startsWith('/api/prowlarr/search-history')) {
         historyCalls.push(path);
         return jsonResponse({ items: [historyEntry] });
@@ -972,6 +976,7 @@ describe('ProwlarrSearchView', () => {
     );
 
     await waitFor(() => expect(screen.getByRole('button', { name: '搜索历史' })).toBeInTheDocument());
+    await waitFor(() => expect(indexersLoaded).toBe(true));
     expect(historyCalls).toEqual([]);
     expect(screen.queryByText('Cached Inception')).not.toBeInTheDocument();
   });
@@ -1002,6 +1007,51 @@ describe('ProwlarrSearchView', () => {
     expect(await screen.findByRole('dialog', { name: '搜索历史' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Inception/ })).toBeInTheDocument();
     expect(historyCalls).toHaveLength(1);
+  });
+
+  it('忽略过期的搜索历史请求结果', async () => {
+    let resolveFirst: (value: Response) => void = () => undefined;
+    let resolveSecond: (value: Response) => void = () => undefined;
+    const firstRequest = new Promise<Response>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const secondRequest = new Promise<Response>((resolve) => {
+      resolveSecond = resolve;
+    });
+    let historyRequestCount = 0;
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === '/api/settings/prowlarr') return configuredProwlarrResponse();
+      if (path === '/api/prowlarr/indexers') return jsonResponse({ items: [] });
+      if (path.startsWith('/api/prowlarr/search-history?')) {
+        historyRequestCount += 1;
+        return historyRequestCount === 1 ? firstRequest : secondRequest;
+      }
+      return jsonResponse({});
+    });
+
+    render(
+      <ToastProvider>
+        <ProwlarrSearchView />
+      </ToastProvider>
+    );
+
+    const trigger = await screen.findByRole('button', { name: '搜索历史' });
+    fireEvent.click(trigger);
+    fireEvent.click(trigger);
+    await act(async () => {
+      resolveSecond(jsonResponse({ items: [historyEntry] }));
+      await secondRequest;
+    });
+
+    expect(await screen.findByRole('dialog', { name: '搜索历史' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '关闭搜索历史' }));
+    await act(async () => {
+      resolveFirst(jsonResponse({ items: [historyEntry] }));
+      await firstRequest;
+    });
+
+    expect(screen.queryByRole('dialog', { name: '搜索历史' })).not.toBeInTheDocument();
   });
 
   it('清空搜索历史时同步清空关键词与当前结果', async () => {

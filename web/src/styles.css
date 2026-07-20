@@ -1538,6 +1538,10 @@ th {
     justify-self: end;
   }
 
+  .ai-config-create-trigger {
+    justify-self: end;
+  }
+
   .feishu-setup-banner {
     margin: 0 0 12px;
     flex-direction: column;

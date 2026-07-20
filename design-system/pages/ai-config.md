@@ -4,7 +4,7 @@
 
 ## 布局
 
-- 页头：`.view-header` + 工具栏 `.subscriptions-toolbar`
+- 页头：`.view-header`，右上使用 `.ai-config-create-trigger` 主按钮
 - 列表：`.table-wrap` 表格（模型名称 + 高级参数 + 操作列）
 - 分页：`.pagination-bar`
 

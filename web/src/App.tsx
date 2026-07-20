@@ -2434,7 +2434,16 @@ function AIConfigView() {
 
   return (
     <section className="view">
-      <Header title="AI 配置" description="管理 OpenAI 兼容的模型接入；列表中可检查 API 是否通畅。" />
+      <header className="view-header">
+        <div>
+          <h1>AI 配置</h1>
+          <p>管理 OpenAI 兼容的模型接入；列表中可检查 API 是否通畅。</p>
+        </div>
+        <button type="button" className="primary ai-config-create-trigger" onClick={() => setModal({ mode: 'create' })}>
+          <Plus size={18} aria-hidden="true" />
+          新增配置
+        </button>
+      </header>
       {modal && (
         <AIConfigModal
           key={modal.mode === 'edit' ? modal.configId : 'create'}
@@ -2447,12 +2456,6 @@ function AIConfigView() {
           }}
         />
       )}
-      <div className="subscriptions-toolbar">
-        <button type="button" className="primary" onClick={() => setModal({ mode: 'create' })}>
-          <Plus size={18} aria-hidden="true" />
-          新增配置
-        </button>
-      </div>
       <div className="table-wrap">
         <table>
           <thead>

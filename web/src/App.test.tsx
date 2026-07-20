@@ -2305,7 +2305,10 @@ describe('App', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'AI 配置' }));
     await waitFor(() => expect(screen.getByRole('heading', { name: 'AI 配置' })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: '新增配置' }));
+    const trigger = screen.getByRole('button', { name: '新增配置' });
+    expect(trigger).toHaveClass('primary', 'ai-config-create-trigger');
+    expect(trigger.parentElement).toHaveClass('view-header');
+    fireEvent.click(trigger);
 
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: 'DeepSeek' }));

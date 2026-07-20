@@ -4,7 +4,7 @@
 
 ## 布局
 
-- 页头：`.view-header` + 工具栏 `.subscriptions-toolbar`
+- 页头：`.view-header`，右上使用 `.subscription-create-trigger` 主按钮
 - 列表：`.table-wrap` 表格，拖拽列 `.sub-drag-col`
 - 编辑/新建：使用 `AnimatedModal`，表单 `.subscription-edit-form`
 

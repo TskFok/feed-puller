@@ -674,7 +674,10 @@ describe('App', () => {
     render(<App />);
 
     await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /新增订阅/ }));
+    const trigger = screen.getByRole('button', { name: '新增订阅' });
+    expect(trigger).toHaveClass('primary', 'subscription-create-trigger');
+    expect(trigger.parentElement).toHaveClass('view-header');
+    fireEvent.click(trigger);
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '新增订阅' })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: '包含关键字' })).toBeInTheDocument();

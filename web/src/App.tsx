@@ -1669,7 +1669,20 @@ function SubscriptionsView({ onGoActive }: { onGoActive?: () => void }) {
 
   return (
     <section className="view">
-      <Header title="订阅" description="拖动左侧手柄可调整顺序；点「拉取」预览条目，点「编辑」配置地址与过滤规则，点「复制」基于已有订阅新建。" />
+      <header className="view-header">
+        <div>
+          <h1>订阅</h1>
+          <p>拖动左侧手柄可调整顺序；点「拉取」预览条目，点「编辑」配置地址与过滤规则，点「复制」基于已有订阅新建。</p>
+        </div>
+        <button
+          type="button"
+          className="primary subscription-create-trigger"
+          onClick={() => setSubscriptionModal({ mode: 'create' })}
+        >
+          <Plus size={18} aria-hidden="true" />
+          新增订阅
+        </button>
+      </header>
       {fetchPreview && (
         <FetchPreviewModal
           subscriptionName={fetchPreview.name}
@@ -1715,12 +1728,6 @@ function SubscriptionsView({ onGoActive }: { onGoActive?: () => void }) {
           }}
         />
       )}
-      <div className="subscriptions-toolbar">
-        <button type="button" className="primary" onClick={() => setSubscriptionModal({ mode: 'create' })}>
-          <Plus size={18} aria-hidden="true" />
-          新增订阅
-        </button>
-      </div>
       <div ref={subscriptionsTableRef} className="table-wrap">
         <table>
           <thead>

@@ -16,7 +16,7 @@ func (s *Service) tellStatusForDownloadTask(ctx context.Context, task store.Down
 	if stored == "" {
 		return "", nil, downloader.ErrEmptyGID
 	}
-	effectiveGID, status, err = s.aria2.TellStatusEffective(ctx, stored)
+	effectiveGID, status, err = s.Aria2Client().TellStatusEffective(ctx, stored)
 	if err != nil {
 		return stored, status, err
 	}
@@ -46,7 +46,7 @@ func (s *Service) findDownloadTaskForAria2Hook(ctx context.Context, gid string) 
 	if !errors.Is(err, sql.ErrNoRows) {
 		return store.DownloadTask{}, err
 	}
-	status, err := s.aria2.TellStatus(ctx, gid)
+	status, err := s.Aria2Client().TellStatus(ctx, gid)
 	if err != nil {
 		return store.DownloadTask{}, ErrAria2HookTaskNotFound
 	}

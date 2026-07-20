@@ -147,7 +147,7 @@ func (s *Service) shouldFinalizeAria2Hook(ctx context.Context, gid string, event
 }
 
 func (s *Service) isAria2DownloadFullyComplete(ctx context.Context, gid, filePath string) bool {
-	_, status, err := s.aria2.TellStatusEffective(ctx, gid)
+	_, status, err := s.Aria2Client().TellStatusEffective(ctx, gid)
 	if err != nil {
 		if downloader.IsGIDNotFound(err) {
 			path := strings.TrimSpace(filePath)
@@ -165,7 +165,7 @@ func (s *Service) resolveAria2HookFilePath(ctx context.Context, gid, hookPath st
 	if hookPath != "" && !downloader.IsMetadataDownloadPath(hookPath) {
 		return hookPath
 	}
-	_, status, err := s.aria2.TellStatusEffective(ctx, gid)
+	_, status, err := s.Aria2Client().TellStatusEffective(ctx, gid)
 	if err != nil {
 		return hookPath
 	}

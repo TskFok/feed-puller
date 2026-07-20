@@ -72,7 +72,7 @@ func (s *Service) queueFeishuNotifyFail(ctx context.Context, sub store.Subscript
 }
 
 func (s *Service) queueFeishuNotify(ctx context.Context, kind feishuNotifyKind, payload feishuNotifyPayload) {
-	if s.feishuBot == nil {
+	if s.FeishuBot() == nil {
 		return
 	}
 	cfg, err := s.store.GetFeishuNotifyConfig(ctx)
@@ -149,6 +149,10 @@ func (s *Service) deliverFeishuNotify(ctx context.Context, cfg store.FeishuNotif
 	if len(payloads) == 0 {
 		return nil
 	}
+	bot := s.FeishuBot()
+	if bot == nil {
+		return fmt.Errorf("飞书机器人服务不可用")
+	}
 	title, lines, cardTemplate := buildFeishuNotifyMessage(cfg, kind, payloads)
 	content := feishu.BuildTextBody(lines)
 	card := feishu.InteractiveCard{Title: title, Template: cardTemplate, Lines: lines}
@@ -164,9 +168,9 @@ func (s *Service) deliverFeishuNotify(ctx context.Context, cfg store.FeishuNotif
 			return nil
 		}
 		if cfg.UseInteractiveCard {
-			sendErr = s.feishuBot.SendInteractiveWebhook(cfg.Webhook, card)
+			sendErr = bot.SendInteractiveWebhook(cfg.Webhook, card)
 		} else {
-			sendErr = s.feishuBot.SendText(cfg.Webhook, title, content)
+			sendErr = bot.SendText(cfg.Webhook, title, content)
 		}
 	case "api":
 		recipients := feishu.ParseRecipients(cfg.ReceiveOpenID, cfg.ReceiveTargets)
@@ -175,7 +179,7 @@ func (s *Service) deliverFeishuNotify(ctx context.Context, cfg store.FeishuNotif
 			s.recordFeishuNotifyHistory(ctx, kind, payloads, notifyType, title, content, "failed", err.Error())
 			return err
 		}
-		sendErr = s.feishuBot.SendToRecipients(recipients, card, title, content, cfg.UseInteractiveCard)
+		sendErr = bot.SendToRecipients(recipients, card, title, content, cfg.UseInteractiveCard)
 	default:
 		return nil
 	}
@@ -412,7 +416,8 @@ func (s *Service) notifyDownloadFailAfterSync(ctx context.Context, task store.Do
 
 // SendFeishuTestNotification 发送测试消息，供设置页验证配置。
 func (s *Service) SendFeishuTestNotification(ctx context.Context, cfg store.FeishuNotifyConfig) error {
-	if s.feishuBot == nil {
+	bot := s.FeishuBot()
+	if bot == nil {
 		return fmt.Errorf("飞书机器人服务不可用")
 	}
 	if !feishuNotifyEnabled(cfg) {
@@ -441,16 +446,16 @@ func (s *Service) SendFeishuTestNotification(ctx context.Context, cfg store.Feis
 			return fmt.Errorf("请先填写 Webhook URL")
 		}
 		if cfg.UseInteractiveCard {
-			sendErr = s.feishuBot.SendInteractiveWebhook(cfg.Webhook, card)
+			sendErr = bot.SendInteractiveWebhook(cfg.Webhook, card)
 		} else {
-			sendErr = s.feishuBot.SendText(cfg.Webhook, title, content)
+			sendErr = bot.SendText(cfg.Webhook, title, content)
 		}
 	case "api":
 		recipients := feishu.ParseRecipients(cfg.ReceiveOpenID, cfg.ReceiveTargets)
 		if len(recipients) == 0 {
 			return fmt.Errorf("服务端 API 模式需配置接收者 open_id，或先绑定飞书账号")
 		}
-		sendErr = s.feishuBot.SendToRecipients(recipients, card, title, content, cfg.UseInteractiveCard)
+		sendErr = bot.SendToRecipients(recipients, card, title, content, cfg.UseInteractiveCard)
 	default:
 		return fmt.Errorf("不支持的通知方式: %q", notifyType)
 	}
@@ -475,7 +480,16 @@ func (s *Service) SendFeishuTestNotification(ctx context.Context, cfg store.Feis
 
 // SetFeishuBot 注入飞书机器人客户端（测试或运行时配置）。
 func (s *Service) SetFeishuBot(bot feishuNotifySender) {
+	s.dependencyMu.Lock()
 	s.feishuBot = bot
+	s.dependencyMu.Unlock()
+}
+
+// FeishuBot 返回当前飞书发送器的调用快照。
+func (s *Service) FeishuBot() feishuNotifySender {
+	s.dependencyMu.RLock()
+	defer s.dependencyMu.RUnlock()
+	return s.feishuBot
 }
 
 // FlushFeishuBatchForTest 立即刷新批量通知队列（仅测试使用）。

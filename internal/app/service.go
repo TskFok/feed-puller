@@ -17,6 +17,7 @@ import (
 const proxySettingKey = "proxy_url"
 
 type Service struct {
+	dependencyMu           sync.RWMutex
 	store                  *store.Store
 	aria2                  *downloader.Aria2Client
 	log                    *slog.Logger
@@ -27,6 +28,20 @@ type Service struct {
 	feishuBatchComplete    []feishuNotifyPayload
 	feishuBatchFail        []feishuNotifyPayload
 	feishuBatchTimer       *time.Timer
+}
+
+// SetAria2Client 替换后续操作使用的 Aria2 客户端。
+func (s *Service) SetAria2Client(client *downloader.Aria2Client) {
+	s.dependencyMu.Lock()
+	s.aria2 = client
+	s.dependencyMu.Unlock()
+}
+
+// Aria2Client 返回当前 Aria2 客户端的调用快照。
+func (s *Service) Aria2Client() *downloader.Aria2Client {
+	s.dependencyMu.RLock()
+	defer s.dependencyMu.RUnlock()
+	return s.aria2
 }
 
 func NewService(store *store.Store, aria2 *downloader.Aria2Client, log *slog.Logger, pathMap ...paths.Mapper) *Service {
@@ -130,7 +145,7 @@ func (s *Service) SubmitItemDownload(ctx context.Context, itemID int64) error {
 	if err := s.store.MarkDownloadSubmitting(ctx, item.ID); err != nil {
 		return err
 	}
-	gid, err := s.aria2.AddURI(ctx, pending.URL, pending.Dir)
+	gid, err := s.Aria2Client().AddURI(ctx, pending.URL, pending.Dir)
 	if err != nil {
 		_ = s.store.RecordDownloadResult(ctx, pending, "failed", "", err.Error())
 		return err
@@ -215,7 +230,7 @@ func (s *Service) SubmitPendingDownloads(ctx context.Context) error {
 			}
 		}
 		item.URL = downloadURL
-		gid, err := s.aria2.AddURI(ctx, downloadURL, item.Dir)
+		gid, err := s.Aria2Client().AddURI(ctx, downloadURL, item.Dir)
 		if err != nil {
 			_ = s.store.RecordDownloadResult(ctx, item, "failed", "", err.Error())
 			s.log.Warn("提交 aria2 失败", "item_id", item.ItemID, "error", err)

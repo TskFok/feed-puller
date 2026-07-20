@@ -256,7 +256,7 @@ func (s *Service) resolveCompletedDownloadFilePath(ctx context.Context, task sto
 	}
 	gid := strings.TrimSpace(task.Aria2GID)
 	if gid != "" {
-		_, status, err := s.aria2.TellStatusEffective(ctx, gid)
+		_, status, err := s.Aria2Client().TellStatusEffective(ctx, gid)
 		if err == nil {
 			if path, pathErr := downloader.Aria2DownloadPath(status); pathErr == nil {
 				path = s.mapDownloadPath(path)

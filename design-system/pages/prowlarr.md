@@ -20,9 +20,11 @@
 - 布局常量：`prowlarrLayoutConstants.ts`（`--prowlarr-row-gap`、`--prowlarr-card-intrinsic-height`）
 - 阈值：`glassConstants.ts` 中 `GLASS_OFFSCREEN_MIN_ITEMS`（12）、`PROWLARR_VIRTUALIZE_THRESHOLD`（30）
 
-## 历史 Chip
+## 搜索历史弹窗
 
-沿用全局 `.history-chip`，hover 粉色半透明背景。
+- 标题区域左上使用“搜索历史”按钮；点击时才加载历史记录。
+- 使用标准弹窗展示历史；无记录时显示空状态。
+- 弹窗内沿用全局 `.history-chip`，hover 粉色半透明背景。
 
 ## 空状态 / 未配置
 

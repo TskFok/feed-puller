@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Download, Loader2, Search, Trash2, X } from 'lucide-react';
+import { Download, History, Loader2, Search, Trash2, X } from 'lucide-react';
 import { api } from './api';
+import { AnimatedModal } from './AnimatedModal';
 import {
   addSessionSubmittedGuids,
   mergeSubmittedGuids,
@@ -113,6 +114,7 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
   const [results, setResults] = useState<ProwlarrRelease[]>([]);
   const [resultsSearchType, setResultsSearchType] = useState<ProwlarrSearchType>('movie');
   const [history, setHistory] = useState<ProwlarrSearchHistory[]>([]);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [activeHistoryId, setActiveHistoryId] = useState<number | null>(null);
   const [selectedGuids, setSelectedGuids] = useState<Set<string>>(new Set());
   const [submittedGuids, setSubmittedGuids] = useState<Set<string>>(new Set());
@@ -123,7 +125,6 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
   const [batchDownloading, setBatchDownloading] = useState(false);
   const [furthestSeenIndex, setFurthestSeenIndex] = useState(-1);
   const resultsGridRef = useRef<HTMLDivElement>(null);
-  const hasRestoredLatestHistory = useRef(false);
   const virtualizeThreshold = useProwlarrVirtualizeThreshold();
 
   const useVirtualGrid = results.length > virtualizeThreshold;
@@ -191,41 +192,36 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
   }, []);
 
   const restoreHistoryEntry = useCallback(async (entry: ProwlarrSearchHistory) => {
-    setActiveHistoryId(entry.id);
-    setQuery(entry.display_query);
-    setSearchType(entry.media_type);
-    setSortBy(entry.sort_by);
-    setSelectedIndexerIds(entry.indexer_ids ?? []);
-    setSelectedGuids(new Set());
-    setBatchSummary(null);
-    setBatchFailuresExpanded(false);
-    setFurthestSeenIndex(-1);
     try {
       const detail = await api.getProwlarrSearchHistory(entry.id);
       const items = detail.results ?? [];
+      setActiveHistoryId(entry.id);
+      setQuery(entry.display_query);
+      setSearchType(entry.media_type);
+      setSortBy(entry.sort_by);
+      setSelectedIndexerIds(entry.indexer_ids ?? []);
+      setSelectedGuids(new Set());
+      setBatchSummary(null);
+      setBatchFailuresExpanded(false);
+      setFurthestSeenIndex(-1);
       setResults(items);
       setResultsSearchType(entry.media_type);
       await hydrateSubmittedGuids(items);
+      setHistoryModalOpen(false);
     } catch (err) {
       showToast(messageOf(err), 'error');
     }
   }, [hydrateSubmittedGuids, showToast]);
 
-  const loadHistory = useCallback(async (options?: { restoreLatest?: boolean }): Promise<ProwlarrSearchHistory[]> => {
+  const openHistoryModal = useCallback(async () => {
     try {
       const data = await api.prowlarrSearchHistory();
-      const items = data.items ?? [];
-      setHistory(items);
-      if (options?.restoreLatest && !hasRestoredLatestHistory.current && items.length > 0) {
-        hasRestoredLatestHistory.current = true;
-        await restoreHistoryEntry(items[0]);
-      }
-      return items;
+      setHistory(data.items ?? []);
+      setHistoryModalOpen(true);
     } catch (err) {
       showToast(messageOf(err), 'error');
-      return [];
     }
-  }, [restoreHistoryEntry, showToast]);
+  }, [showToast]);
 
   useEffect(() => {
     api.prowlarrConfig().then((data) => {
@@ -239,8 +235,7 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
     api.prowlarrIndexers()
       .then((data) => setIndexers(data.items ?? []))
       .catch((err) => showToast(messageOf(err), 'error'));
-    void loadHistory({ restoreLatest: true });
-  }, [config?.configured, loadHistory, showToast]);
+  }, [config?.configured, showToast]);
 
   const searchPlaceholder = useMemo(
     () => (searchType === 'tv' ? '例如：Breaking Bad 或 TVDB ID 80348' : '例如：Inception 或 tt1375666'),
@@ -271,11 +266,7 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
       setResults(items);
       setResultsSearchType(type);
       await hydrateSubmittedGuids(items);
-      const historyItems = await loadHistory();
-      const matched = historyItems.find(
-        (entry) => entry.display_query === trimmed && entry.media_type === type
-      );
-      setActiveHistoryId(matched?.id ?? null);
+      setActiveHistoryId(null);
       if (items.length === 0) {
         showToast('未找到匹配的 Torrent 结果');
       }
@@ -284,7 +275,7 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
     } finally {
       setSearching(false);
     }
-  }, [hydrateSubmittedGuids, loadHistory, searchType, sortBy, selectedIndexerIds, showToast]);
+  }, [hydrateSubmittedGuids, searchType, sortBy, selectedIndexerIds, showToast]);
 
   async function handleSearch(event: FormEvent) {
     event.preventDefault();
@@ -430,37 +421,16 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
 
   return (
     <section className="view">
-      <header className="view-header">
-        <h1>Prowlarr 搜索</h1>
-        <p>搜索电影或剧集 Torrent，支持搜索历史与批量下载。</p>
-      </header>
-
-      {history.length > 0 && (
-        <div className="panel">
-          <div className="horizontal-actions">
-            <h2 className="section-title">搜索历史</h2>
-            <button type="button" className="ghost" onClick={clearHistory}>
-              <Trash2 size={14} aria-hidden />
-              清空
-            </button>
-          </div>
-          <div className="history-chips">
-            {history.map((entry) => (
-              <div key={entry.id} className="history-chip">
-                <button type="button" className="history-chip-main" onClick={() => applyHistory(entry)}>
-                  <span>{entry.display_query}</span>
-                  <span className="muted">
-                    {entry.media_type === 'tv' ? '剧集' : '电影'} · {entry.result_count} 条
-                  </span>
-                </button>
-                <button type="button" className="history-chip-remove" aria-label="删除" onClick={() => removeHistoryEntry(entry.id)}>
-                  <X size={14} aria-hidden />
-                </button>
-              </div>
-            ))}
-          </div>
+      <header className="view-header prowlarr-search-header">
+        <div>
+          <button type="button" className="ghost" onClick={() => void openHistoryModal()}>
+            <History size={16} aria-hidden />
+            搜索历史
+          </button>
+          <h1>Prowlarr 搜索</h1>
+          <p>搜索电影或剧集 Torrent，支持搜索历史与批量下载。</p>
         </div>
-      )}
+      </header>
 
       <form className="panel" onSubmit={handleSearch}>
         <div className="horizontal-actions">
@@ -597,6 +567,48 @@ export function ProwlarrSearchView({ onGoSettings, onGoActive }: ProwlarrSearchV
           </div>
         )}
       </div>
+
+      {historyModalOpen && (
+        <AnimatedModal
+          onClose={() => setHistoryModalOpen(false)}
+          ariaLabelledBy="prowlarr-search-history-title"
+          panelClassName="prowlarr-history-modal"
+        >
+          <div className="modal-header-row">
+            <div className="horizontal-actions">
+              <h2 id="prowlarr-search-history-title" className="modal-title">搜索历史</h2>
+              {history.length > 0 && (
+                <button type="button" className="ghost" onClick={clearHistory}>
+                  <Trash2 size={14} aria-hidden />
+                  清空
+                </button>
+              )}
+            </div>
+            <button type="button" className="modal-close ghost" aria-label="关闭搜索历史" onClick={() => setHistoryModalOpen(false)}>
+              <X size={20} aria-hidden />
+            </button>
+          </div>
+          {history.length === 0 ? (
+            <p className="prowlarr-history-empty muted">暂无搜索历史</p>
+          ) : (
+            <div className="history-chips">
+              {history.map((entry) => (
+                <div key={entry.id} className="history-chip">
+                  <button type="button" className="history-chip-main" onClick={() => applyHistory(entry)}>
+                    <span>{entry.display_query}</span>
+                    <span className="muted">
+                      {entry.media_type === 'tv' ? '剧集' : '电影'} · {entry.result_count} 条
+                    </span>
+                  </button>
+                  <button type="button" className="history-chip-remove" aria-label="删除" onClick={() => removeHistoryEntry(entry.id)}>
+                    <X size={14} aria-hidden />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </AnimatedModal>
+      )}
     </section>
   );
 }

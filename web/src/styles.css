@@ -634,6 +634,16 @@ button:active:not(:disabled) {
   color: var(--glass-text-muted);
 }
 
+.prowlarr-search-header {
+  align-items: flex-start;
+}
+
+.prowlarr-search-header > div {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+
 .glass-panel-surface,
 .toolbar-form,
 .table-wrap,
@@ -1077,6 +1087,16 @@ th {
 .history-chip-remove:hover {
   background: rgba(239, 68, 68, 0.15);
   color: #f87171;
+}
+
+.prowlarr-history-modal {
+  width: min(720px, 96vw);
+}
+
+.prowlarr-history-empty {
+  margin: 0;
+  padding: 24px 0;
+  text-align: center;
 }
 
 .sr-only {

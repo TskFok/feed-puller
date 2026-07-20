@@ -56,6 +56,7 @@ import type {
   PaginatedResult,
   User,
   AuthOptions,
+  RuntimeServiceConfig,
   FeishuNotifyHistory,
   RenameHistory
 } from './types';
@@ -2530,6 +2531,13 @@ function SettingsView({
   onCopyEnv: () => void;
 }) {
   const [proxyURL, setProxyURL] = useState('');
+  const [runtimeServiceConfig, setRuntimeServiceConfig] = useState<RuntimeServiceConfig>({
+    aria2_rpc_url: '',
+    aria2_rpc_secret: '',
+    feishu_app_id: '',
+    feishu_app_secret: '',
+    aria2_hook_secret: ''
+  });
   const [prowlarrURL, setProwlarrURL] = useState('');
   const [prowlarrAPIKey, setProwlarrAPIKey] = useState('');
   const [prowlarrDownloadDir, setProwlarrDownloadDir] = useState('');
@@ -2563,6 +2571,17 @@ function SettingsView({
 
   useEffect(() => {
     api.proxy().then((data) => setProxyURL(data.proxy_url)).catch((err) => showToast(messageOf(err), 'error'));
+    api.runtimeServiceConfig()
+      .then((data) =>
+        setRuntimeServiceConfig({
+          aria2_rpc_url: data.aria2_rpc_url ?? '',
+          aria2_rpc_secret: data.aria2_rpc_secret ?? '',
+          feishu_app_id: data.feishu_app_id ?? '',
+          feishu_app_secret: data.feishu_app_secret ?? '',
+          aria2_hook_secret: data.aria2_hook_secret ?? ''
+        })
+      )
+      .catch((err) => showToast(messageOf(err), 'error'));
     api.prowlarrConfig()
       .then((data) => {
         setProwlarrURL(data.url);
@@ -2636,6 +2655,17 @@ function SettingsView({
       const saved = await api.saveProxy(proxyURL);
       setProxyURL(saved.proxy_url);
       showToast('代理设置已保存');
+    } catch (err) {
+      showToast(messageOf(err), 'error');
+    }
+  }
+
+  async function saveRuntimeServiceConfig(event: FormEvent) {
+    event.preventDefault();
+    try {
+      const saved = await api.saveRuntimeServiceConfig(runtimeServiceConfig);
+      setRuntimeServiceConfig(saved);
+      showToast('运行时服务配置已保存并立即生效');
     } catch (err) {
       showToast(messageOf(err), 'error');
     }
@@ -2800,6 +2830,46 @@ function SettingsView({
             <input value={proxyURL} onChange={(event) => setProxyURL(event.target.value)} placeholder="http://user:pass@127.0.0.1:7890" />
           </label>
           <button className="primary">保存代理</button>
+        </form>
+        <form className="settings-panel" onSubmit={saveRuntimeServiceConfig}>
+          <h2>运行时服务配置</h2>
+          <label>
+            ARIA2_RPC_URL
+            <input
+              value={runtimeServiceConfig.aria2_rpc_url}
+              onChange={(event) => setRuntimeServiceConfig({ ...runtimeServiceConfig, aria2_rpc_url: event.target.value })}
+              placeholder="http://127.0.0.1:6800/jsonrpc"
+            />
+          </label>
+          <label>
+            ARIA2_RPC_SECRET
+            <input
+              value={runtimeServiceConfig.aria2_rpc_secret}
+              onChange={(event) => setRuntimeServiceConfig({ ...runtimeServiceConfig, aria2_rpc_secret: event.target.value })}
+            />
+          </label>
+          <label>
+            FEISHU_APP_ID
+            <input
+              value={runtimeServiceConfig.feishu_app_id}
+              onChange={(event) => setRuntimeServiceConfig({ ...runtimeServiceConfig, feishu_app_id: event.target.value })}
+            />
+          </label>
+          <label>
+            FEISHU_APP_SECRET
+            <input
+              value={runtimeServiceConfig.feishu_app_secret}
+              onChange={(event) => setRuntimeServiceConfig({ ...runtimeServiceConfig, feishu_app_secret: event.target.value })}
+            />
+          </label>
+          <label>
+            ARIA2_HOOK_SECRET
+            <input
+              value={runtimeServiceConfig.aria2_hook_secret}
+              onChange={(event) => setRuntimeServiceConfig({ ...runtimeServiceConfig, aria2_hook_secret: event.target.value })}
+            />
+          </label>
+          <button className="primary">保存运行时服务配置</button>
         </form>
         <form className="settings-panel" onSubmit={saveProwlarr}>
           <h2>Prowlarr 搜索</h2>

@@ -2511,4 +2511,63 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: '下载完成' }));
     await waitFor(() => expect(window.location.hash).toBe('#completed'));
   });
+
+  it('设置页加载并保存运行时服务配置', async () => {
+    window.location.hash = '#settings';
+    const runtimeConfig = {
+      aria2_rpc_url: 'https://aria2.test/jsonrpc',
+      aria2_rpc_secret: 'rpc-secret',
+      feishu_app_id: 'cli_test',
+      feishu_app_secret: 'app-secret',
+      aria2_hook_secret: 'hook-secret'
+    };
+    let saved: unknown;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/auth/options') {
+          return new Response(JSON.stringify({ password_login_enabled: true, feishu_login_enabled: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/settings/runtime-config') {
+          if (init?.method === 'PUT') {
+            saved = JSON.parse(String(init.body));
+          }
+          return new Response(JSON.stringify(runtimeConfig), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (isSubscriptionsListPath(path)) {
+          return new Response(JSON.stringify({ items: [], total: 0, page: 1, page_size: 20 }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        return new Response(JSON.stringify({}), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      })
+    );
+
+    render(<App />);
+    await screen.findByDisplayValue('https://aria2.test/jsonrpc');
+    fireEvent.change(screen.getByLabelText('ARIA2_RPC_SECRET'), { target: { value: 'new-rpc-secret' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存运行时服务配置' }));
+
+    await waitFor(() =>
+      expect(saved).toEqual({
+        ...runtimeConfig,
+        aria2_rpc_secret: 'new-rpc-secret'
+      })
+    );
+    expect(await screen.findByText('运行时服务配置已保存并立即生效')).toBeInTheDocument();
+  });
 });

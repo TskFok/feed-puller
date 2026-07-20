@@ -7,8 +7,16 @@ export type User = {
 };
 
 export type AuthOptions = {
-  password_login_enabled: boolean;
-  feishu_login_enabled: boolean;
+	password_login_enabled: boolean;
+	feishu_login_enabled: boolean;
+};
+
+export type RuntimeServiceConfig = {
+	aria2_rpc_url: string;
+	aria2_rpc_secret: string;
+	feishu_app_id: string;
+	feishu_app_secret: string;
+	aria2_hook_secret: string;
 };
 
 export type FeishuNotifyConfig = {

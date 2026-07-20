@@ -31,7 +31,8 @@ import type {
   RenameHistory,
   Subscription,
   User,
-  AuthOptions
+  AuthOptions,
+  RuntimeServiceConfig
 } from './types';
 import type { PageSizeOption } from './listPaging';
 
@@ -139,6 +140,9 @@ export const api = {
   proxy: () => request<{ proxy_url: string }>('/api/settings/proxy'),
   saveProxy: (proxy_url: string) =>
     request<{ proxy_url: string }>('/api/settings/proxy', { method: 'PUT', json: { proxy_url } }),
+  runtimeServiceConfig: () => request<RuntimeServiceConfig>('/api/settings/runtime-config'),
+  saveRuntimeServiceConfig: (payload: RuntimeServiceConfig) =>
+    request<RuntimeServiceConfig>('/api/settings/runtime-config', { method: 'PUT', json: payload }),
   feishuBinding: () => request<{ bound: boolean; feishu_name?: string; feishu_open_id?: string }>('/api/settings/feishu-binding'),
   getFeishuLoginUrl: () => request<{ url: string; goto: string }>('/api/auth/feishu/login-url'),
   getFeishuBindUrl: () => request<{ url: string; goto?: string }>('/api/settings/feishu-bind-url'),

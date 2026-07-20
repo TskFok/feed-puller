@@ -846,6 +846,7 @@ th {
 }
 
 .toast {
+  background: var(--glass-panel-solid);
   display: flex;
   align-items: flex-start;
   gap: 10px;

@@ -14,4 +14,8 @@ describe('modal surface styles', () => {
   it('弹窗遮罩使用专用背景以压低后方列表内容', () => {
     expect(styles.includes('background: var(--modal-overlay-bg, var(--overlay-bg))')).toBe(true);
   });
+
+  it('成功与失败 Toast 使用不透明的主题面板背景', () => {
+    expect(styles.includes('.toast {\n  background: var(--glass-panel-solid);')).toBe(true);
+  });
 });

@@ -789,7 +789,12 @@ th {
   flex-wrap: wrap;
 }
 
-.subscription-actions--single-row {
+td.subscription-actions--single-row {
+  display: table-cell;
+}
+
+.subscription-actions-row {
+  display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: nowrap;

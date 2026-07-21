@@ -1791,38 +1791,40 @@ function SubscriptionsView({ onGoActive }: { onGoActive?: () => void }) {
                 <td><TruncatedText>{sub.name}</TruncatedText></td>
                 <td className="sub-schedule-cell">{subscriptionScheduleSummary(sub)}</td>
                 <td className="actions subscription-actions subscription-actions--single-row">
-                  <button
-                    type="button"
-                    className="icon-text subscription-action"
-                    disabled={rowBusy || fetchLoadingId === sub.id}
-                    onClick={() => pullSubscription(sub)}
-                  >
-                    <RefreshCw size={16} className={fetchLoadingId === sub.id ? 'icon-spinning' : undefined} aria-hidden="true" />
-                    拉取
-                  </button>
-                  <button type="button" className="icon-text subscription-action" disabled={rowBusy} onClick={() => edit(sub)}>
-                    <SquarePen size={16} aria-hidden="true" />
-                    编辑
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-text subscription-action"
-                    disabled={rowBusy}
-                    aria-label={`复制 ${sub.name}`}
-                    onClick={() => copySubscription(sub)}
-                  >
-                    <Copy size={16} aria-hidden="true" />
-                    复制
-                  </button>
-                  <button
-                    type="button"
-                    className="danger subscription-action subscription-delete-action"
-                    disabled={rowBusy}
-                    onClick={() => setDeleteTarget(sub)}
-                  >
-                    <Trash2 size={16} aria-hidden="true" />
-                    删除
-                  </button>
+                  <div className="subscription-actions-row">
+                    <button
+                      type="button"
+                      className="icon-text subscription-action"
+                      disabled={rowBusy || fetchLoadingId === sub.id}
+                      onClick={() => pullSubscription(sub)}
+                    >
+                      <RefreshCw size={16} className={fetchLoadingId === sub.id ? 'icon-spinning' : undefined} aria-hidden="true" />
+                      拉取
+                    </button>
+                    <button type="button" className="icon-text subscription-action" disabled={rowBusy} onClick={() => edit(sub)}>
+                      <SquarePen size={16} aria-hidden="true" />
+                      编辑
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-text subscription-action"
+                      disabled={rowBusy}
+                      aria-label={`复制 ${sub.name}`}
+                      onClick={() => copySubscription(sub)}
+                    >
+                      <Copy size={16} aria-hidden="true" />
+                      复制
+                    </button>
+                    <button
+                      type="button"
+                      className="danger subscription-action subscription-delete-action"
+                      disabled={rowBusy}
+                      onClick={() => setDeleteTarget(sub)}
+                    >
+                      <Trash2 size={16} aria-hidden="true" />
+                      删除
+                    </button>
+                  </div>
                 </td>
               </tr>
             );

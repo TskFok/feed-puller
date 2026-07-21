@@ -47,23 +47,23 @@ test.describe('Prowlarr 结果卡片窄屏布局', () => {
     const heading = page.getByRole('heading', { name: title });
     const card = page.locator('.prowlarr-release-card').filter({ has: heading });
     const checkbox = card.getByRole('checkbox', { name: `选择 ${title}` });
-    const truncatedTitle = card.locator('.truncated-text');
-    const download = card.getByRole('button', { name: '重新下载' });
 
     await expect(heading).toBeVisible();
     await expect(card.getByText('已提交', { exact: true })).toBeVisible();
+    await card.scrollIntoViewIfNeeded();
 
     const layout = await card.evaluate((cardElement) => {
       const checkboxElement = cardElement.querySelector<HTMLInputElement>("input[type='checkbox']");
       const titleElement = cardElement.querySelector<HTMLElement>('.truncated-text');
       const downloadElement = cardElement.querySelector<HTMLElement>('.prowlarr-release-download');
-      if (!checkboxElement || !titleElement || !downloadElement) {
+      const actionsElement = cardElement.querySelector<HTMLElement>('.prowlarr-release-actions');
+      if (!checkboxElement || !titleElement || !downloadElement || !actionsElement) {
         throw new Error('缺少 Prowlarr 卡片布局节点');
       }
       const checkboxRect = checkboxElement.getBoundingClientRect();
       const titleRect = titleElement.getBoundingClientRect();
       const downloadRect = downloadElement.getBoundingClientRect();
-      const cardRect = cardElement.getBoundingClientRect();
+      const actionsRect = actionsElement.getBoundingClientRect();
       const style = getComputedStyle(titleElement);
       return {
         checkboxTop: checkboxRect.top,
@@ -77,10 +77,12 @@ test.describe('Prowlarr 结果卡片窄屏布局', () => {
         buttonRight: downloadRect.right,
         buttonTop: downloadRect.top,
         buttonBottom: downloadRect.bottom,
-        cardLeft: cardRect.left,
-        cardRight: cardRect.right,
-        cardTop: cardRect.top,
-        cardBottom: cardRect.bottom
+        actionsLeft: actionsRect.left,
+        actionsRight: actionsRect.right,
+        actionsTop: actionsRect.top,
+        actionsBottom: actionsRect.bottom,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight
       };
     });
 
@@ -89,9 +91,9 @@ test.describe('Prowlarr 结果卡片窄屏布局', () => {
     expect(layout.titleWhiteSpace).toBe('nowrap');
     expect(layout.titleOverflow).toBe('hidden');
     expect(layout.titleTextOverflow).toBe('ellipsis');
-    expect(layout.buttonLeft).toBeGreaterThanOrEqual(layout.cardLeft);
-    expect(layout.buttonRight).toBeLessThanOrEqual(layout.cardRight);
-    expect(layout.buttonTop).toBeGreaterThanOrEqual(layout.cardTop);
-    expect(layout.buttonBottom).toBeLessThanOrEqual(layout.cardBottom);
+    expect(layout.buttonLeft).toBeGreaterThanOrEqual(Math.max(layout.actionsLeft, 0));
+    expect(layout.buttonRight).toBeLessThanOrEqual(Math.min(layout.actionsRight, layout.viewportWidth));
+    expect(layout.buttonTop).toBeGreaterThanOrEqual(Math.max(layout.actionsTop, 0));
+    expect(layout.buttonBottom).toBeLessThanOrEqual(Math.min(layout.actionsBottom, layout.viewportHeight));
   });
 });

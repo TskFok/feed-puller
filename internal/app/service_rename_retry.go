@@ -209,9 +209,6 @@ func (s *Service) RetryCompletedDownloadRename(ctx context.Context, taskID int64
 	if err != nil {
 		return RenameDownloadResult{}, fmt.Errorf("读取订阅失败: %w", err)
 	}
-	if !sub.AIRenameEnabled {
-		return RenameDownloadResult{}, fmt.Errorf("请先在订阅设置中启用 AI 重命名")
-	}
 
 	itemTitle := ""
 	if item, itemErr := s.store.GetItem(ctx, task.ItemID); itemErr == nil {

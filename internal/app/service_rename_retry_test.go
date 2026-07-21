@@ -17,7 +17,7 @@ import (
 	"feed-puller/internal/store"
 )
 
-func TestRetryCompletedDownloadRename_Success(t *testing.T) {
+func TestRetryCompletedDownloadRename_AllowsDisabledAIRename(t *testing.T) {
 	dir := t.TempDir()
 	from := filepath.Join(dir, "番剧 第02话.mp4")
 	if err := os.WriteFile(from, []byte("video"), 0o644); err != nil {
@@ -52,7 +52,7 @@ func TestRetryCompletedDownloadRename_Success(t *testing.T) {
 			"download_dir", "include_keywords", "exclude_keywords", "use_proxy", "rss_parser",
 			"ai_rename_enabled", "ai_rename_season", "ai_rename_episode_offset",
 			"last_fetched_at", "last_error", "sort_order", "created_at", "updated_at",
-		}).AddRow(2, "动漫", "https://example.test/feed", true, 30, "", "UTC", dir, "", "", false, "mikan", true, 1, 0, nil, "", 0, now, now))
+		}).AddRow(2, "动漫", "https://example.test/feed", true, 30, "", "UTC", dir, "", "", false, "mikan", false, 1, 0, nil, "", 0, now, now))
 
 	mock.ExpectQuery(regexp.QuoteMeta(`FROM feed_items WHERE id = ?`)).
 		WithArgs(int64(90)).

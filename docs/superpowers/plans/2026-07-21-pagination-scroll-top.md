@@ -99,7 +99,7 @@ Run: `npm test && npm run build`
 
 Expected: Vitest 全绿且 TypeScript/Vite 构建成功，无新增警告。
 
-- [ ] **Step 6: 提交实现**
+- [x] **Step 6: 提交实现**
 
 ```bash
 git add web/src/ListPagination.tsx web/src/ListPagination.test.tsx

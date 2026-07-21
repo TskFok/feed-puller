@@ -789,9 +789,11 @@ th {
   flex-wrap: wrap;
 }
 
-.subscription-actions {
+.subscription-actions--single-row {
   align-items: center;
   gap: 10px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 .subscription-action {

@@ -1790,7 +1790,7 @@ function SubscriptionsView({ onGoActive }: { onGoActive?: () => void }) {
                 </td>
                 <td><TruncatedText>{sub.name}</TruncatedText></td>
                 <td className="sub-schedule-cell">{subscriptionScheduleSummary(sub)}</td>
-                <td className="actions subscription-actions">
+                <td className="actions subscription-actions subscription-actions--single-row">
                   <button
                     type="button"
                     className="icon-text subscription-action"

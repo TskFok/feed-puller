@@ -27,6 +27,7 @@ vendor/
 
 .gocache/
 tmp/
+.superpowers/
 
 # --- Node / frontend ---
 node_modules/

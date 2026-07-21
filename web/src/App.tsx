@@ -1529,7 +1529,7 @@ function CompletedDownloadsView() {
     <section className="view">
       <Header
         title="下载完成"
-        description="aria2 任务完成后会自动出现在此列表；可对已启用 AI 重命名的订阅手动重试刮削重命名。"
+        description="aria2 任务完成后会自动出现在此列表；可手动重试刮削重命名。"
       />
       {renameHint && <p className="muted">{renameHint}</p>}
       {loading && rows.length === 0 ? (
@@ -1557,18 +1557,14 @@ function CompletedDownloadsView() {
                   <td className="break muted">{row.final_path?.trim() || '—'}</td>
                   <td>{formatTime(row.completed_at) || '—'}</td>
                   <td>
-                    {row.ai_rename_enabled ? (
-                      <button
-                        type="button"
-                        className="ghost"
-                        disabled={renameBusyId === row.id}
-                        onClick={() => void retryRename(row)}
-                      >
-                        {renameBusyId === row.id ? '重命名中…' : '重命名'}
-                      </button>
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
+                    <button
+                      type="button"
+                      className="ghost"
+                      disabled={renameBusyId === row.id}
+                      onClick={() => void retryRename(row)}
+                    >
+                      {renameBusyId === row.id ? '重命名中…' : '重命名'}
+                    </button>
                   </td>
                 </tr>
               ))}

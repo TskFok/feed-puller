@@ -2169,47 +2169,58 @@ describe('App', () => {
   });
 
   it('登录后可进入下载完成列表', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path === '/api/auth/me') {
+        return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      if (isSubscriptionsListPath(path)) {
+        return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (isCompletedDownloadsPath(path)) {
+        return new Response(
+          JSON.stringify([
+            {
+              id: 1,
+              item_id: 10,
+              subscription_id: 2,
+              subscription_name: '动漫',
+              title: '示例番剧',
+              url: 'https://example.test/a.mp4',
+              dir: '/data/anime',
+              final_path: '/data/anime/番剧 S01E01.mp4',
+              ai_rename_enabled: false,
+              completed_at: '2026-05-19T12:00:00Z'
+            }
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (path === '/api/downloads/1/rename') {
+        expect(init?.method).toBe('POST');
+        return new Response(JSON.stringify({ message: '重命名成功' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
-        const path = String(input);
-        if (path === '/api/auth/me') {
-          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' }
-          });
-        }
-        if (isSubscriptionsListPath(path)) {
-          return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
-        }
-        if (isCompletedDownloadsPath(path)) {
-          return new Response(
-            JSON.stringify([
-              {
-                id: 1,
-                item_id: 10,
-                subscription_id: 2,
-                subscription_name: '动漫',
-                title: '示例番剧',
-                url: 'https://example.test/a.mp4',
-                dir: '/data/anime',
-                final_path: '/data/anime/番剧 S01E01.mp4',
-                ai_rename_enabled: true,
-                completed_at: '2026-05-19T12:00:00Z'
-              }
-            ]),
-            { status: 200, headers: { 'Content-Type': 'application/json' } }
-          );
-        }
-        return new Response(JSON.stringify({}), { status: 200 });
-      })
+      fetchMock
     );
 
     render(<App />);
     await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: '下载完成' }));
     await waitFor(() => expect(screen.getByRole('heading', { name: '下载完成' })).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: '重命名' })).toBeInTheDocument();
+    const renameButton = screen.getByRole('button', { name: '重命名' });
+    expect(renameButton).toBeEnabled();
+    fireEvent.click(renameButton);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/downloads/1/rename', expect.any(Object)));
     expect(screen.getByText('动漫')).toBeInTheDocument();
     expect(screen.getByText('示例番剧')).toBeInTheDocument();
     expect(screen.getByText('/data/anime')).toBeInTheDocument();

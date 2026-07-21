@@ -28,6 +28,31 @@ describe('PaginationBar', () => {
     expect(onPageSizeChange).toHaveBeenCalledWith(50);
   });
 
+  it('切换页码时回到 workspace 顶部', () => {
+    const onPageChange = vi.fn();
+    const { container } = render(
+      <main className="workspace" style={{ overflowY: 'auto' }}>
+        <PaginationBar
+          page={1}
+          pageSize={30}
+          totalPages={2}
+          totalItems={35}
+          rangeStart={1}
+          rangeEnd={30}
+          onPageChange={onPageChange}
+          onPageSizeChange={vi.fn()}
+        />
+      </main>
+    );
+    const workspace = container.querySelector('.workspace') as HTMLElement;
+    Object.defineProperty(workspace, 'scrollTop', { configurable: true, writable: true, value: 240 });
+
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+
+    expect(onPageChange).toHaveBeenCalledWith(2);
+    expect(workspace.scrollTop).toBe(0);
+  });
+
   it('无数据时不渲染', () => {
     const { container } = render(
       <PaginationBar

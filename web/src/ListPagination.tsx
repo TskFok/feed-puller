@@ -1,4 +1,5 @@
-import { useId } from 'react';
+import { useId, useRef } from 'react';
+import { resolveAppScrollElement } from './appScrollElement';
 import { PAGE_SIZE_OPTIONS } from './listPaging';
 
 export type PaginationBarProps = {
@@ -27,9 +28,18 @@ export function PaginationBar({
   }
 
   const pageSizeId = useId();
+  const paginationRef = useRef<HTMLElement>(null);
+
+  function handlePageChange(nextPage: number) {
+    onPageChange(nextPage);
+    const scrollElement = resolveAppScrollElement(paginationRef.current);
+    if (scrollElement) {
+      scrollElement.scrollTop = 0;
+    }
+  }
 
   return (
-    <nav className="pagination-bar" aria-label="列表分页">
+    <nav ref={paginationRef} className="pagination-bar" aria-label="列表分页">
       <div className="pagination-range muted">
         显示 {rangeStart}–{rangeEnd}，共 {totalItems} 条
       </div>
@@ -56,7 +66,7 @@ export function PaginationBar({
             className="ghost"
             disabled={page <= 1}
             aria-label="上一页"
-            onClick={() => onPageChange(page - 1)}
+            onClick={() => handlePageChange(page - 1)}
           >
             上一页
           </button>
@@ -68,7 +78,7 @@ export function PaginationBar({
             className="ghost"
             disabled={page >= totalPages}
             aria-label="下一页"
-            onClick={() => onPageChange(page + 1)}
+            onClick={() => handlePageChange(page + 1)}
           >
             下一页
           </button>

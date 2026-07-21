@@ -1,4 +1,5 @@
 import { Download, Loader2 } from 'lucide-react';
+import { TruncatedText } from './TruncatedText';
 import type { ProwlarrRelease } from './types';
 
 export type ProwlarrReleaseCardProps = {
@@ -41,7 +42,9 @@ export function ProwlarrReleaseCard({
           onChange={onToggle}
           aria-label={`选择 ${release.title}`}
         />
-        <h3 className="prowlarr-release-title">{release.title}</h3>
+        <h3 className="prowlarr-release-title">
+          <TruncatedText>{release.title}</TruncatedText>
+        </h3>
         {submitted && <span className="status status-submitted prowlarr-release-status">已提交</span>}
       </div>
       <dl className="prowlarr-release-meta">

@@ -2136,6 +2136,59 @@ describe('App', () => {
     expect(screen.getByText('1.0 KB/s')).toBeInTheDocument();
   });
 
+  it('下载中列表的长错误使用单行省略并保留完整提示', async () => {
+    const longStatusError = '下载失败：远程服务器返回了一段非常长的错误信息，需要保留完整内容以便排查问题。';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (isSubscriptionsListPath(path)) {
+          return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (isActiveDownloadsPath(path)) {
+          return new Response(
+            JSON.stringify([
+              {
+                id: 2,
+                item_id: 11,
+                subscription_id: 3,
+                subscription_name: '动漫',
+                title: '下载异常的番剧',
+                url: 'https://example.test/b.mp4',
+                dir: '/data/anime',
+                aria2_gid: 'gid-2',
+                submitted_at: '2026-05-19T11:00:00Z',
+                aria2_status: 'error',
+                status_error: longStatusError,
+                completed_length: 500,
+                total_length: 1000,
+                download_speed: 0,
+                progress_percent: 50
+              }
+            ]),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '下载中' }));
+    await waitFor(() => expect(screen.getByRole('heading', { name: '下载中' })).toBeInTheDocument());
+
+    const error = screen.getByTitle(longStatusError);
+    expect(error).toHaveClass('truncated-text');
+    expect(error).toHaveClass('inline-error');
+  });
+
   it('下载中列表在上一次 active 请求未完成时不会重复请求', async () => {
     let activeCallCount = 0;
     let resolveActive: (() => void) | undefined;

@@ -1409,7 +1409,7 @@ function ActiveDownloadsView() {
                   </td>
                   <td className="muted">{row.status_error ? '—' : formatSpeed(row.download_speed)}</td>
                   <td className="muted">
-                    {row.status_error ? <span className="inline-error">{row.status_error}</span> : aria2StatusLabel(row.aria2_status)}
+                    {row.status_error ? <TruncatedText className="inline-error">{row.status_error}</TruncatedText> : aria2StatusLabel(row.aria2_status)}
                   </td>
                 </tr>
               ))}

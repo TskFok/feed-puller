@@ -72,7 +72,7 @@ export function ProwlarrReleaseCard({
       <div className="prowlarr-release-actions">
         <button
           type="button"
-          className="primary-link"
+          className="primary-link prowlarr-release-download"
           disabled={downloading || batchDownloading}
           onClick={onDownload}
         >

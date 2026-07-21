@@ -2415,15 +2415,17 @@ html[data-theme='light'] .feishu-setup-step {
 }
 
 .prowlarr-release-card-head {
-  display: flex;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: start;
   gap: 10px;
+  min-width: 0;
 }
 
 .prowlarr-release-card-head input[type='checkbox'] {
   width: 18px;
   height: 18px;
-  margin-top: 3px;
+  margin-top: 0;
   accent-color: var(--glass-accent);
   flex-shrink: 0;
 }
@@ -2434,13 +2436,11 @@ html[data-theme='light'] .feishu-setup-step {
   font-weight: 600;
   line-height: 1.4;
   color: var(--glass-text);
-  flex: 1;
   min-width: 0;
 }
 
 .prowlarr-release-status {
   flex-shrink: 0;
-  margin-left: auto;
 }
 
 .prowlarr-release-meta {
@@ -2468,9 +2468,14 @@ html[data-theme='light'] .feishu-setup-step {
 
 .prowlarr-release-actions {
   display: flex;
+  min-width: 0;
   justify-content: flex-end;
   padding-top: 4px;
   border-top: 1px solid var(--glass-border-soft);
+}
+
+.prowlarr-release-download {
+  flex: 0 0 auto;
 }
 
 .prowlarr-release-card--skeleton {

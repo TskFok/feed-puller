@@ -23,5 +23,8 @@ describe('ProwlarrReleaseCard', () => {
     const text = screen.getByTitle(title);
     expect(heading).toContainElement(text);
     expect(text).toHaveClass('truncated-text');
+    expect(heading.parentElement).toHaveClass('prowlarr-release-card-head');
+    expect(screen.getByRole('button', { name: '下载' })).toHaveClass('prowlarr-release-download');
+    expect(screen.getByRole('button', { name: '下载' }).parentElement).toHaveClass('prowlarr-release-actions');
   });
 });

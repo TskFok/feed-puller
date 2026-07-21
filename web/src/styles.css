@@ -1269,9 +1269,13 @@ td.subscription-actions--single-row {
   color: var(--text);
 }
 
-.sub-schedule-col,
+.sub-schedule-col {
+  width: 12rem;
+  min-width: 9rem;
+}
+
 .sub-schedule-cell {
-  width: 9rem;
+  width: 12rem;
   min-width: 9rem;
 }
 

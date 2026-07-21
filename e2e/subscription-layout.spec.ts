@@ -37,16 +37,19 @@ test('订阅操作单元格保留表格布局，内部按钮单行排列', async
 
   const layout = await page.locator('td.subscription-actions').evaluate((cell) => {
     const actions = cell.querySelector<HTMLElement>('.subscription-actions-row');
+    const scheduleCell = cell.parentElement?.querySelector<HTMLElement>('.sub-schedule-cell');
     return {
       cellDisplay: getComputedStyle(cell).display,
       actionsDisplay: actions ? getComputedStyle(actions).display : null,
-      actionsFlexWrap: actions ? getComputedStyle(actions).flexWrap : null
+      actionsFlexWrap: actions ? getComputedStyle(actions).flexWrap : null,
+      scheduleWidth: scheduleCell ? getComputedStyle(scheduleCell).width : null
     };
   });
 
   expect(layout).toEqual({
     cellDisplay: 'table-cell',
     actionsDisplay: 'flex',
-    actionsFlexWrap: 'nowrap'
+    actionsFlexWrap: 'nowrap',
+    scheduleWidth: '192px'
   });
 });

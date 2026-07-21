@@ -1089,6 +1089,7 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /复制 Demo/ })).toHaveClass('subscription-action');
     const actions = screen.getByRole('button', { name: /拉取/ }).closest<HTMLElement>('.subscription-actions');
     expect(actions).toHaveClass('subscription-actions--single-row');
+    expect(screen.getByRole('columnheader', { name: '拉取调度' })).toHaveClass('sub-schedule-col');
   });
 
   it('订阅名称以单行省略展示并保留完整悬停提示', async () => {

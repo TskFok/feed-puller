@@ -1264,8 +1264,10 @@ th {
   color: var(--text);
 }
 
+.sub-schedule-col,
 .sub-schedule-cell {
-  min-width: 12rem;
+  width: 9rem;
+  min-width: 9rem;
 }
 
 .sub-schedule-summary {

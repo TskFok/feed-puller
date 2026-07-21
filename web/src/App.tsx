@@ -1740,7 +1740,7 @@ function SubscriptionsView({ onGoActive }: { onGoActive?: () => void }) {
                 <span className="sr-only">排序</span>
               </th>
               <th>订阅名称</th>
-              <th>拉取调度</th>
+              <th className="sub-schedule-col">拉取调度</th>
               <th>操作</th>
             </tr>
           </thead>

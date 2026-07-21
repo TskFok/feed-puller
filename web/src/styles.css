@@ -751,6 +751,10 @@ table {
   min-width: 760px;
 }
 
+.table-wrap table {
+  table-layout: fixed;
+}
+
 th,
 td {
   padding: 12px 14px;
@@ -770,8 +774,12 @@ th {
   letter-spacing: 0.06em;
 }
 
-.break {
-  overflow-wrap: anywhere;
+.truncated-text {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .actions,

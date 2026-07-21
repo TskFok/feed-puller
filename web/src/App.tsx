@@ -36,6 +36,7 @@ import { ThemePicker } from './ThemePicker';
 import { useSidebarCollapsed } from './sidebarLayout';
 import { GLASS_OFFSCREEN_MIN_ITEMS } from './glassConstants';
 import { useOffscreenGlassSurface } from './useOffscreenGlassSurface';
+import { TruncatedText } from './TruncatedText';
 import {
   AI_PROVIDER_PRESETS,
   applyAIProviderPreset,
@@ -1263,7 +1264,7 @@ function FetchPreviewModal({
                       </span>
                     )}
                   </td>
-                  <td className="break">{row.title || row.link || row.download_url || '（无标题）'}</td>
+                  <td><TruncatedText>{row.title || row.link || row.download_url || '（无标题）'}</TruncatedText></td>
                   <td>{formatBytes(row.content_length ?? undefined)}</td>
                   <td>{fetchPreviewStatus(row)}</td>
                   <td>{formatTime(row.published_at) || formatTime(row.created_at)}</td>
@@ -1401,8 +1402,8 @@ function ActiveDownloadsView() {
             <tbody>
               {rows.map((row) => (
                 <tr key={row.id}>
-                  <td>{row.subscription_name}</td>
-                  <td className="break">{row.title || row.url || '（无标题）'}</td>
+                  <td><TruncatedText>{row.subscription_name}</TruncatedText></td>
+                  <td><TruncatedText>{row.title || row.url || '（无标题）'}</TruncatedText></td>
                   <td>
                     <DownloadProgressCell row={row} />
                   </td>
@@ -1551,10 +1552,10 @@ function CompletedDownloadsView() {
             <tbody>
               {rows.map((row) => (
                 <tr key={row.id}>
-                  <td>{row.subscription_name}</td>
-                  <td className="break">{row.title || row.url || '（无标题）'}</td>
-                  <td className="break muted">{row.dir}</td>
-                  <td className="break muted">{row.final_path?.trim() || '—'}</td>
+                  <td><TruncatedText>{row.subscription_name}</TruncatedText></td>
+                  <td><TruncatedText>{row.title || row.url || '（无标题）'}</TruncatedText></td>
+                  <td className="muted"><TruncatedText>{row.dir}</TruncatedText></td>
+                  <td className="muted"><TruncatedText>{row.final_path?.trim() || '—'}</TruncatedText></td>
                   <td>{formatTime(row.completed_at) || '—'}</td>
                   <td>
                     <button
@@ -1787,7 +1788,7 @@ function SubscriptionsView({ onGoActive }: { onGoActive?: () => void }) {
                     <GripVertical size={16} aria-hidden="true" />
                   </button>
                 </td>
-                <td>{sub.name}</td>
+                <td><TruncatedText>{sub.name}</TruncatedText></td>
                 <td className="sub-schedule-cell">{subscriptionScheduleSummary(sub)}</td>
                 <td className="actions subscription-actions">
                   <button
@@ -2305,9 +2306,9 @@ function NotifyHistoryView() {
                       <Status value={row.status === 'sent' ? 'completed' : 'failed'} />
                     </td>
                     <td>{row.item_count}</td>
-                    <td className="break">{row.title}</td>
-                    <td className="break muted">{row.content}</td>
-                    <td className="break muted">{row.error?.trim() || '—'}</td>
+                    <td><TruncatedText>{row.title}</TruncatedText></td>
+                    <td className="muted"><TruncatedText>{row.content}</TruncatedText></td>
+                    <td className="muted"><TruncatedText>{row.error?.trim() || '—'}</TruncatedText></td>
                   </tr>
                 ))}
                 {rows.length === 0 && !loading && <EmptyRow columns={9} text="暂无通知记录" />}
@@ -2383,11 +2384,11 @@ function RenameHistoryView() {
                   <tr key={row.id}>
                     <td>{formatTime(row.created_at) || '—'}</td>
                     <td>{renameHistoryStatusLabel(row.status)}</td>
-                    <td className="break">{row.original_filename}</td>
-                    <td className="break">{row.renamed_path?.trim() || '—'}</td>
-                    <td className="break muted">{row.ai_prompt?.trim() || '—'}</td>
-                    <td className="break muted">{row.ai_response?.trim() || '—'}</td>
-                    <td className="break muted">{row.error?.trim() || '—'}</td>
+                    <td><TruncatedText>{row.original_filename}</TruncatedText></td>
+                    <td><TruncatedText>{row.renamed_path?.trim() || '—'}</TruncatedText></td>
+                    <td className="muted"><TruncatedText>{row.ai_prompt?.trim() || '—'}</TruncatedText></td>
+                    <td className="muted"><TruncatedText>{row.ai_response?.trim() || '—'}</TruncatedText></td>
+                    <td className="muted"><TruncatedText>{row.error?.trim() || '—'}</TruncatedText></td>
                   </tr>
                 ))}
                 {rows.length === 0 && !loading && <EmptyRow columns={7} text="暂无重命名记录" />}
@@ -2478,7 +2479,7 @@ function AIConfigView() {
           <tbody>
             {configs.map((cfg) => (
               <tr key={cfg.id}>
-                <td>{cfg.name}</td>
+                <td><TruncatedText>{cfg.name}</TruncatedText></td>
                 <td>{cfg.request_options?.trim() ? '已配置' : '默认'}</td>
                 <td className="actions">
                   <button

@@ -1494,8 +1494,23 @@ td.subscription-actions--single-row {
   grid-column: 1 / -1;
 }
 
-.modal-check-inline {
-  margin-top: 2px;
+.modal-check-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+}
+
+.modal-check-option input {
+  min-height: auto;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--glass-accent);
+}
+
+.modal-check-option label {
+  cursor: pointer;
 }
 
 @media (min-width: 560px) {
@@ -1507,7 +1522,7 @@ td.subscription-actions--single-row {
 
   .modal-fieldset-schedule > .schedule-mode-row,
   .modal-fieldset-schedule > .modal-schedule-help,
-  .modal-fieldset-schedule > label:not(.modal-check-inline):not(.check) {
+  .modal-fieldset-schedule > label {
     grid-column: 1 / -1;
   }
 }

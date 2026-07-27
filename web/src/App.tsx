@@ -587,6 +587,11 @@ function SubscriptionModal({
   const subscription =
     target.mode === 'edit' ? subscriptions.find((s) => s.id === target.subscriptionId) : undefined;
   const titleId = useId();
+  const intervalScheduleId = useId();
+  const cronScheduleId = useId();
+  const enabledId = useId();
+  const useProxyId = useId();
+  const aiRenameEnabledId = useId();
   const firstFieldRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<Omit<Subscription, 'id'>>(() => {
     if (copyFrom) return subscriptionToDraftForCopy(copyFrom);
@@ -721,8 +726,9 @@ function SubscriptionModal({
               <span className="modal-section-title">抓取与选项</span>
             </legend>
             <div className="schedule-mode-row" role="radiogroup" aria-label="拉取调度方式">
-              <label className="check modal-check-inline">
+              <div className="modal-check-option">
                 <input
+                  id={intervalScheduleId}
                   type="radio"
                   name="schedule-kind"
                   checked={scheduleKind === 'interval'}
@@ -731,10 +737,11 @@ function SubscriptionModal({
                     setDraft((d) => ({ ...d, poll_cron: '', poll_cron_timezone: 'UTC' }));
                   }}
                 />
-                固定间隔
-              </label>
-              <label className="check modal-check-inline">
+                <label htmlFor={intervalScheduleId}>固定间隔</label>
+              </div>
+              <div className="modal-check-option">
                 <input
+                  id={cronScheduleId}
                   type="radio"
                   name="schedule-kind"
                   checked={scheduleKind === 'cron'}
@@ -742,8 +749,8 @@ function SubscriptionModal({
                     setScheduleKind('cron');
                   }}
                 />
-                Crontab
-              </label>
+                <label htmlFor={cronScheduleId}>Crontab</label>
+              </div>
             </div>
             {scheduleKind === 'interval' ? (
               <label>
@@ -812,22 +819,24 @@ function SubscriptionModal({
               previewError={previewError}
               previewLoading={previewLoading}
             />
-            <label className="check modal-check-inline">
+            <div className="modal-check-option">
               <input
+                id={enabledId}
                 type="checkbox"
                 checked={draft.enabled}
                 onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })}
               />
-              启用此订阅
-            </label>
-            <label className="check modal-check-inline">
+              <label htmlFor={enabledId}>启用此订阅</label>
+            </div>
+            <div className="modal-check-option">
               <input
+                id={useProxyId}
                 type="checkbox"
                 checked={draft.use_proxy}
                 onChange={(event) => setDraft({ ...draft, use_proxy: event.target.checked })}
               />
-              使用代理服务器拉取
-            </label>
+              <label htmlFor={useProxyId}>使用代理服务器拉取</label>
+            </div>
           </fieldset>
 
           <fieldset className="modal-fieldset">
@@ -852,14 +861,15 @@ function SubscriptionModal({
             <p className="modal-hint muted">
               下载完成后将文件重命名为 S01E01 格式，便于媒体库刮削。需在「AI 配置」中至少添加一条可用模型。
             </p>
-            <label className="check modal-check-inline">
+            <div className="modal-check-option">
               <input
+                id={aiRenameEnabledId}
                 type="checkbox"
                 checked={draft.ai_rename_enabled}
                 onChange={(event) => setDraft({ ...draft, ai_rename_enabled: event.target.checked })}
               />
-              启用 AI 重命名
-            </label>
+              <label htmlFor={aiRenameEnabledId}>启用 AI 重命名</label>
+            </div>
             {draft.ai_rename_enabled && (
               <div className="modal-keyword-grid">
                 <label>

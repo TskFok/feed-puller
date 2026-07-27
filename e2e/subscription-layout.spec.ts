@@ -53,3 +53,23 @@ test('订阅操作单元格保留表格布局，内部按钮单行排列', async
     scheduleWidth: '192px'
   });
 });
+
+test('订阅弹窗勾选项不会由行内留白切换', async ({ page }) => {
+  await resetClientState(page);
+  await mockLoggedIn(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: '新增订阅' }).click();
+
+  const checkbox = page.getByRole('checkbox', { name: '启用此订阅' });
+  const option = checkbox.locator('xpath=..');
+  await expect(option).toHaveClass(/modal-check-option/);
+  await expect(checkbox).toBeChecked();
+
+  const box = await option.boundingBox();
+  expect(box).not.toBeNull();
+  await page.mouse.click(box!.x + box!.width + 24, box!.y + box!.height / 2);
+  await expect(checkbox).toBeChecked();
+
+  await page.getByText('启用此订阅', { exact: true }).click();
+  await expect(checkbox).not.toBeChecked();
+});

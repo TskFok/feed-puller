@@ -45,7 +45,7 @@ func TestClientSearch_EmptyQueryError(t *testing.T) {
 	APIBaseURL = server.URL
 	t.Cleanup(func() { APIBaseURL = orig })
 	_, err := NewClient("u", "p", "key-1").Search(context.Background(), "  ", "zh-CN")
-	if err == nil || !strings.Contains(err.Error(), "搜索关键词不能为空") {
+	if !errors.Is(err, ErrEmptyQuery) {
 		t.Fatalf("err=%v", err)
 	}
 	if called {
@@ -168,7 +168,7 @@ func TestClientRequestDownload_InvalidFileID(t *testing.T) {
 	APIBaseURL = server.URL
 	t.Cleanup(func() { APIBaseURL = orig })
 	_, err := NewClient("u", "p", "key-1").RequestDownload(context.Background(), 0)
-	if err == nil || !strings.Contains(err.Error(), "file_id 无效") {
+	if !errors.Is(err, ErrInvalidFileID) {
 		t.Fatalf("err=%v", err)
 	}
 	if called {
@@ -222,5 +222,20 @@ func TestClientFetchFile_FollowsRedirect(t *testing.T) {
 	body, err := NewClient("u", "p", "key-1").FetchFile(context.Background(), server.URL+"/redir")
 	if err != nil || string(body) != "ok" {
 		t.Fatalf("body=%q err=%v", body, err)
+	}
+}
+
+func TestClientFetchFile_NetworkErrorDoesNotLeakURL(t *testing.T) {
+	t.Parallel()
+	link := "http://127.0.0.1:1/download?token=one-time-secret-token"
+	_, err := NewClient("u", "p", "key-1").FetchFile(context.Background(), link)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if err.Error() != "下载字幕文件失败" {
+		t.Fatalf("err=%v", err)
+	}
+	if strings.Contains(err.Error(), "one-time-secret-token") || strings.Contains(err.Error(), link) {
+		t.Fatalf("leaked url: %v", err)
 	}
 }

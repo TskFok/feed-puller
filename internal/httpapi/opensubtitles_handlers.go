@@ -92,29 +92,13 @@ func writeOpenSubtitlesError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, opensubtitles.ErrLoginFailed):
 		writeError(w, http.StatusBadGateway, err.Error())
-	case isOpenSubtitlesBadRequest(err):
+	case errors.Is(err, opensubtitles.ErrInvalidFileName),
+		errors.Is(err, opensubtitles.ErrInvalidFileID),
+		errors.Is(err, opensubtitles.ErrEmptyQuery):
 		writeError(w, http.StatusBadRequest, err.Error())
-	case isOpenSubtitlesStorageError(err):
+	case errors.Is(err, app.ErrSubtitleWriteFailed):
 		writeError(w, http.StatusInternalServerError, err.Error())
 	default:
 		writeError(w, http.StatusBadGateway, err.Error())
 	}
-}
-
-func isOpenSubtitlesBadRequest(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "文件名无效") || strings.Contains(msg, "file_id 无效")
-}
-
-func isOpenSubtitlesStorageError(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "读取 OpenSubtitles 配置失败") ||
-		strings.Contains(msg, "保存 OpenSubtitles 配置失败") ||
-		strings.Contains(msg, "保存字幕失败")
 }

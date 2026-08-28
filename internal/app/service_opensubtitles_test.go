@@ -166,8 +166,8 @@ func TestDownloadSubtitle_RejectsEmptySanitizedName(t *testing.T) {
 	})
 	svc := NewService(store.New(db), downloader.NewAria2Client("", ""), slog.Default())
 	path, name, err := svc.DownloadSubtitle(context.Background(), 9, "..")
-	if err == nil {
-		t.Fatal("expected invalid file name error")
+	if !errors.Is(err, opensubtitles.ErrInvalidFileName) {
+		t.Fatalf("err=%v", err)
 	}
 	if !strings.Contains(err.Error(), "文件名无效") {
 		t.Fatalf("err=%v", err)
@@ -209,7 +209,7 @@ func TestDownloadSubtitle_ZeroFileIDFailsBeforeNetwork(t *testing.T) {
 	})
 	svc := NewService(store.New(db), downloader.NewAria2Client("", ""), slog.Default())
 	_, _, err = svc.DownloadSubtitle(context.Background(), 0, "fallback.srt")
-	if err == nil || !strings.Contains(err.Error(), "file_id 无效") {
+	if !errors.Is(err, opensubtitles.ErrInvalidFileID) {
 		t.Fatalf("err=%v", err)
 	}
 	if hitAPI {
@@ -253,12 +253,15 @@ func TestDownloadSubtitle_WriteFailsWhenDirMissing(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected write error")
 	}
+	if !errors.Is(err, ErrSubtitleWriteFailed) {
+		t.Fatalf("err=%v", err)
+	}
 	if !strings.Contains(err.Error(), "保存字幕失败") {
 		t.Fatalf("err=%v", err)
 	}
 	var pathErr *os.PathError
-	if !errors.As(err, &pathErr) && !strings.Contains(err.Error(), "目录") {
-		t.Fatalf("want path error or 目录, err=%v", err)
+	if !errors.As(err, &pathErr) {
+		t.Fatalf("want path error unwrap, err=%v", err)
 	}
 }
 

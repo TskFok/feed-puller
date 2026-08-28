@@ -12,7 +12,10 @@ import (
 	"feed-puller/internal/store"
 )
 
-var ErrOpenSubtitlesNotConfigured = errors.New("OpenSubtitles 未配置")
+var (
+	ErrOpenSubtitlesNotConfigured = errors.New("OpenSubtitles 未配置")
+	ErrSubtitleWriteFailed        = errors.New("保存字幕失败")
+)
 
 func (s *Service) GetOpenSubtitlesConfig(ctx context.Context) (store.OpenSubtitlesConfig, error) {
 	return s.store.GetOpenSubtitlesConfig(ctx)
@@ -60,7 +63,7 @@ func (s *Service) DownloadSubtitle(ctx context.Context, fileID int64, fallbackFi
 		return "", "", err
 	}
 	if err := os.WriteFile(dest, body, 0o644); err != nil {
-		return "", "", fmt.Errorf("保存字幕失败: %w", err)
+		return "", "", fmt.Errorf("%w: %w", ErrSubtitleWriteFailed, err)
 	}
 	return dest, sanitized, nil
 }

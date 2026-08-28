@@ -1,7 +1,6 @@
 package opensubtitles
 
 import (
-	"fmt"
 	"path/filepath"
 	"strings"
 )
@@ -9,7 +8,7 @@ import (
 func SanitizeFileName(name string) (string, error) {
 	base := filepath.Base(strings.TrimSpace(name))
 	if base == "" || base == "." || base == ".." {
-		return "", fmt.Errorf("文件名无效")
+		return "", ErrInvalidFileName
 	}
 	return base, nil
 }

@@ -1,6 +1,9 @@
 package opensubtitles
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestSanitizeFileName(t *testing.T) {
 	t.Parallel()
@@ -8,23 +11,23 @@ func TestSanitizeFileName(t *testing.T) {
 	if err != nil || got != "foo.srt" {
 		t.Fatalf("got %q err=%v", got, err)
 	}
-	if _, err := SanitizeFileName(".."); err == nil {
-		t.Fatal("expected error")
+	if _, err := SanitizeFileName(".."); !errors.Is(err, ErrInvalidFileName) {
+		t.Fatalf("err=%v", err)
 	}
-	if _, err := SanitizeFileName(" . "); err == nil {
-		t.Fatal("expected error")
+	if _, err := SanitizeFileName(" . "); !errors.Is(err, ErrInvalidFileName) {
+		t.Fatalf("err=%v", err)
 	}
 }
 
 func TestSanitizeFileName_RejectsEmptyAndDot(t *testing.T) {
 	t.Parallel()
-	if _, err := SanitizeFileName(""); err == nil {
-		t.Fatal("expected error")
+	if _, err := SanitizeFileName(""); !errors.Is(err, ErrInvalidFileName) {
+		t.Fatalf("err=%v", err)
 	}
-	if _, err := SanitizeFileName("   "); err == nil {
-		t.Fatal("expected error")
+	if _, err := SanitizeFileName("   "); !errors.Is(err, ErrInvalidFileName) {
+		t.Fatalf("err=%v", err)
 	}
-	if _, err := SanitizeFileName("."); err == nil {
-		t.Fatal("expected error")
+	if _, err := SanitizeFileName("."); !errors.Is(err, ErrInvalidFileName) {
+		t.Fatalf("err=%v", err)
 	}
 }

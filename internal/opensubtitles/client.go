@@ -18,7 +18,12 @@ var APIBaseURL = "https://api.opensubtitles.com/api/v1"
 
 const UserAgent = "feed-puller v1.0"
 
-var ErrLoginFailed = errors.New("OpenSubtitles 登录失败")
+var (
+	ErrLoginFailed     = errors.New("OpenSubtitles 登录失败")
+	ErrInvalidFileName = errors.New("文件名无效")
+	ErrInvalidFileID   = errors.New("file_id 无效")
+	ErrEmptyQuery      = errors.New("搜索关键词不能为空")
+)
 
 type SubtitleFile struct {
 	FileID        int64   `json:"file_id"`
@@ -58,7 +63,7 @@ func NewClient(username, password, apiKey string) *Client {
 func (c *Client) Search(ctx context.Context, query, language string) ([]SubtitleFile, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return nil, fmt.Errorf("搜索关键词不能为空")
+		return nil, ErrEmptyQuery
 	}
 	endpoint, err := url.Parse(strings.TrimRight(APIBaseURL, "/") + "/subtitles")
 	if err != nil {
@@ -89,7 +94,7 @@ func (c *Client) Search(ctx context.Context, query, language string) ([]Subtitle
 
 func (c *Client) RequestDownload(ctx context.Context, fileID int64) (DownloadInfo, error) {
 	if fileID <= 0 {
-		return DownloadInfo{}, fmt.Errorf("file_id 无效")
+		return DownloadInfo{}, ErrInvalidFileID
 	}
 	if err := c.ensureToken(ctx); err != nil {
 		return DownloadInfo{}, err
@@ -121,17 +126,17 @@ func (c *Client) RequestDownload(ctx context.Context, fileID int64) (DownloadInf
 func (c *Client) FetchFile(ctx context.Context, link string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, link, nil)
 	if err != nil {
-		return nil, fmt.Errorf("下载字幕文件失败: %w", err)
+		return nil, fmt.Errorf("下载字幕文件失败")
 	}
 	req.Header.Set("User-Agent", UserAgent)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("下载字幕文件失败: %w", err)
+		return nil, fmt.Errorf("下载字幕文件失败")
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
 	if err != nil {
-		return nil, fmt.Errorf("下载字幕文件失败: %w", err)
+		return nil, fmt.Errorf("下载字幕文件失败")
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("下载字幕文件失败")

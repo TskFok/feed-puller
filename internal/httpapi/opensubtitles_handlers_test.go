@@ -178,6 +178,59 @@ func TestOpenSubtitlesSearch_ForwardsCommaSeparatedLanguages(t *testing.T) {
 	}
 }
 
+func TestOpenSubtitlesSearch_ForwardsPageAndReturnsMeta(t *testing.T) {
+	osAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/subtitles" {
+			t.Fatalf("path %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("page") != "2" {
+			t.Fatalf("query=%s", r.URL.RawQuery)
+		}
+		_, _ = w.Write([]byte(`{"page":2,"total_pages":5,"total_count":120,"data":[{"attributes":{"release":"Inception","language":"zh-CN","files":[{"file_id":7,"file_name":"a.srt"}]}}]}`))
+	}))
+	defer osAPI.Close()
+	orig := opensubtitles.APIBaseURL
+	opensubtitles.APIBaseURL = osAPI.URL
+	t.Cleanup(func() { opensubtitles.APIBaseURL = orig })
+	srv, mock, cleanup := newOpenSubtitlesServer(t)
+	defer cleanup()
+	expectConfiguredOpenSubtitlesSettings(mock)
+	req := authRequest(httptest.NewRequest(http.MethodGet, "/api/subtitles/search?query=Inception&languages=zh-CN&page=2", nil))
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var payload opensubtitles.SearchPage
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Page != 2 || payload.TotalPages != 5 || payload.TotalCount != 120 || len(payload.Items) != 1 || payload.Items[0].FileID != 7 {
+		t.Fatalf("payload=%+v", payload)
+	}
+}
+
+func TestOpenSubtitlesSearch_DefaultPageIsOne(t *testing.T) {
+	var gotPage string
+	osAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPage = r.URL.Query().Get("page")
+		_, _ = w.Write([]byte(`{"page":1,"total_pages":1,"data":[]}`))
+	}))
+	defer osAPI.Close()
+	orig := opensubtitles.APIBaseURL
+	opensubtitles.APIBaseURL = osAPI.URL
+	t.Cleanup(func() { opensubtitles.APIBaseURL = orig })
+	srv, mock, cleanup := newOpenSubtitlesServer(t)
+	defer cleanup()
+	expectConfiguredOpenSubtitlesSettings(mock)
+	req := authRequest(httptest.NewRequest(http.MethodGet, "/api/subtitles/search?query=Inception&languages=zh-CN", nil))
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || gotPage != "1" {
+		t.Fatalf("code=%d page=%s body=%s", rec.Code, gotPage, rec.Body.String())
+	}
+}
+
 func TestOpenSubtitlesDownload_UsesFallbackBaseName(t *testing.T) {
 	dir := t.TempDir()
 	var osAPI *httptest.Server

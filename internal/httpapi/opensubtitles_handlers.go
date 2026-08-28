@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"feed-puller/internal/app"
@@ -52,16 +53,16 @@ func (s *Server) handleSubtitlesSearch(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "languages 不能为空")
 		return
 	}
-	result, err := s.service.SearchSubtitles(r.Context(), query, language, 1)
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	result, err := s.service.SearchSubtitles(r.Context(), query, language, page)
 	if err != nil {
 		writeOpenSubtitlesError(w, err)
 		return
 	}
-	items := result.Items
-	if items == nil {
-		items = []opensubtitles.SubtitleFile{}
+	if result.Items == nil {
+		result.Items = []opensubtitles.SubtitleFile{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (s *Server) handleSubtitlesDownload(w http.ResponseWriter, r *http.Request) {

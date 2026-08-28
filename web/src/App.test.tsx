@@ -2811,4 +2811,125 @@ describe('App', () => {
     );
     expect(await screen.findByText('运行时服务配置已保存并立即生效')).toBeInTheDocument();
   });
+
+  it('设置页加载并保存 OpenSubtitles 配置', async () => {
+    window.location.hash = '#settings';
+    const config = {
+      username: 'alice',
+      password: 'secret',
+      api_key: 'key-1',
+      download_dir: '/data/subtitles',
+      configured: true
+    };
+    let saved: unknown;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/auth/options') {
+          return new Response(JSON.stringify({ password_login_enabled: true, feishu_login_enabled: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/settings/opensubtitles') {
+          if (init?.method === 'PUT') {
+            saved = JSON.parse(String(init.body));
+            return new Response(JSON.stringify({ ...config, ...(saved as object) }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          }
+          return new Response(JSON.stringify(config), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (isSubscriptionsListPath(path)) {
+          return new Response(JSON.stringify({ items: [], total: 0, page: 1, page_size: 20 }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        return new Response(JSON.stringify({}), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      })
+    );
+
+    render(<App />);
+    const panel = (await screen.findByRole('heading', { name: 'OpenSubtitles' })).closest('form');
+    expect(panel).toBeTruthy();
+    await screen.findByDisplayValue('alice');
+    expect(within(panel!).getByLabelText('密码')).toHaveValue('secret');
+    fireEvent.change(within(panel!).getByLabelText('API Key'), { target: { value: 'key-2' } });
+    fireEvent.click(within(panel!).getByRole('button', { name: '保存 OpenSubtitles' }));
+    await waitFor(() =>
+      expect(saved).toEqual({
+        username: 'alice',
+        password: 'secret',
+        api_key: 'key-2',
+        download_dir: '/data/subtitles'
+      })
+    );
+    expect(await screen.findByText('OpenSubtitles 设置已保存')).toBeInTheDocument();
+  });
+
+  it('设置页保存 OpenSubtitles 失败时显示表单错误', async () => {
+    window.location.hash = '#settings';
+    const config = {
+      username: 'alice',
+      password: 'secret',
+      api_key: 'key-1',
+      download_dir: '/data/subtitles',
+      configured: true
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/auth/options') {
+          return new Response(JSON.stringify({ password_login_enabled: true, feishu_login_enabled: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/settings/opensubtitles') {
+          if (init?.method === 'PUT') {
+            return new Response(JSON.stringify({ error: '请填写用户名、密码、API Key 和下载目录' }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          }
+          return new Response(JSON.stringify(config), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (isSubscriptionsListPath(path)) {
+          return new Response(JSON.stringify({ items: [], total: 0, page: 1, page_size: 20 }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        return new Response(JSON.stringify({}), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      })
+    );
+
+    render(<App />);
+    const panel = (await screen.findByRole('heading', { name: 'OpenSubtitles' })).closest('form');
+    expect(panel).toBeTruthy();
+    fireEvent.click(within(panel!).getByRole('button', { name: '保存 OpenSubtitles' }));
+    expect(await within(panel!).findByRole('alert')).toHaveTextContent('请填写用户名、密码、API Key 和下载目录');
+  });
 });

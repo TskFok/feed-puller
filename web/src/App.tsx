@@ -2,6 +2,8 @@ import { FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } f
 import {
   CheckCircle2,
   Download,
+  Eye,
+  EyeOff,
   Loader2,
   GripVertical,
   LogOut,
@@ -2579,6 +2581,12 @@ function SettingsView({
   const [prowlarrTMDBKey, setProwlarrTMDBKey] = useState('');
   const [prowlarrIndexerIDs, setProwlarrIndexerIDs] = useState<number[]>([]);
   const [prowlarrTesting, setProwlarrTesting] = useState(false);
+  const [openSubtitlesUsername, setOpenSubtitlesUsername] = useState('');
+  const [openSubtitlesPassword, setOpenSubtitlesPassword] = useState('');
+  const [openSubtitlesApiKey, setOpenSubtitlesApiKey] = useState('');
+  const [openSubtitlesDownloadDir, setOpenSubtitlesDownloadDir] = useState('');
+  const [openSubtitlesShowPassword, setOpenSubtitlesShowPassword] = useState(false);
+  const [openSubtitlesError, setOpenSubtitlesError] = useState('');
   const [feishuNotifyType, setFeishuNotifyType] = useState<'' | 'webhook' | 'api'>('');
   const [feishuWebhook, setFeishuWebhook] = useState('');
   const [feishuReceiveOpenID, setFeishuReceiveOpenID] = useState('');
@@ -2624,6 +2632,14 @@ function SettingsView({
         setProwlarrMovieRename(data.movie_rename_enabled);
         setProwlarrTMDBKey(data.tmdb_api_key);
         setProwlarrIndexerIDs(data.indexer_ids ?? []);
+      })
+      .catch((err) => showToast(messageOf(err), 'error'));
+    api.openSubtitlesConfig()
+      .then((data) => {
+        setOpenSubtitlesUsername(data.username ?? '');
+        setOpenSubtitlesPassword(data.password ?? '');
+        setOpenSubtitlesApiKey(data.api_key ?? '');
+        setOpenSubtitlesDownloadDir(data.download_dir ?? '');
       })
       .catch((err) => showToast(messageOf(err), 'error'));
     api.feishuNotifyConfig()
@@ -2726,6 +2742,26 @@ function SettingsView({
       showToast('Prowlarr 设置已保存');
     } catch (err) {
       showToast(messageOf(err), 'error');
+    }
+  }
+
+  async function saveOpenSubtitles(event: FormEvent) {
+    event.preventDefault();
+    setOpenSubtitlesError('');
+    try {
+      const saved = await api.saveOpenSubtitlesConfig({
+        username: openSubtitlesUsername,
+        password: openSubtitlesPassword,
+        api_key: openSubtitlesApiKey,
+        download_dir: openSubtitlesDownloadDir
+      });
+      setOpenSubtitlesUsername(saved.username ?? '');
+      setOpenSubtitlesPassword(saved.password ?? '');
+      setOpenSubtitlesApiKey(saved.api_key ?? '');
+      setOpenSubtitlesDownloadDir(saved.download_dir ?? '');
+      showToast('OpenSubtitles 设置已保存');
+    } catch (err) {
+      setOpenSubtitlesError(messageOf(err));
     }
   }
 
@@ -2948,6 +2984,54 @@ function SettingsView({
             </button>
             <button className="primary">保存 Prowlarr</button>
           </div>
+        </form>
+        <form className="settings-panel" onSubmit={saveOpenSubtitles}>
+          <h2>OpenSubtitles</h2>
+          {openSubtitlesError ? <p role="alert">{openSubtitlesError}</p> : null}
+          <label>
+            用户名
+            <input
+              value={openSubtitlesUsername}
+              onChange={(event) => setOpenSubtitlesUsername(event.target.value)}
+              autoComplete="off"
+            />
+          </label>
+          <label>
+            密码
+            <div className="horizontal-actions">
+              <input
+                value={openSubtitlesPassword}
+                type={openSubtitlesShowPassword ? 'text' : 'password'}
+                autoComplete="off"
+                onChange={(event) => setOpenSubtitlesPassword(event.target.value)}
+              />
+              <button
+                type="button"
+                className="ghost"
+                aria-label={openSubtitlesShowPassword ? '隐藏密码' : '显示密码'}
+                onClick={() => setOpenSubtitlesShowPassword((show) => !show)}
+              >
+                {openSubtitlesShowPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </label>
+          <label>
+            API Key
+            <input
+              value={openSubtitlesApiKey}
+              onChange={(event) => setOpenSubtitlesApiKey(event.target.value)}
+              autoComplete="off"
+            />
+          </label>
+          <label>
+            字幕下载目录
+            <input
+              value={openSubtitlesDownloadDir}
+              onChange={(event) => setOpenSubtitlesDownloadDir(event.target.value)}
+              placeholder="/data/subtitles"
+            />
+          </label>
+          <button className="primary">保存 OpenSubtitles</button>
         </form>
         <div className="settings-panel">
           <h2>飞书备用登录</h2>

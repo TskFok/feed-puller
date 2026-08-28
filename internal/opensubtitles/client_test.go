@@ -19,6 +19,9 @@ func TestClientSearch_SendsQueryLanguageAndHeaders(t *testing.T) {
 		if r.URL.Query().Get("query") != "Inception" || r.URL.Query().Get("languages") != "zh-CN" {
 			t.Fatalf("query=%s", r.URL.RawQuery)
 		}
+		if r.URL.Query().Get("page") != "1" {
+			t.Fatalf("query=%s", r.URL.RawQuery)
+		}
 		if r.URL.Query().Get("order_by") != "download_count" || r.URL.Query().Get("order_direction") != "desc" {
 			t.Fatalf("query=%s", r.URL.RawQuery)
 		}
@@ -31,9 +34,41 @@ func TestClientSearch_SendsQueryLanguageAndHeaders(t *testing.T) {
 	orig := APIBaseURL
 	APIBaseURL = server.URL
 	t.Cleanup(func() { APIBaseURL = orig })
-	items, err := NewClient("u", "p", "key-1").Search(context.Background(), "Inception", "zh-CN")
-	if err != nil || len(items) != 1 || items[0].FileID != 7 {
-		t.Fatalf("items=%+v err=%v", items, err)
+	got, err := NewClient("u", "p", "key-1").Search(context.Background(), "Inception", "zh-CN", 1)
+	if err != nil || len(got.Items) != 1 || got.Items[0].FileID != 7 {
+		t.Fatalf("got=%+v err=%v", got, err)
+	}
+}
+
+func TestClientSearch_ForwardsPageAndClampsBelowOne(t *testing.T) {
+	var gotPage string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPage = r.URL.Query().Get("page")
+		_, _ = w.Write([]byte(`{"page":2,"total_pages":4,"total_count":80,"data":[{"attributes":{"files":[{"file_id":7,"file_name":"a.srt"}]}}]}`))
+	}))
+	defer server.Close()
+	orig := APIBaseURL
+	APIBaseURL = server.URL
+	t.Cleanup(func() { APIBaseURL = orig })
+	got, err := NewClient("u", "p", "key-1").Search(context.Background(), "Inception", "zh-CN", 0)
+	if err != nil || gotPage != "1" || got.Page != 2 || got.TotalPages != 4 || got.TotalCount != 80 || len(got.Items) != 1 {
+		t.Fatalf("got=%+v page=%s err=%v", got, gotPage, err)
+	}
+}
+
+func TestClientSearch_SendsRequestedPage(t *testing.T) {
+	var gotPage string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPage = r.URL.Query().Get("page")
+		_, _ = w.Write([]byte(`{"page":3,"total_pages":3,"data":[]}`))
+	}))
+	defer server.Close()
+	orig := APIBaseURL
+	APIBaseURL = server.URL
+	t.Cleanup(func() { APIBaseURL = orig })
+	got, err := NewClient("u", "p", "key-1").Search(context.Background(), "Inception", "zh-CN", 3)
+	if err != nil || gotPage != "3" || got.Page != 3 || got.TotalPages != 3 || len(got.Items) != 0 {
+		t.Fatalf("got=%+v page=%s err=%v", got, gotPage, err)
 	}
 }
 
@@ -47,7 +82,7 @@ func TestClientSearch_EmptyQueryError(t *testing.T) {
 	orig := APIBaseURL
 	APIBaseURL = server.URL
 	t.Cleanup(func() { APIBaseURL = orig })
-	_, err := NewClient("u", "p", "key-1").Search(context.Background(), "  ", "zh-CN")
+	_, err := NewClient("u", "p", "key-1").Search(context.Background(), "  ", "zh-CN", 1)
 	if !errors.Is(err, ErrEmptyQuery) {
 		t.Fatalf("err=%v", err)
 	}
@@ -65,7 +100,7 @@ func TestClientSearch_Non2xxUsesMessage(t *testing.T) {
 	orig := APIBaseURL
 	APIBaseURL = server.URL
 	t.Cleanup(func() { APIBaseURL = orig })
-	_, err := NewClient("u", "p", "key-1").Search(context.Background(), "Inception", "zh-CN")
+	_, err := NewClient("u", "p", "key-1").Search(context.Background(), "Inception", "zh-CN", 1)
 	if err == nil || !strings.Contains(err.Error(), "quota exceeded") {
 		t.Fatalf("err=%v", err)
 	}
@@ -80,7 +115,7 @@ func TestClientSearch_Non2xxDefaultMessage(t *testing.T) {
 	orig := APIBaseURL
 	APIBaseURL = server.URL
 	t.Cleanup(func() { APIBaseURL = orig })
-	_, err := NewClient("u", "p", "key-1").Search(context.Background(), "Inception", "zh-CN")
+	_, err := NewClient("u", "p", "key-1").Search(context.Background(), "Inception", "zh-CN", 1)
 	if err == nil || err.Error() != "搜索字幕失败" {
 		t.Fatalf("err=%v", err)
 	}

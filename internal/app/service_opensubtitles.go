@@ -25,15 +25,15 @@ func (s *Service) SaveOpenSubtitlesConfig(ctx context.Context, cfg store.OpenSub
 	return s.store.SaveOpenSubtitlesConfig(ctx, cfg)
 }
 
-func (s *Service) SearchSubtitles(ctx context.Context, query, language string) ([]opensubtitles.SubtitleFile, error) {
+func (s *Service) SearchSubtitles(ctx context.Context, query, language string, page int) (opensubtitles.SearchPage, error) {
 	cfg, err := s.store.GetOpenSubtitlesConfig(ctx)
 	if err != nil {
-		return nil, err
+		return opensubtitles.SearchPage{}, err
 	}
 	if !cfg.Configured {
-		return nil, ErrOpenSubtitlesNotConfigured
+		return opensubtitles.SearchPage{}, ErrOpenSubtitlesNotConfigured
 	}
-	return s.opensubtitlesClientFor(cfg).Search(ctx, query, language)
+	return s.opensubtitlesClientFor(cfg).Search(ctx, query, language, page)
 }
 
 func (s *Service) DownloadSubtitle(ctx context.Context, fileID int64, fallbackFileName string) (string, string, error) {

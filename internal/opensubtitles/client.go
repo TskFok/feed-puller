@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -60,38 +61,42 @@ func NewClient(username, password, apiKey string) *Client {
 	}
 }
 
-func (c *Client) Search(ctx context.Context, query, language string) ([]SubtitleFile, error) {
+func (c *Client) Search(ctx context.Context, query, language string, page int) (SearchPage, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return nil, ErrEmptyQuery
+		return SearchPage{}, ErrEmptyQuery
+	}
+	if page < 1 {
+		page = 1
 	}
 	endpoint, err := url.Parse(strings.TrimRight(APIBaseURL, "/") + "/subtitles")
 	if err != nil {
-		return nil, fmt.Errorf("搜索字幕失败: %w", err)
+		return SearchPage{}, fmt.Errorf("搜索字幕失败: %w", err)
 	}
 	q := endpoint.Query()
 	q.Set("query", query)
 	q.Set("languages", language)
 	q.Set("order_by", "download_count")
 	q.Set("order_direction", "desc")
+	q.Set("page", strconv.Itoa(page))
 	endpoint.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
-		return nil, fmt.Errorf("搜索字幕失败: %w", err)
+		return SearchPage{}, fmt.Errorf("搜索字幕失败: %w", err)
 	}
 	c.setJSONHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("搜索字幕失败: %w", err)
+		return SearchPage{}, fmt.Errorf("搜索字幕失败: %w", err)
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("%s", apiMessage(body, "搜索字幕失败"))
+		return SearchPage{}, fmt.Errorf("%s", apiMessage(body, "搜索字幕失败"))
 	}
-	return FlattenSearchData(body), nil
+	return ParseSearchResponse(body, page), nil
 }
 
 func (c *Client) RequestDownload(ctx context.Context, fileID int64) (DownloadInfo, error) {

@@ -52,11 +52,12 @@ func (s *Server) handleSubtitlesSearch(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "languages 不能为空")
 		return
 	}
-	items, err := s.service.SearchSubtitles(r.Context(), query, language)
+	result, err := s.service.SearchSubtitles(r.Context(), query, language, 1)
 	if err != nil {
 		writeOpenSubtitlesError(w, err)
 		return
 	}
+	items := result.Items
 	if items == nil {
 		items = []opensubtitles.SubtitleFile{}
 	}

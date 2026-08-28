@@ -43,7 +43,7 @@ func TestSearchSubtitles_NotConfigured(t *testing.T) {
 		WithArgs("opensubtitles_username", "opensubtitles_password", "opensubtitles_api_key", "opensubtitles_download_dir").
 		WillReturnRows(sqlmock.NewRows([]string{"name", "value"}))
 	svc := NewService(store.New(db), downloader.NewAria2Client("", ""), slog.Default())
-	_, err = svc.SearchSubtitles(context.Background(), "Inception", "zh-CN")
+	_, err = svc.SearchSubtitles(context.Background(), "Inception", "zh-CN", 1)
 	if !errors.Is(err, ErrOpenSubtitlesNotConfigured) {
 		t.Fatalf("err=%v", err)
 	}
@@ -76,9 +76,9 @@ func TestSearchSubtitles_ReturnsFiles(t *testing.T) {
 		"opensubtitles_download_dir": t.TempDir(),
 	})
 	svc := NewService(store.New(db), downloader.NewAria2Client("", ""), slog.Default())
-	items, err := svc.SearchSubtitles(context.Background(), "Inception", "zh-CN")
-	if err != nil || len(items) != 1 || items[0].FileID != 7 || items[0].FileName != "inception.srt" {
-		t.Fatalf("items=%+v err=%v", items, err)
+	got, err := svc.SearchSubtitles(context.Background(), "Inception", "zh-CN", 1)
+	if err != nil || len(got.Items) != 1 || got.Items[0].FileID != 7 || got.Items[0].FileName != "inception.srt" {
+		t.Fatalf("got=%+v err=%v", got, err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

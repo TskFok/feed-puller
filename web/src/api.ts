@@ -27,7 +27,7 @@ import type {
   ProwlarrSubmittedGuidsResult,
   ProwlarrTestResult,
   OpenSubtitlesConfig,
-  SubtitleSearchItem,
+  SubtitleSearchResult,
   FeishuNotifyConfig,
   FeishuNotifyHistory,
   RenameHistory,
@@ -229,9 +229,15 @@ export const api = {
   openSubtitlesConfig: () => request<OpenSubtitlesConfig>('/api/settings/opensubtitles'),
   saveOpenSubtitlesConfig: (payload: Pick<OpenSubtitlesConfig, 'username' | 'password' | 'api_key' | 'download_dir'>) =>
     request<OpenSubtitlesConfig>('/api/settings/opensubtitles', { method: 'PUT', json: payload }),
-  searchSubtitles: (query: string, languages: string) => {
-    const params = new URLSearchParams({ query, languages });
-    return request<{ items: SubtitleSearchItem[] }>(`/api/subtitles/search?${params.toString()}`);
+  searchSubtitles: async (query: string, languages: string, page = 1) => {
+    const params = new URLSearchParams({ query, languages, page: String(page) });
+    const data = await request<Partial<SubtitleSearchResult>>(`/api/subtitles/search?${params.toString()}`);
+    return {
+      items: Array.isArray(data.items) ? data.items : [],
+      page: data.page ?? page,
+      total_pages: data.total_pages ?? 0,
+      total_count: data.total_count ?? 0
+    };
   },
   downloadSubtitle: (payload: { file_id: number; file_name: string }) =>
     request<{ path: string; file_name: string }>('/api/subtitles/download', { method: 'POST', json: payload })

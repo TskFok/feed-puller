@@ -5,10 +5,10 @@ describe('api opensubtitles', () => {
   afterEach(() => vi.unstubAllGlobals());
   it('searchSubtitles 带 query 与 languages', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const path = String(input);
-      expect(path).toContain('/api/subtitles/search?');
-      expect(path).toContain('query=Inception');
-      expect(path).toContain('languages=zh-CN');
+      const params = new URL(String(input), 'http://local.test').searchParams;
+      expect(params.get('query')).toBe('Inception');
+      expect(params.get('languages')).toBe('zh-CN');
+      expect(params.get('page')).toBe('1');
       return new Response(JSON.stringify({ items: [{ file_id: 7, file_name: 'a.srt', release: 'Inception', language: 'zh-CN', download_count: 1, ratings: 9 }] }), {
         status: 200, headers: { 'Content-Type': 'application/json' }
       });
@@ -26,6 +26,39 @@ describe('api opensubtitles', () => {
     }));
     const res = await api.searchSubtitles('Inception', 'zh-CN,zh-TW,en');
     expect(res.items).toEqual([]);
+  });
+  it('searchSubtitles 带 page 并回传分页元数据', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const params = new URL(String(input), 'http://local.test').searchParams;
+      expect(params.get('query')).toBe('Inception');
+      expect(params.get('languages')).toBe('zh-CN');
+      expect(params.get('page')).toBe('2');
+      return new Response(JSON.stringify({
+        items: [{ file_id: 7, file_name: 'a.srt', release: 'Inception', language: 'zh-CN', download_count: 1, ratings: 9 }],
+        page: 2,
+        total_pages: 5,
+        total_count: 120
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }));
+    const res = await api.searchSubtitles('Inception', 'zh-CN', 2);
+    expect(res.page).toBe(2);
+    expect(res.total_pages).toBe(5);
+    expect(res.total_count).toBe(120);
+    expect(res.items[0]?.file_id).toBe(7);
+  });
+  it('searchSubtitles 缺省 page 为 1，缺元数据时补零', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const params = new URL(String(input), 'http://local.test').searchParams;
+      expect(params.get('page')).toBe('1');
+      return new Response(JSON.stringify({ items: [] }), {
+        status: 200, headers: { 'Content-Type': 'application/json' }
+      });
+    }));
+    const res = await api.searchSubtitles('Inception', 'zh-CN');
+    expect(res.items).toEqual([]);
+    expect(res.page).toBe(1);
+    expect(res.total_pages).toBe(0);
+    expect(res.total_count).toBe(0);
   });
   it('downloadSubtitle POST file_id 与 file_name', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

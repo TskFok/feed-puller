@@ -342,6 +342,9 @@ export type SubtitleSearchItem = {
 
 export type SubtitleSearchResult = {
   items: SubtitleSearchItem[];
+  page: number;
+  total_pages: number;
+  total_count: number;
 };
 
 export type SubtitleDownloadResult = {

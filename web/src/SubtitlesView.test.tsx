@@ -8,6 +8,17 @@ describe('SubtitlesView', () => {
     vi.unstubAllGlobals();
   });
 
+  it('配置未加载完时不展示搜索表单', () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})));
+    render(
+      <ToastProvider>
+        <SubtitlesView />
+      </ToastProvider>
+    );
+    expect(screen.queryByRole('button', { name: '搜索' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('名称')).not.toBeInTheDocument();
+  });
+
   it('未配置时显示前往设置', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       if (String(input) === '/api/settings/opensubtitles') {
@@ -20,6 +31,23 @@ describe('SubtitlesView', () => {
     const onGoSettings = vi.fn();
     render(<ToastProvider><SubtitlesView onGoSettings={onGoSettings} /></ToastProvider>);
     fireEvent.click(await screen.findByRole('button', { name: '前往设置' }));
+    expect(onGoSettings).toHaveBeenCalled();
+  });
+
+  it('配置加载失败时显示前往设置', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === '/api/settings/opensubtitles') {
+        return new Response(JSON.stringify({ error: 'boom' }), {
+          status: 500, headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      return new Response('{}', { status: 200 });
+    }));
+    const onGoSettings = vi.fn();
+    render(<ToastProvider><SubtitlesView onGoSettings={onGoSettings} /></ToastProvider>);
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '搜索' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '前往设置' }));
     expect(onGoSettings).toHaveBeenCalled();
   });
 
@@ -47,7 +75,7 @@ describe('SubtitlesView', () => {
       return new Response('{}', { status: 200 });
     }));
     render(<ToastProvider><SubtitlesView /></ToastProvider>);
-    await screen.findByRole('heading', { name: '字幕' });
+    await screen.findByRole('button', { name: '搜索' });
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'Inception' } });
     fireEvent.click(screen.getByRole('button', { name: '搜索' }));
     expect(await screen.findByText('Inception.2024')).toBeInTheDocument();

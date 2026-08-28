@@ -72,7 +72,7 @@ export function SubtitlesView({ onGoSettings }: SubtitlesViewProps) {
     }
   }
 
-  if (config && !config.configured) {
+  if (config === null && !error) {
     return (
       <section className="view">
         <header className="view-header">
@@ -80,7 +80,23 @@ export function SubtitlesView({ onGoSettings }: SubtitlesViewProps) {
           <p>通过 OpenSubtitles 搜索字幕并保存到服务器目录。</p>
         </header>
         <div className="panel">
-          <p className="muted">请先在设置页填写 OpenSubtitles 用户名、密码、API Key 和下载目录。</p>
+          <p className="muted">正在加载…</p>
+        </div>
+      </section>
+    );
+  }
+
+  if (!config?.configured) {
+    return (
+      <section className="view">
+        <header className="view-header">
+          <h1>字幕</h1>
+          <p>通过 OpenSubtitles 搜索字幕并保存到服务器目录。</p>
+        </header>
+        <div className="panel">
+          {error ? <p role="alert">{error}</p> : (
+            <p className="muted">请先在设置页填写 OpenSubtitles 用户名、密码、API Key 和下载目录。</p>
+          )}
           {onGoSettings && (
             <button type="button" className="primary" onClick={onGoSettings}>
               前往设置

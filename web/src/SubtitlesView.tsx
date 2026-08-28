@@ -1,16 +1,10 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Download, Loader2, Search } from 'lucide-react';
 import { api } from './api';
+import { TruncatedText } from './TruncatedText';
 import { useToast } from './Toast';
+import { joinSubtitleLanguages, LANGUAGE_OPTIONS, groupSubtitleItems, languageLabel, toggleSubtitleLanguage } from './subtitleLanguages';
 import type { OpenSubtitlesConfig, SubtitleSearchItem } from './types';
-
-const LANGUAGE_OPTIONS = [
-  { value: 'zh-CN', label: '简体中文' },
-  { value: 'zh-TW', label: '繁体中文' },
-  { value: 'en', label: '英语' },
-  { value: 'ja', label: '日语' },
-  { value: 'ko', label: '韩语' }
-] as const;
 
 function messageOf(err: unknown) {
   return err instanceof Error ? err.message : '请求失败';
@@ -24,12 +18,13 @@ export function SubtitlesView({ onGoSettings }: SubtitlesViewProps) {
   const { showToast } = useToast();
   const [config, setConfig] = useState<OpenSubtitlesConfig | null>(null);
   const [query, setQuery] = useState('');
-  const [languages, setLanguages] = useState('zh-CN');
+  const [languages, setLanguages] = useState<string[]>(['zh-CN']);
   const [items, setItems] = useState<SubtitleSearchItem[]>([]);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState('');
   const [downloadingFileId, setDownloadingFileId] = useState<number | null>(null);
+  const [resultLanguage, setResultLanguage] = useState('');
 
   useEffect(() => {
     api
@@ -41,13 +36,15 @@ export function SubtitlesView({ onGoSettings }: SubtitlesViewProps) {
   async function handleSearch(event: FormEvent) {
     event.preventDefault();
     const trimmed = query.trim();
-    if (!trimmed) {
+    const languageParam = joinSubtitleLanguages(languages);
+    if (!trimmed || !languageParam) {
       return;
     }
     setSearching(true);
     setError('');
+    setResultLanguage('');
     try {
-      const data = await api.searchSubtitles(trimmed, languages);
+      const data = await api.searchSubtitles(trimmed, languageParam);
       setItems(data.items ?? []);
       setSearched(true);
     } catch (err) {
@@ -108,6 +105,12 @@ export function SubtitlesView({ onGoSettings }: SubtitlesViewProps) {
     );
   }
 
+  const allGroups = groupSubtitleItems(items);
+  const showLanguageFilter = allGroups.length > 1;
+  const visibleGroups = resultLanguage === ''
+    ? allGroups
+    : allGroups.filter((group) => group.language === resultLanguage);
+
   return (
     <section className="view">
       <header className="view-header">
@@ -116,24 +119,27 @@ export function SubtitlesView({ onGoSettings }: SubtitlesViewProps) {
       </header>
 
       <form className="panel" onSubmit={handleSearch}>
+        <label className="grow">
+          名称
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="例如：Inception" />
+        </label>
+        <fieldset className="language-fieldset">
+          <legend>语言</legend>
+          <div className="language-options">
+            {LANGUAGE_OPTIONS.map((option) => (
+              <label key={option.value} className="language-option">
+                <input
+                  type="checkbox"
+                  checked={languages.includes(option.value)}
+                  onChange={() => setLanguages((current) => toggleSubtitleLanguage(current, option.value))}
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
         <div className="horizontal-actions">
-          <label className="grow">
-            名称
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="例如：Inception" />
-          </label>
-          <label>
-            语言
-            <select value={languages} onChange={(event) => setLanguages(event.target.value)}>
-              {LANGUAGE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <div className="horizontal-actions">
-          <button type="submit" className="primary" disabled={searching}>
+          <button type="submit" className="primary" disabled={searching || !joinSubtitleLanguages(languages)}>
             {searching ? <Loader2 size={16} className="icon-spinning" aria-hidden /> : <Search size={16} aria-hidden />}
             搜索
           </button>
@@ -143,50 +149,92 @@ export function SubtitlesView({ onGoSettings }: SubtitlesViewProps) {
       {error ? <p role="alert">{error}</p> : null}
 
       {items.length > 0 ? (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>发行名</th>
-                <th>语言</th>
-                <th>文件名</th>
-                <th>下载次数</th>
-                <th>评分</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => (
-                <tr key={item.file_id}>
-                  <td>{item.release}</td>
-                  <td>{item.language}</td>
-                  <td>{item.file_name}</td>
-                  <td>{item.download_count}</td>
-                  <td>{item.ratings}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="primary"
-                      disabled={downloadingFileId != null}
-                      onClick={() => void handleDownload(item)}
-                    >
-                      {downloadingFileId === item.file_id ? (
-                        <>
-                          <Loader2 size={14} className="icon-spinning" aria-hidden />
-                          下载中…
-                        </>
-                      ) : (
-                        <>
-                          <Download size={14} aria-hidden />
-                          下载
-                        </>
-                      )}
-                    </button>
-                  </td>
-                </tr>
+        <div className="subtitles-results-wrap">
+          {showLanguageFilter ? (
+            <div className="subtitles-language-filter" role="group" aria-label="按语言筛选">
+              <button
+                type="button"
+                className={`subtitles-language-filter-btn${resultLanguage === '' ? ' is-active' : ''}`}
+                aria-pressed={resultLanguage === ''}
+                onClick={() => setResultLanguage('')}
+              >
+                全部（{items.length}）
+              </button>
+              {allGroups.map((group) => (
+                <button
+                  key={group.language}
+                  type="button"
+                  className={`subtitles-language-filter-btn${resultLanguage === group.language ? ' is-active' : ''}`}
+                  aria-pressed={resultLanguage === group.language}
+                  onClick={() => setResultLanguage(group.language)}
+                >
+                  {languageLabel(group.language)}（{group.items.length}）
+                </button>
               ))}
-            </tbody>
-          </table>
+            </div>
+          ) : null}
+          <div className="table-wrap">
+            <table className="subtitles-results">
+              <colgroup>
+                <col className="subtitles-col-release" />
+                <col className="subtitles-col-language" />
+                <col className="subtitles-col-file" />
+                <col className="subtitles-col-count" />
+                <col className="subtitles-col-rating" />
+                <col className="subtitles-col-actions" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>发行名</th>
+                  <th>语言</th>
+                  <th>文件名</th>
+                  <th>下载次数</th>
+                  <th>评分</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              {visibleGroups.map((group) => (
+                <tbody key={group.language || 'unknown'}>
+                  {showLanguageFilter && resultLanguage === '' ? (
+                    <tr className="subtitles-language-group">
+                      <th scope="colgroup" colSpan={6}>
+                        {languageLabel(group.language)}（{group.items.length}）
+                      </th>
+                    </tr>
+                  ) : null}
+                  {group.items.map((item) => (
+                    <tr key={item.file_id}>
+                      <td><TruncatedText>{item.release}</TruncatedText></td>
+                      <td>{languageLabel(item.language)}</td>
+                      <td><TruncatedText>{item.file_name}</TruncatedText></td>
+                      <td>{item.download_count}</td>
+                      <td>{item.ratings}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="primary"
+                          disabled={downloadingFileId != null}
+                          onClick={() => void handleDownload(item)}
+                        >
+                          {downloadingFileId === item.file_id ? (
+                            <>
+                              <Loader2 size={14} className="icon-spinning" aria-hidden />
+                              下载中…
+                            </>
+                          ) : (
+                            <>
+                              <Download size={14} aria-hidden />
+                              下载
+                            </>
+                          )}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              ))}
+            </table>
+          </div>
         </div>
       ) : (
         <p className="muted">{searched ? '没有找到字幕' : '输入名称后搜索'}</p>

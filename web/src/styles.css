@@ -755,6 +755,22 @@ table {
   table-layout: fixed;
 }
 
+.subtitles-results .subtitles-col-language {
+  width: 5.5rem;
+}
+
+.subtitles-results .subtitles-col-count {
+  width: 6.5rem;
+}
+
+.subtitles-results .subtitles-col-rating {
+  width: 4.5rem;
+}
+
+.subtitles-results .subtitles-col-actions {
+  width: 8.5rem;
+}
+
 th,
 td {
   padding: 12px 14px;
@@ -1039,6 +1055,87 @@ td.subscription-actions--single-row {
   align-items: center;
   gap: 8px;
   font-size: 14px;
+}
+
+.language-fieldset {
+  border: 1px solid var(--glass-border-soft);
+  border-radius: var(--glass-radius);
+  padding: 12px;
+  margin: 0;
+}
+
+.language-fieldset legend {
+  padding: 0 6px;
+  color: var(--glass-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.language-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 8px;
+}
+
+.language-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.language-option input {
+  min-height: auto;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  accent-color: var(--glass-accent);
+}
+
+.subtitles-results-wrap {
+  display: grid;
+  gap: 12px;
+}
+
+.subtitles-language-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.subtitles-language-filter-btn {
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border-soft);
+  background: var(--ghost-bg);
+  color: var(--glass-text);
+  font-weight: 600;
+}
+
+.subtitles-language-filter-btn.is-active,
+.subtitles-language-filter-btn[aria-pressed='true'] {
+  background: var(--glass-btn);
+  color: #f0fdfa;
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.subtitles-language-group th {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--glass-primary);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .checkbox-row {

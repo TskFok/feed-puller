@@ -16,6 +16,17 @@ describe('api opensubtitles', () => {
     const res = await api.searchSubtitles('Inception', 'zh-CN');
     expect(res.items[0]?.file_id).toBe(7);
   });
+  it('searchSubtitles 提交逗号分隔的多语言', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const params = new URL(String(input), 'http://local.test').searchParams;
+      expect(params.get('languages')).toBe('zh-CN,zh-TW,en');
+      return new Response(JSON.stringify({ items: [] }), {
+        status: 200, headers: { 'Content-Type': 'application/json' }
+      });
+    }));
+    const res = await api.searchSubtitles('Inception', 'zh-CN,zh-TW,en');
+    expect(res.items).toEqual([]);
+  });
   it('downloadSubtitle POST file_id 与 file_name', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe('/api/subtitles/download');

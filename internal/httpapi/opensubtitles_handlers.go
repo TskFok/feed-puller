@@ -48,6 +48,10 @@ func (s *Server) handleSubtitlesSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	language := strings.TrimSpace(r.URL.Query().Get("languages"))
+	if language == "" {
+		writeError(w, http.StatusBadRequest, "languages 不能为空")
+		return
+	}
 	items, err := s.service.SearchSubtitles(r.Context(), query, language)
 	if err != nil {
 		writeOpenSubtitlesError(w, err)

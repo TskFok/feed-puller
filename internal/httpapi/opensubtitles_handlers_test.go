@@ -91,6 +91,23 @@ func TestOpenSubtitlesSearch_EmptyQuery(t *testing.T) {
 	}
 }
 
+func TestOpenSubtitlesSearch_EmptyLanguages(t *testing.T) {
+	srv, mock, cleanup := newOpenSubtitlesServer(t)
+	defer cleanup()
+	req := authRequest(httptest.NewRequest(http.MethodGet, "/api/subtitles/search?query=Inception&languages=", nil))
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "languages 不能为空") {
+		t.Fatalf("body=%s", rec.Body.String())
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestOpenSubtitlesSettingPut_Incomplete(t *testing.T) {
 	srv, mock, cleanup := newOpenSubtitlesServer(t)
 	defer cleanup()
@@ -133,6 +150,31 @@ func TestOpenSubtitlesSearch_FlattensItems(t *testing.T) {
 	}
 	if len(payload.Items) != 1 || payload.Items[0].FileID != 7 {
 		t.Fatalf("payload=%+v", payload)
+	}
+}
+
+func TestOpenSubtitlesSearch_ForwardsCommaSeparatedLanguages(t *testing.T) {
+	osAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/subtitles" {
+			t.Fatalf("path %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("languages") != "zh-CN,zh-TW,en" {
+			t.Fatalf("languages=%s", r.URL.Query().Get("languages"))
+		}
+		_, _ = w.Write([]byte(`{"data":[]}`))
+	}))
+	defer osAPI.Close()
+	orig := opensubtitles.APIBaseURL
+	opensubtitles.APIBaseURL = osAPI.URL
+	t.Cleanup(func() { opensubtitles.APIBaseURL = orig })
+	srv, mock, cleanup := newOpenSubtitlesServer(t)
+	defer cleanup()
+	expectConfiguredOpenSubtitlesSettings(mock)
+	req := authRequest(httptest.NewRequest(http.MethodGet, "/api/subtitles/search?query=Inception&languages=zh-CN,zh-TW,en", nil))
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
 

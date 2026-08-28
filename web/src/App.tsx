@@ -21,7 +21,8 @@ import {
   Trash2,
   X,
   PanelLeftClose,
-  PanelLeft
+  PanelLeft,
+  Subtitles
 } from 'lucide-react';
 import { PaginationBar } from './ListPagination';
 import { ToastProvider, useToast } from './Toast';
@@ -32,6 +33,7 @@ import { useServerPagination } from './useServerPagination';
 import { useFeishuQR } from './feishu-qr';
 import { fetchPreviewAction, isFetchPreviewSelectionLocked, useActionLoading } from './useActionLoading';
 import { ProwlarrSearchView } from './ProwlarrSearchView';
+import { SubtitlesView } from './SubtitlesView';
 import { AnimatedModal } from './AnimatedModal';
 import { FeishuLoginSetupGuide, FeishuSetupBanner, feishuSetupIncomplete } from './FeishuLoginSetupGuide';
 import { ThemePicker } from './ThemePicker';
@@ -64,9 +66,9 @@ import type {
   RenameHistory
 } from './types';
 
-type Tab = 'subscriptions' | 'prowlarr' | 'active' | 'completed' | 'notify-history' | 'rename-history' | 'ai-config' | 'settings';
+type Tab = 'subscriptions' | 'prowlarr' | 'subtitles' | 'active' | 'completed' | 'notify-history' | 'rename-history' | 'ai-config' | 'settings';
 
-const APP_TABS: Tab[] = ['subscriptions', 'prowlarr', 'active', 'completed', 'notify-history', 'rename-history', 'ai-config', 'settings'];
+const APP_TABS: Tab[] = ['subscriptions', 'prowlarr', 'subtitles', 'active', 'completed', 'notify-history', 'rename-history', 'ai-config', 'settings'];
 
 function tabFromHash(hash: string): Tab {
   const id = hash.replace(/^#/, '').trim();
@@ -352,6 +354,7 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
         <nav id="app-sidebar-nav" className="nav" aria-label="主导航">
           <NavButton tab="subscriptions" active={tab} setTab={selectTab} icon={<Rss size={18} />} label="订阅" />
           <NavButton tab="prowlarr" active={tab} setTab={selectTab} icon={<Search size={18} />} label="Prowlarr 搜索" />
+          <NavButton tab="subtitles" active={tab} setTab={selectTab} icon={<Subtitles size={18} />} label="字幕" />
           <NavButton tab="active" active={tab} setTab={selectTab} icon={<Loader2 size={18} />} label="下载中" />
           <NavButton tab="completed" active={tab} setTab={selectTab} icon={<CheckCircle2 size={18} />} label="下载完成" />
           <NavButton tab="notify-history" active={tab} setTab={selectTab} icon={<Bell size={18} />} label="通知历史" />
@@ -374,6 +377,7 @@ function Shell({ user, setUser }: { user: User; setUser: (user: User | null) => 
           {tab === 'prowlarr' && (
             <ProwlarrSearchView onGoSettings={() => selectTab('settings')} onGoActive={() => selectTab('active')} />
           )}
+          {tab === 'subtitles' && <SubtitlesView onGoSettings={() => selectTab('settings')} />}
           {tab === 'active' && <ActiveDownloadsView />}
           {tab === 'completed' && <CompletedDownloadsView />}
           {tab === 'notify-history' && <NotifyHistoryView />}

@@ -2753,6 +2753,43 @@ describe('App', () => {
     await waitFor(() => expect(window.location.hash).toBe('#completed'));
   });
 
+  it('登录后点击字幕侧栏同步 URL hash', async () => {
+    window.location.hash = '';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === '/api/auth/me') {
+          return new Response(JSON.stringify({ id: 1, email: 'u@test.dev', feishu_bound: false }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/auth/options') {
+          return new Response(JSON.stringify({ password_login_enabled: true, feishu_login_enabled: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        if (path === '/api/settings/opensubtitles') {
+          return new Response(
+            JSON.stringify({ username: '', password: '', api_key: '', download_dir: '', configured: false }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        if (isSubscriptionsListPath(path)) {
+          return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      })
+    );
+
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('heading', { name: '订阅' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '字幕' }));
+    await waitFor(() => expect(window.location.hash).toBe('#subtitles'));
+  });
+
   it('设置页加载并保存运行时服务配置', async () => {
     window.location.hash = '#settings';
     const runtimeConfig = {

@@ -43,3 +43,35 @@ func TestFlattenSearchData_SortsByDownloadCountDesc(t *testing.T) {
 		t.Fatalf("equal download_count should keep flatten order, items=%+v", items)
 	}
 }
+
+func TestParseSearchResponse_ReadsPaginationAndFlattens(t *testing.T) {
+	t.Parallel()
+	raw := []byte(`{"page":2,"total_pages":5,"total_count":234,"data":[{"attributes":{"release":"Show","language":"zh-CN","download_count":1,"files":[{"file_id":101,"file_name":"a.srt"}]}}]}`)
+	got := ParseSearchResponse(raw, 1)
+	if got.Page != 2 || got.TotalPages != 5 || got.TotalCount != 234 {
+		t.Fatalf("meta=%+v", got)
+	}
+	if len(got.Items) != 1 || got.Items[0].FileID != 101 || got.Items[0].FileName != "a.srt" {
+		t.Fatalf("items=%+v", got.Items)
+	}
+}
+
+func TestParseSearchResponse_MissingMetaUsesRequestPageAndZeroTotals(t *testing.T) {
+	t.Parallel()
+	raw := []byte(`{"data":[{"attributes":{"files":[{"file_id":1,"file_name":"a.srt"}]}}]}`)
+	got := ParseSearchResponse(raw, 3)
+	if got.Page != 3 || got.TotalPages != 0 || got.TotalCount != 0 {
+		t.Fatalf("meta=%+v", got)
+	}
+	if len(got.Items) != 1 || got.Items[0].FileID != 1 {
+		t.Fatalf("items=%+v", got.Items)
+	}
+}
+
+func TestParseSearchResponse_InvalidJSON(t *testing.T) {
+	t.Parallel()
+	got := ParseSearchResponse([]byte(`not json`), 2)
+	if got.Page != 2 || got.TotalPages != 0 || got.TotalCount != 0 || len(got.Items) != 0 {
+		t.Fatalf("got=%+v", got)
+	}
+}

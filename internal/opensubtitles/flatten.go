@@ -56,3 +56,30 @@ func FlattenSearchData(raw []byte) []SubtitleFile {
 	})
 	return items
 }
+
+type SearchPage struct {
+	Items      []SubtitleFile `json:"items"`
+	Page       int            `json:"page"`
+	TotalPages int            `json:"total_pages"`
+	TotalCount int            `json:"total_count"`
+}
+
+func ParseSearchResponse(raw []byte, requestPage int) SearchPage {
+	page := SearchPage{Page: requestPage, Items: []SubtitleFile{}}
+	var meta struct {
+		Page       int `json:"page"`
+		TotalPages int `json:"total_pages"`
+		TotalCount int `json:"total_count"`
+	}
+	if json.Unmarshal(raw, &meta) == nil {
+		if meta.Page > 0 {
+			page.Page = meta.Page
+		}
+		page.TotalPages = meta.TotalPages
+		page.TotalCount = meta.TotalCount
+	}
+	if items := FlattenSearchData(raw); len(items) > 0 {
+		page.Items = items
+	}
+	return page
+}

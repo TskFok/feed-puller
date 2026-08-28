@@ -82,4 +82,36 @@ describe('SubtitlesView', () => {
     fireEvent.click(screen.getByRole('button', { name: '下载' }));
     expect(await screen.findByText('已保存到 /data/subtitles/a.srt')).toBeInTheDocument();
   });
+
+  it('搜索失败时清空上次结果', async () => {
+    let searchCount = 0;
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === '/api/settings/opensubtitles') {
+        return new Response(JSON.stringify({ username: 'u', password: 'p', api_key: 'k', download_dir: '/data/subtitles', configured: true }), {
+          status: 200, headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      if (path.startsWith('/api/subtitles/search?')) {
+        searchCount += 1;
+        if (searchCount === 1) {
+          return new Response(JSON.stringify({
+            items: [{ file_id: 7, file_name: 'a.srt', release: 'Inception.2024', language: 'zh-CN', download_count: 12, ratings: 8.5 }]
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({ error: '搜索字幕失败' }), {
+          status: 502, headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      return new Response('{}', { status: 200 });
+    }));
+    render(<ToastProvider><SubtitlesView /></ToastProvider>);
+    await screen.findByRole('button', { name: '搜索' });
+    fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'Inception' } });
+    fireEvent.click(screen.getByRole('button', { name: '搜索' }));
+    expect(await screen.findByText('Inception.2024')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '搜索' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('搜索字幕失败');
+    expect(screen.queryByText('Inception.2024')).not.toBeInTheDocument();
+  });
 });

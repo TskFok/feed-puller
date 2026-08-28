@@ -51,6 +51,7 @@ export function SubtitlesView({ onGoSettings }: SubtitlesViewProps) {
       setItems(data.items ?? []);
       setSearched(true);
     } catch (err) {
+      setItems([]);
       setError(messageOf(err));
     } finally {
       setSearching(false);

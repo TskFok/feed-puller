@@ -26,6 +26,8 @@ import type {
   ProwlarrSortBy,
   ProwlarrSubmittedGuidsResult,
   ProwlarrTestResult,
+  OpenSubtitlesConfig,
+  SubtitleSearchItem,
   FeishuNotifyConfig,
   FeishuNotifyHistory,
   RenameHistory,
@@ -223,5 +225,14 @@ export const api = {
   deleteProwlarrSearchHistory: (id: number) =>
     request<{ ok: boolean }>(`/api/prowlarr/search-history/${id}`, { method: 'DELETE' }),
   clearProwlarrSearchHistory: () =>
-    request<{ ok: boolean }>('/api/prowlarr/search-history', { method: 'DELETE' })
+    request<{ ok: boolean }>('/api/prowlarr/search-history', { method: 'DELETE' }),
+  openSubtitlesConfig: () => request<OpenSubtitlesConfig>('/api/settings/opensubtitles'),
+  saveOpenSubtitlesConfig: (payload: Pick<OpenSubtitlesConfig, 'username' | 'password' | 'api_key' | 'download_dir'>) =>
+    request<OpenSubtitlesConfig>('/api/settings/opensubtitles', { method: 'PUT', json: payload }),
+  searchSubtitles: (query: string, languages: string) => {
+    const params = new URLSearchParams({ query, languages });
+    return request<{ items: SubtitleSearchItem[] }>(`/api/subtitles/search?${params.toString()}`);
+  },
+  downloadSubtitle: (payload: { file_id: number; file_name: string }) =>
+    request<{ path: string; file_name: string }>('/api/subtitles/download', { method: 'POST', json: payload })
 };

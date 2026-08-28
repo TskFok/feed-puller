@@ -322,3 +322,29 @@ export type ProwlarrBatchDownloadResult = {
 export type ProwlarrSubmittedGuidsResult = {
   guids: string[];
 };
+
+export type OpenSubtitlesConfig = {
+  username: string;
+  password: string;
+  api_key: string;
+  download_dir: string;
+  configured: boolean;
+};
+
+export type SubtitleSearchItem = {
+  file_id: number;
+  file_name: string;
+  release: string;
+  language: string;
+  download_count: number;
+  ratings: number;
+};
+
+export type SubtitleSearchResult = {
+  items: SubtitleSearchItem[];
+};
+
+export type SubtitleDownloadResult = {
+  path: string;
+  file_name: string;
+};

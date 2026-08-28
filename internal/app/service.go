@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"feed-puller/internal/downloader"
+	"feed-puller/internal/opensubtitles"
 	"feed-puller/internal/paths"
 	"feed-puller/internal/rss"
 	"feed-puller/internal/store"
@@ -28,6 +29,11 @@ type Service struct {
 	feishuBatchComplete    []feishuNotifyPayload
 	feishuBatchFail        []feishuNotifyPayload
 	feishuBatchTimer       *time.Timer
+	opensubtitlesMu        sync.Mutex
+	opensubtitlesClient    *opensubtitles.Client
+	opensubtitlesUser      string
+	opensubtitlesPass      string
+	opensubtitlesKey       string
 }
 
 // SetAria2Client 替换后续操作使用的 Aria2 客户端。

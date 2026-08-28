@@ -150,6 +150,10 @@ docker build -t feed-puller:local .
 - `GET /api/downloads`
 - `POST /api/downloads/aria2-hook` — aria2 钩子上报回调，**无 session**，鉴权使用 `Authorization: Bearer ${ARIA2_HOOK_SECRET}`。
 - `GET/PUT /api/settings/proxy`
+- `GET /api/settings/opensubtitles` — OpenSubtitles 用户名、密码、API Key、下载目录
+- `PUT /api/settings/opensubtitles` — 保存上述四项，缺项返回 400
+- `GET /api/subtitles/search?query=&languages=` — 搜索字幕，响应 `{ "items": [...] }`
+- `POST /api/subtitles/download` — 下载字幕，请求 `{ "file_id": number, "file_name": string }`，成功返回 `{ "path", "file_name" }`
 - `GET/DELETE /api/settings/feishu-binding`
 - `GET /api/settings/feishu-bind-url` — 获取当前用户飞书绑定扫码地址
 

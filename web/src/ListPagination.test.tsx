@@ -68,4 +68,45 @@ describe('PaginationBar', () => {
     );
     expect(container).toBeEmptyDOMElement();
   });
+
+  it('hasMore 时末页仍可点下一页', () => {
+    const onPageChange = vi.fn();
+    render(
+      <PaginationBar
+        page={2}
+        pageSize={30}
+        totalPages={2}
+        totalItems={35}
+        rangeStart={31}
+        rangeEnd={35}
+        hasMore
+        onPageChange={onPageChange}
+        onPageSizeChange={vi.fn()}
+      />
+    );
+    const next = screen.getByRole('button', { name: '下一页' });
+    expect(next).toBeEnabled();
+    fireEvent.click(next);
+    expect(onPageChange).toHaveBeenCalledWith(3);
+  });
+
+  it('busy 时禁用翻页和每页条数', () => {
+    render(
+      <PaginationBar
+        page={1}
+        pageSize={30}
+        totalPages={2}
+        totalItems={35}
+        rangeStart={1}
+        rangeEnd={30}
+        hasMore
+        busy
+        onPageChange={vi.fn()}
+        onPageSizeChange={vi.fn()}
+      />
+    );
+    expect(screen.getByRole('button', { name: '上一页' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '下一页' })).toBeDisabled();
+    expect(screen.getByRole('combobox')).toBeDisabled();
+  });
 });

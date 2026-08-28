@@ -11,6 +11,8 @@ export type PaginationBarProps = {
   rangeEnd: number;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
+  hasMore?: boolean;
+  busy?: boolean;
 };
 
 export function PaginationBar({
@@ -21,7 +23,9 @@ export function PaginationBar({
   rangeStart,
   rangeEnd,
   onPageChange,
-  onPageSizeChange
+  onPageSizeChange,
+  hasMore = false,
+  busy = false
 }: PaginationBarProps) {
   if (totalItems <= 0) {
     return null;
@@ -50,6 +54,7 @@ export function PaginationBar({
             id={pageSizeId}
             className="form-select"
             value={pageSize}
+            disabled={busy}
             onChange={(event) => onPageSizeChange(Number(event.target.value))}
           >
             {PAGE_SIZE_OPTIONS.map((size) => (
@@ -64,7 +69,7 @@ export function PaginationBar({
           <button
             type="button"
             className="ghost"
-            disabled={page <= 1}
+            disabled={page <= 1 || busy}
             aria-label="上一页"
             onClick={() => handlePageChange(page - 1)}
           >
@@ -76,7 +81,7 @@ export function PaginationBar({
           <button
             type="button"
             className="ghost"
-            disabled={page >= totalPages}
+            disabled={(page >= totalPages && !hasMore) || busy}
             aria-label="下一页"
             onClick={() => handlePageChange(page + 1)}
           >

@@ -237,7 +237,7 @@ func (s *Service) SubmitProwlarrRelease(ctx context.Context, input ProwlarrRelea
 		Season:    input.Season,
 		Episode:   input.Episode,
 	}
-	dedupeKey := "prowlarr:" + guid
+	dedupeKey := store.ProwlarrDedupeKey(guid)
 	item, err := s.store.UpsertProwlarrItem(ctx, subID, release.Title, downloadURL, dedupeKey, guid, store.EncodeProwlarrItemMeta(meta))
 	if err != nil {
 		return store.Item{}, err

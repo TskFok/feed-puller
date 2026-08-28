@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -31,6 +32,41 @@ func TestListProwlarrSubmittedGuids_ReturnsInProgressAndCompleted(t *testing.T) 
 	}
 	if len(got) != 1 || got[0] != "g1" {
 		t.Fatalf("got = %#v, want [g1]", got)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestListProwlarrSubmittedGuids_HashesLongGUID(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	s := New(db)
+	guid := strings.Repeat("a", MaxDedupeKeyLength)
+	key := ProwlarrDedupeKey(guid)
+	if key == "prowlarr:"+guid {
+		t.Fatal("precondition failed: guid should produce hashed key")
+	}
+
+	mock.ExpectQuery(regexp.QuoteMeta(`
+		SELECT COALESCE(guid, ''), dedupe_key
+		FROM feed_items
+		WHERE dedupe_key IN (?)
+		  AND download_status IN (?, ?, ?)
+	`)).WithArgs(key, "submitting", "submitted", "completed").
+		WillReturnRows(sqlmock.NewRows([]string{"guid", "dedupe_key"}).
+			AddRow(guid, key))
+
+	got, err := s.ListProwlarrSubmittedGuids(context.Background(), []string{guid})
+	if err != nil {
+		t.Fatalf("ListProwlarrSubmittedGuids() error = %v", err)
+	}
+	if len(got) != 1 || got[0] != guid {
+		t.Fatalf("got = %#v, want [%q]", got, guid)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

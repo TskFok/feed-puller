@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -53,6 +54,54 @@ func TestSaveFeedItems_InsertReturnsStoredRow(t *testing.T) {
 	}
 	if got[0].ID != 88 || got[0].Title != "Hello" || got[0].DownloadStatus != "pending" {
 		t.Fatalf("unexpected row: %+v", got[0])
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSaveFeedItems_NormalizesOversizedDedupeKey(t *testing.T) {
+	t.Parallel()
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	const subID int64 = 5
+	rssItems := []rss.FeedItem{
+		{GUID: strings.Repeat("g", MaxDedupeKeyLength), Title: "Hello", DownloadURL: "http://d/file.mp4"},
+	}
+	rawKey := rss.DedupeKey(rssItems[0])
+	key := NormalizeDedupeKey(rawKey)
+	if key == rawKey {
+		t.Fatal("precondition failed: rss key should be oversized")
+	}
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id FROM feed_items WHERE subscription_id = ? AND dedupe_key = ?`)).
+		WithArgs(subID, key).
+		WillReturnError(sql.ErrNoRows)
+
+	mock.ExpectExec("INSERT INTO feed_items").
+		WithArgs(subID, rssItems[0].GUID, "Hello", "", "http://d/file.mp4", key, nil, "pending").
+		WillReturnResult(sqlmock.NewResult(88, 1))
+
+	now := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
+	sqlRows := sqlmock.NewRows([]string{
+		"id", "subscription_id", "guid", "title", "link", "download_url", "dedupe_key", "published_at", "download_status", "created_at", "updated_at",
+	}).AddRow(int64(88), subID, rssItems[0].GUID, "Hello", "", "http://d/file.mp4", key, nil, "pending", now, now)
+
+	mock.ExpectQuery("SELECT id, subscription_id, COALESCE\\(guid, ''\\), title, COALESCE\\(link, ''\\), COALESCE\\(download_url, ''\\), dedupe_key, published_at, download_status, created_at, updated_at").
+		WithArgs(int64(88)).
+		WillReturnRows(sqlRows)
+
+	s := New(db)
+	got, err := s.SaveFeedItems(context.Background(), subID, rssItems, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].DedupeKey != key {
+		t.Fatalf("unexpected row: %+v", got)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

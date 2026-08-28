@@ -12,7 +12,7 @@ import (
 func (s *Store) UpsertProwlarrItem(ctx context.Context, subscriptionID int64, title, downloadURL, dedupeKey, guid, link string) (Item, error) {
 	title = strings.TrimSpace(title)
 	downloadURL = strings.TrimSpace(downloadURL)
-	dedupeKey = strings.TrimSpace(dedupeKey)
+	dedupeKey = NormalizeDedupeKey(dedupeKey)
 	guid = strings.TrimSpace(guid)
 	link = strings.TrimSpace(link)
 	if subscriptionID <= 0 {
@@ -92,7 +92,7 @@ func (s *Store) ListProwlarrSubmittedGuids(ctx context.Context, guids []string) 
 			continue
 		}
 		seen[guid] = struct{}{}
-		dedupeKeys = append(dedupeKeys, "prowlarr:"+guid)
+		dedupeKeys = append(dedupeKeys, ProwlarrDedupeKey(guid))
 	}
 	if len(dedupeKeys) == 0 {
 		return nil, nil

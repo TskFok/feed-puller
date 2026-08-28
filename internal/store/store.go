@@ -377,7 +377,7 @@ func NewFeedItemDownloadStatus(downloadURL string, previewOnly bool) string {
 func (s *Store) SaveFeedItems(ctx context.Context, subscriptionID int64, items []rss.FeedItem, previewOnly bool) ([]Item, error) {
 	var out []Item
 	for _, item := range items {
-		key := rss.DedupeKey(item)
+		key := NormalizeDedupeKey(rss.DedupeKey(item))
 		if key == "" {
 			continue
 		}

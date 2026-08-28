@@ -1,11 +1,48 @@
-import { render, screen, fireEvent } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SubtitlesView } from './SubtitlesView';
 import { ToastProvider } from './Toast';
+import { PAGE_SIZE_STORAGE_KEY } from './listPaging';
+import type { SubtitleSearchItem } from './types';
+
+function subtitleItem(id: number, language = 'zh-CN', downloadCount = id): SubtitleSearchItem {
+  return {
+    file_id: id,
+    file_name: `f${id}.srt`,
+    release: `rel-${id}`,
+    language,
+    download_count: downloadCount,
+    ratings: 1
+  };
+}
+
+function configuredFetch(handler: (path: string, init?: RequestInit) => Response | Promise<Response>) {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const path = String(input);
+    if (path === '/api/settings/opensubtitles') {
+      return new Response(JSON.stringify({
+        username: 'u', password: 'p', api_key: 'k', download_dir: '/data/subtitles', configured: true
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    return handler(path, init);
+  });
+}
+
+async function searchInception() {
+  await screen.findByRole('button', { name: '搜索' });
+  fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'Inception' } });
+  fireEvent.click(screen.getByRole('button', { name: '搜索' }));
+}
 
 describe('SubtitlesView', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem(PAGE_SIZE_STORAGE_KEY, '10');
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
+    localStorage.clear();
   });
 
   it('配置未加载完时不展示搜索表单', () => {
@@ -292,5 +329,183 @@ describe('SubtitlesView', () => {
     fireEvent.click(screen.getByRole('button', { name: '搜索' }));
     expect(await screen.findByText('Inception.2024')).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: '按语言筛选' })).not.toBeInTheDocument();
+  });
+
+  it('结果超过每页条数时只渲染当前页', async () => {
+    vi.stubGlobal('fetch', configuredFetch((path) => {
+      if (path.startsWith('/api/subtitles/search?')) {
+        return new Response(JSON.stringify({
+          items: Array.from({ length: 12 }, (_, i) => subtitleItem(i + 1)),
+          page: 1,
+          total_pages: 1,
+          total_count: 12
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('{}', { status: 200 });
+    }));
+    render(<ToastProvider><SubtitlesView /></ToastProvider>);
+    await searchInception();
+    expect(await screen.findByText('rel-12')).toBeInTheDocument();
+    expect(screen.queryByText('rel-1')).not.toBeInTheDocument();
+    expect(screen.getByText('显示 1–10，共 12 条')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+    expect(screen.getByText('rel-1')).toBeInTheDocument();
+    expect(screen.queryByText('rel-12')).not.toBeInTheDocument();
+  });
+
+  it('改每页条数和语言筛选不发新搜索', async () => {
+    const fetchMock = configuredFetch((path) => {
+      if (path.startsWith('/api/subtitles/search?')) {
+        return new Response(JSON.stringify({
+          items: [subtitleItem(1, 'zh-CN'), subtitleItem(2, 'zh-CN'), subtitleItem(3, 'en')],
+          page: 1,
+          total_pages: 1,
+          total_count: 3
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('{}', { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ToastProvider><SubtitlesView /></ToastProvider>);
+    await searchInception();
+    expect(await screen.findByText('rel-1')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '英语（1）' }));
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: '30' } });
+    const searchCalls = fetchMock.mock.calls.filter(([input]) => String(input).includes('/api/subtitles/search'));
+    expect(searchCalls).toHaveLength(1);
+  });
+
+  it('末页下一页请求 page=2 并追加', async () => {
+    const fetchMock = configuredFetch((path) => {
+      if (path.startsWith('/api/subtitles/search?')) {
+        const page = new URL(path, 'http://local.test').searchParams.get('page');
+        if (page === '2') {
+          return new Response(JSON.stringify({
+            items: [subtitleItem(100, 'zh-CN', 1)],
+            page: 2,
+            total_pages: 2,
+            total_count: 11
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({
+          items: Array.from({ length: 10 }, (_, i) => subtitleItem(i + 1, 'zh-CN', i + 11)),
+          page: 1,
+          total_pages: 2,
+          total_count: 11
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('{}', { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ToastProvider><SubtitlesView /></ToastProvider>);
+    await searchInception();
+    expect(await screen.findByText('rel-10')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+    expect(await screen.findByText('rel-100')).toBeInTheDocument();
+    const pages = fetchMock.mock.calls
+      .map(([input]) => String(input))
+      .filter((path) => path.includes('/api/subtitles/search'))
+      .map((path) => new URL(path, 'http://local.test').searchParams.get('page'));
+    expect(pages).toEqual(['1', '2']);
+  });
+
+  it('追加时跳过重复 file_id', async () => {
+    vi.stubGlobal('fetch', configuredFetch((path) => {
+      if (path.startsWith('/api/subtitles/search?')) {
+        const page = new URL(path, 'http://local.test').searchParams.get('page');
+        const items = Array.from({ length: 10 }, (_, i) => subtitleItem(i + 1));
+        return new Response(JSON.stringify({
+          items,
+          page: Number(page ?? 1),
+          total_pages: 2,
+          total_count: 10
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('{}', { status: 200 });
+    }));
+    render(<ToastProvider><SubtitlesView /></ToastProvider>);
+    await searchInception();
+    expect(await screen.findByText('显示 1–10，共 10 条')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '下一页' })).toBeDisabled();
+    });
+    expect(screen.getByText('显示 1–10，共 10 条')).toBeInTheDocument();
+    expect(screen.getAllByText(/^rel-/)).toHaveLength(10);
+  });
+
+  it('加载更多没有该语言结果时提示', async () => {
+    vi.stubGlobal('fetch', configuredFetch((path) => {
+      if (path.startsWith('/api/subtitles/search?')) {
+        const page = new URL(path, 'http://local.test').searchParams.get('page');
+        if (page === '2') {
+          return new Response(JSON.stringify({
+            items: [subtitleItem(20, 'zh-CN')],
+            page: 2,
+            total_pages: 2,
+            total_count: 4
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({
+          items: [subtitleItem(1, 'zh-CN'), subtitleItem(2, 'zh-CN'), subtitleItem(3, 'en')],
+          page: 1,
+          total_pages: 2,
+          total_count: 4
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('{}', { status: 200 });
+    }));
+    render(<ToastProvider><SubtitlesView /></ToastProvider>);
+    await searchInception();
+    expect(await screen.findByText('rel-3')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '英语（1）' }));
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('没有更多该语言结果');
+    expect(screen.getByText('rel-3')).toBeInTheDocument();
+  });
+
+  it('新搜索重置为对方第 1 页', async () => {
+    const fetchMock = configuredFetch((path) => {
+      if (path.startsWith('/api/subtitles/search?')) {
+        const params = new URL(path, 'http://local.test').searchParams;
+        if (params.get('query') === 'Matrix') {
+          return new Response(JSON.stringify({
+            items: [subtitleItem(9, 'zh-CN')],
+            page: 1,
+            total_pages: 1,
+            total_count: 1
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (params.get('page') === '2') {
+          return new Response(JSON.stringify({
+            items: [subtitleItem(100, 'zh-CN', 1)],
+            page: 2,
+            total_pages: 2,
+            total_count: 11
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({
+          items: Array.from({ length: 10 }, (_, i) => subtitleItem(i + 1, 'zh-CN', i + 11)),
+          page: 1,
+          total_pages: 2,
+          total_count: 11
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('{}', { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ToastProvider><SubtitlesView /></ToastProvider>);
+    await searchInception();
+    expect(await screen.findByText('rel-10')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+    expect(await screen.findByText('rel-100')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'Matrix' } });
+    fireEvent.click(screen.getByRole('button', { name: '搜索' }));
+    expect(await screen.findByText('rel-9')).toBeInTheDocument();
+    expect(screen.queryByText('rel-100')).not.toBeInTheDocument();
+    const matrixCall = fetchMock.mock.calls
+      .map(([input]) => String(input))
+      .find((path) => path.includes('query=Matrix'));
+    expect(new URL(matrixCall ?? '', 'http://local.test').searchParams.get('page')).toBe('1');
   });
 });

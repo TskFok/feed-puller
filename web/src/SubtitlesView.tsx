@@ -1,9 +1,18 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Download, Loader2, Search } from 'lucide-react';
 import { api } from './api';
 import { TruncatedText } from './TruncatedText';
 import { useToast } from './Toast';
-import { joinSubtitleLanguages, LANGUAGE_OPTIONS, groupSubtitleItems, languageLabel, toggleSubtitleLanguage } from './subtitleLanguages';
+import { PaginationBar } from './ListPagination';
+import { usePagination } from './usePagination';
+import {
+  filterSubtitleItems,
+  joinSubtitleLanguages,
+  LANGUAGE_OPTIONS,
+  groupSubtitleItems,
+  languageLabel,
+  toggleSubtitleLanguage
+} from './subtitleLanguages';
 import type { OpenSubtitlesConfig, SubtitleSearchItem } from './types';
 
 function messageOf(err: unknown) {
@@ -20,11 +29,26 @@ export function SubtitlesView({ onGoSettings }: SubtitlesViewProps) {
   const [query, setQuery] = useState('');
   const [languages, setLanguages] = useState<string[]>(['zh-CN']);
   const [items, setItems] = useState<SubtitleSearchItem[]>([]);
+  const [osPage, setOsPage] = useState(0);
+  const [osTotalPages, setOsTotalPages] = useState(0);
   const [searching, setSearching] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState('');
   const [downloadingFileId, setDownloadingFileId] = useState<number | null>(null);
   const [resultLanguage, setResultLanguage] = useState('');
+
+  const allGroups = useMemo(() => groupSubtitleItems(items), [items]);
+  const visibleGroups = useMemo(
+    () => (resultLanguage === '' ? allGroups : allGroups.filter((group) => group.language === resultLanguage)),
+    [allGroups, resultLanguage]
+  );
+  const flatVisible = useMemo(() => visibleGroups.flatMap((group) => group.items), [visibleGroups]);
+  const pagination = usePagination(flatVisible.length, [resultLanguage]);
+  const pagedItems = pagination.slice(flatVisible);
+  const pagedGroups = groupSubtitleItems(pagedItems);
+  const hasMore = osPage >= 1 && osPage < osTotalPages;
+  const showLanguageFilter = allGroups.length > 1;
 
   useEffect(() => {
     api
@@ -43,16 +67,61 @@ export function SubtitlesView({ onGoSettings }: SubtitlesViewProps) {
     setSearching(true);
     setError('');
     setResultLanguage('');
+    setItems([]);
+    setOsPage(0);
+    setOsTotalPages(0);
+    pagination.setPage(1);
     try {
-      const data = await api.searchSubtitles(trimmed, languageParam);
+      const data = await api.searchSubtitles(trimmed, languageParam, 1);
       setItems(data.items ?? []);
+      setOsPage(data.page);
+      setOsTotalPages(data.total_pages);
       setSearched(true);
     } catch (err) {
       setItems([]);
+      setOsPage(0);
+      setOsTotalPages(0);
       setError(messageOf(err));
     } finally {
       setSearching(false);
     }
+  }
+
+  async function loadMore() {
+    const languageParam = joinSubtitleLanguages(languages);
+    const trimmed = query.trim();
+    if (loadingMore || !hasMore || !trimmed || !languageParam) {
+      return;
+    }
+    const visibleBefore = filterSubtitleItems(items, resultLanguage).length;
+    setLoadingMore(true);
+    try {
+      const data = await api.searchSubtitles(trimmed, languageParam, osPage + 1);
+      const seen = new Set(items.map((item) => item.file_id));
+      const appended = (data.items ?? []).filter((item) => !seen.has(item.file_id));
+      const nextItems = [...items, ...appended];
+      setItems(nextItems);
+      setOsPage(data.page);
+      setOsTotalPages(data.total_pages);
+      const nextVisible = filterSubtitleItems(nextItems, resultLanguage).length;
+      if (nextVisible > pagination.page * pagination.pageSize) {
+        pagination.setPage(pagination.page + 1);
+      } else if (resultLanguage !== '' && nextVisible === visibleBefore) {
+        showToast('没有更多该语言结果');
+      }
+    } catch (err) {
+      showToast(messageOf(err), 'error');
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  function handlePageChange(next: number) {
+    if (next <= pagination.totalPages) {
+      pagination.setPage(next);
+      return;
+    }
+    void loadMore();
   }
 
   async function handleDownload(item: SubtitleSearchItem) {
@@ -104,12 +173,6 @@ export function SubtitlesView({ onGoSettings }: SubtitlesViewProps) {
       </section>
     );
   }
-
-  const allGroups = groupSubtitleItems(items);
-  const showLanguageFilter = allGroups.length > 1;
-  const visibleGroups = resultLanguage === ''
-    ? allGroups
-    : allGroups.filter((group) => group.language === resultLanguage);
 
   return (
     <section className="view">
@@ -193,7 +256,7 @@ export function SubtitlesView({ onGoSettings }: SubtitlesViewProps) {
                   <th>操作</th>
                 </tr>
               </thead>
-              {visibleGroups.map((group) => (
+              {pagedGroups.map((group) => (
                 <tbody key={group.language || 'unknown'}>
                   {showLanguageFilter && resultLanguage === '' ? (
                     <tr className="subtitles-language-group">
@@ -235,6 +298,18 @@ export function SubtitlesView({ onGoSettings }: SubtitlesViewProps) {
               ))}
             </table>
           </div>
+          <PaginationBar
+            page={pagination.page}
+            pageSize={pagination.pageSize}
+            totalPages={pagination.totalPages}
+            totalItems={pagination.totalItems}
+            rangeStart={pagination.rangeStart}
+            rangeEnd={pagination.rangeEnd}
+            hasMore={hasMore}
+            busy={loadingMore}
+            onPageChange={handlePageChange}
+            onPageSizeChange={pagination.setPageSize}
+          />
         </div>
       ) : (
         <p className="muted">{searched ? '没有找到字幕' : '输入名称后搜索'}</p>

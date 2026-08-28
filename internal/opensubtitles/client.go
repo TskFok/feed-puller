@@ -72,6 +72,8 @@ func (c *Client) Search(ctx context.Context, query, language string) ([]Subtitle
 	q := endpoint.Query()
 	q.Set("query", query)
 	q.Set("languages", language)
+	q.Set("order_by", "download_count")
+	q.Set("order_direction", "desc")
 	endpoint.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)

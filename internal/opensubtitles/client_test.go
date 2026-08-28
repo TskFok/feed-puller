@@ -19,6 +19,9 @@ func TestClientSearch_SendsQueryLanguageAndHeaders(t *testing.T) {
 		if r.URL.Query().Get("query") != "Inception" || r.URL.Query().Get("languages") != "zh-CN" {
 			t.Fatalf("query=%s", r.URL.RawQuery)
 		}
+		if r.URL.Query().Get("order_by") != "download_count" || r.URL.Query().Get("order_direction") != "desc" {
+			t.Fatalf("query=%s", r.URL.RawQuery)
+		}
 		if r.Header.Get("Api-Key") != "key-1" || r.Header.Get("User-Agent") != UserAgent {
 			t.Fatalf("headers %+v", r.Header)
 		}

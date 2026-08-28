@@ -61,4 +61,17 @@ describe('subtitleLanguages', () => {
       ['en', [1, 3]]
     ]);
   });
+
+  it('同一语言内按下载次数倒序', () => {
+    const groups = groupSubtitleItems([
+      { id: 1, language: 'en', download_count: 5 },
+      { id: 2, language: 'zh-CN', download_count: 3 },
+      { id: 3, language: 'en', download_count: 20 },
+      { id: 4, language: 'zh-CN', download_count: 9 }
+    ]);
+    expect(groups.map((group) => [group.language, group.items.map((item) => item.id)])).toEqual([
+      ['zh-CN', [4, 2]],
+      ['en', [3, 1]]
+    ]);
+  });
 });

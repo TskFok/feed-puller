@@ -52,7 +52,7 @@ export function filterSubtitleItems<T extends { language: string }>(items: reado
   return items.filter((item) => normalizeLanguageCode(item.language) === wanted);
 }
 
-export function groupSubtitleItems<T extends { language: string }>(items: readonly T[]): { language: string; items: T[] }[] {
+export function groupSubtitleItems<T extends { language: string; download_count?: number }>(items: readonly T[]): { language: string; items: T[] }[] {
   const buckets = new Map<string, T[]>();
   for (const item of items) {
     const key = normalizeLanguageCode(item.language);
@@ -64,6 +64,11 @@ export function groupSubtitleItems<T extends { language: string }>(items: readon
     }
   }
   return resultLanguageCodes(items)
-    .map((language) => ({ language, items: buckets.get(language) ?? [] }))
+    .map((language) => ({
+      language,
+      items: [...(buckets.get(language) ?? [])].sort(
+        (left, right) => (right.download_count ?? 0) - (left.download_count ?? 0)
+      )
+    }))
     .filter((group) => group.items.length > 0);
 }

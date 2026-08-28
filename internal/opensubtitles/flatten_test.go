@@ -26,3 +26,20 @@ func TestFlattenSearchData_InvalidJSON(t *testing.T) {
 		t.Fatalf("items=%+v", items)
 	}
 }
+
+func TestFlattenSearchData_SortsByDownloadCountDesc(t *testing.T) {
+	t.Parallel()
+	raw := []byte(`{"data":[{"attributes":{"download_count":3,"files":[{"file_id":1,"file_name":"low.srt"}]}},{"attributes":{"download_count":30,"files":[{"file_id":2,"file_name":"high.srt"},{"file_id":3,"file_name":"high-2.srt"}]}},{"attributes":{"download_count":10,"files":[{"file_id":4,"file_name":"mid.srt"}]}}]}`)
+	items := FlattenSearchData(raw)
+	if len(items) != 4 {
+		t.Fatalf("len=%d items=%+v", len(items), items)
+	}
+	got := []int{items[0].DownloadCount, items[1].DownloadCount, items[2].DownloadCount, items[3].DownloadCount}
+	want := []int{30, 30, 10, 3}
+	if got[0] != want[0] || got[1] != want[1] || got[2] != want[2] || got[3] != want[3] {
+		t.Fatalf("download_count=%v want %v items=%+v", got, want, items)
+	}
+	if items[0].FileID != 2 || items[1].FileID != 3 {
+		t.Fatalf("equal download_count should keep flatten order, items=%+v", items)
+	}
+}

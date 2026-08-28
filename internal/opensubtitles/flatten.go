@@ -2,6 +2,7 @@ package opensubtitles
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 )
 
@@ -50,5 +51,8 @@ func FlattenSearchData(raw []byte) []SubtitleFile {
 			})
 		}
 	}
+	slices.SortStableFunc(items, func(a, b SubtitleFile) int {
+		return b.DownloadCount - a.DownloadCount
+	})
 	return items
 }

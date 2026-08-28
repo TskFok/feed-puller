@@ -238,7 +238,7 @@ describe('SubtitlesView', () => {
           items: [
             { file_id: 1, file_name: 'cn.srt', release: 'cn-rel', language: 'zh-CN', download_count: 2, ratings: 8 },
             { file_id: 2, file_name: 'en.srt', release: 'en-rel', language: 'en', download_count: 5, ratings: 7 },
-            { file_id: 3, file_name: 'cn2.srt', release: 'cn-rel-2', language: 'zh-cn', download_count: 1, ratings: 6 }
+            { file_id: 3, file_name: 'cn2.srt', release: 'cn-rel-2', language: 'zh-cn', download_count: 9, ratings: 6 }
           ]
         }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
@@ -251,6 +251,8 @@ describe('SubtitlesView', () => {
 
     expect(await screen.findByText('cn-rel')).toBeInTheDocument();
     expect(screen.getByText('en-rel')).toBeInTheDocument();
+    const releaseCells = [...screen.getByRole('table').querySelectorAll('tbody td:first-child')].map((cell) => cell.textContent);
+    expect(releaseCells).toEqual(['cn-rel-2', 'cn-rel', 'en-rel']);
     expect(screen.getByRole('button', { name: '简体中文（2）' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '英语（1）' })).toBeInTheDocument();
     expect(screen.getByRole('table').querySelector('.subtitles-language-group')).toHaveTextContent('简体中文（2）');
